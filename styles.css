@@ -2,8 +2,8 @@
 
 /* ========== AI Sparkles 触发按钮 ========== */
 .canvas-ai-sparkles-container {
-    position: fixed;
-    z-index: 9999;
+    position: absolute;
+    z-index: 100;
     display: none;
 }
 
@@ -34,8 +34,8 @@
 
 /* ========== 悬浮面板容器 ========== */
 .canvas-ai-palette {
-    position: fixed;
-    z-index: 9998;
+    position: absolute;
+    z-index: 101;
     width: 320px;
     background: var(--background-primary);
     border: 1px solid var(--background-modifier-border);

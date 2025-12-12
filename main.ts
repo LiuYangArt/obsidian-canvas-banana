@@ -20,6 +20,7 @@ class AiSparklesButton {
     private containerEl: HTMLElement;
     private buttonEl: HTMLElement;
     private onClick: () => void;
+    private currentParent: HTMLElement | null = null;
 
     constructor(onClick: () => void) {
         this.onClick = onClick;
@@ -40,14 +41,25 @@ class AiSparklesButton {
 
     /**
      * 显示按钮并定位到指定坐标
+     * @param x 屏幕 X 坐标
+     * @param y 屏幕 Y 坐标
+     * @param canvasContainer Canvas 容器元素，用于挂载组件
      */
-    show(x: number, y: number): void {
-        this.containerEl.style.left = `${x}px`;
-        this.containerEl.style.top = `${y}px`;
+    show(x: number, y: number, canvasContainer: HTMLElement): void {
+        // 计算相对于 Canvas 容器的坐标
+        const containerRect = canvasContainer.getBoundingClientRect();
+        const relativeX = x - containerRect.left;
+        const relativeY = y - containerRect.top;
+
+        this.containerEl.style.left = `${relativeX}px`;
+        this.containerEl.style.top = `${relativeY}px`;
         this.containerEl.style.display = 'flex';
 
-        if (!document.body.contains(this.containerEl)) {
-            document.body.appendChild(this.containerEl);
+        // 挂载到 Canvas 容器内
+        if (this.currentParent !== canvasContainer) {
+            this.containerEl.remove();
+            canvasContainer.appendChild(this.containerEl);
+            this.currentParent = canvasContainer;
         }
     }
 
@@ -72,6 +84,8 @@ class FloatingPalette {
     private currentMode: PaletteMode = 'chat';
     private promptInput: HTMLTextAreaElement;
     private isVisible: boolean = false;
+    private currentParent: HTMLElement | null = null;
+    private onClose: (() => void) | null = null;
 
     constructor() {
         this.containerEl = this.createPaletteDOM();
@@ -124,7 +138,10 @@ class FloatingPalette {
 
         // 绑定关闭按钮
         const closeBtn = container.querySelector('.canvas-ai-close-btn');
-        closeBtn?.addEventListener('click', () => this.hide());
+        closeBtn?.addEventListener('click', () => {
+            this.hide();
+            this.onClose?.();
+        });
 
         // 绑定生成按钮
         const generateBtn = container.querySelector('.canvas-ai-generate-btn');
@@ -181,19 +198,46 @@ class FloatingPalette {
 
     /**
      * 显示面板并定位
+     * @param x 屏幕 X 坐标
+     * @param y 屏幕 Y 坐标
+     * @param canvasContainer Canvas 容器元素
+     * @param onCloseCallback 关闭时的回调
      */
-    show(x: number, y: number): void {
-        this.containerEl.style.left = `${x}px`;
-        this.containerEl.style.top = `${y}px`;
+    show(x: number, y: number, canvasContainer: HTMLElement, onCloseCallback?: () => void): void {
+        // 计算相对于 Canvas 容器的坐标
+        const containerRect = canvasContainer.getBoundingClientRect();
+        const relativeX = x - containerRect.left;
+        const relativeY = y - containerRect.top;
+
+        this.containerEl.style.left = `${relativeX}px`;
+        this.containerEl.style.top = `${relativeY}px`;
         this.containerEl.style.display = 'flex';
         this.isVisible = true;
+        this.onClose = onCloseCallback || null;
 
-        if (!document.body.contains(this.containerEl)) {
-            document.body.appendChild(this.containerEl);
+        // 挂载到 Canvas 容器内
+        if (this.currentParent !== canvasContainer) {
+            this.containerEl.remove();
+            canvasContainer.appendChild(this.containerEl);
+            this.currentParent = canvasContainer;
         }
 
         // 聚焦输入框
         setTimeout(() => this.promptInput.focus(), 50);
+    }
+
+    /**
+     * 更新面板位置（用于加选场景）
+     */
+    updatePosition(x: number, y: number, canvasContainer: HTMLElement): void {
+        if (!this.isVisible) return;
+
+        const containerRect = canvasContainer.getBoundingClientRect();
+        const relativeX = x - containerRect.left;
+        const relativeY = y - containerRect.top;
+
+        this.containerEl.style.left = `${relativeX}px`;
+        this.containerEl.style.top = `${relativeY}px`;
     }
 
     /**
@@ -326,16 +370,24 @@ export default class CanvasAIPlugin extends Plugin {
             return;
         }
 
-        // 有节点被选中，显示 Sparkles 按钮
+        // 有节点被选中
         if (selectionSize > 0) {
-            const bbox = this.getSelectionBBox(selection);
-            const canvasRect = canvas.wrapperEl.getBoundingClientRect();
+            // 使用节点 DOM 元素的屏幕坐标（而非 Canvas 虚拟坐标）
+            const screenBBox = this.getSelectionScreenBBox(selection);
 
-            // 计算按钮位置：选中框右上角
-            const buttonX = canvasRect.left + bbox.maxX + 10;
-            const buttonY = canvasRect.top + bbox.minY - 20;
-
-            this.sparklesButton?.show(buttonX, buttonY);
+            if (screenBBox) {
+                // 如果弹窗未显示，才显示按钮
+                if (!this.floatingPalette?.visible) {
+                    const buttonX = screenBBox.right + 10;
+                    const buttonY = screenBBox.top - 10;
+                    this.sparklesButton?.show(buttonX, buttonY, canvas.wrapperEl);
+                } else {
+                    // 弹窗已显示，更新弹窗位置（加选场景）
+                    const paletteX = screenBBox.right + 20;
+                    const paletteY = screenBBox.top;
+                    this.floatingPalette.updatePosition(paletteX, paletteY, canvas.wrapperEl);
+                }
+            }
 
             // 更新面板的上下文预览
             if (this.floatingPalette) {
@@ -348,20 +400,30 @@ export default class CanvasAIPlugin extends Plugin {
     }
 
     /**
-     * 计算选中节点的包围盒
+     * 获取选中节点的屏幕坐标包围盒
+     * 使用节点 DOM 元素的 getBoundingClientRect 获取真实屏幕位置
      */
-    private getSelectionBBox(selection: Set<CanvasNode>): CanvasCoords {
-        let minX = Infinity, minY = Infinity;
-        let maxX = -Infinity, maxY = -Infinity;
+    private getSelectionScreenBBox(selection: Set<CanvasNode>): DOMRect | null {
+        let left = Infinity, top = Infinity;
+        let right = -Infinity, bottom = -Infinity;
+        let hasValidNode = false;
 
         selection.forEach(node => {
-            minX = Math.min(minX, node.x);
-            minY = Math.min(minY, node.y);
-            maxX = Math.max(maxX, node.x + node.width);
-            maxY = Math.max(maxY, node.y + node.height);
+            // 获取节点 DOM 元素的屏幕坐标
+            const nodeEl = node.nodeEl;
+            if (nodeEl) {
+                const rect = nodeEl.getBoundingClientRect();
+                left = Math.min(left, rect.left);
+                top = Math.min(top, rect.top);
+                right = Math.max(right, rect.right);
+                bottom = Math.max(bottom, rect.bottom);
+                hasValidNode = true;
+            }
         });
 
-        return { minX, minY, maxX, maxY };
+        if (!hasValidNode) return null;
+
+        return new DOMRect(left, top, right - left, bottom - top);
     }
 
     /**
@@ -398,6 +460,8 @@ export default class CanvasAIPlugin extends Plugin {
 
         if (this.floatingPalette.visible) {
             this.floatingPalette.hide();
+            // 关闭弹窗后重新显示按钮
+            this.checkCanvasSelection();
         } else {
             // 获取按钮位置，将面板显示在按钮下方
             const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
@@ -406,14 +470,20 @@ export default class CanvasAIPlugin extends Plugin {
             const canvas = (canvasView as any).canvas as Canvas | undefined;
             if (!canvas || canvas.selection.size === 0) return;
 
-            const bbox = this.getSelectionBBox(canvas.selection);
-            const canvasRect = canvas.wrapperEl.getBoundingClientRect();
+            const screenBBox = this.getSelectionScreenBBox(canvas.selection);
+            if (!screenBBox) return;
+
+            // 隐藏按钮
+            this.sparklesButton?.hide();
 
             // 面板位置：选中框右侧
-            const paletteX = canvasRect.left + bbox.maxX + 20;
-            const paletteY = canvasRect.top + bbox.minY;
+            const paletteX = screenBBox.right + 20;
+            const paletteY = screenBBox.top;
 
-            this.floatingPalette.show(paletteX, paletteY);
+            // 显示弹窗，并传入关闭回调以重新显示按钮
+            this.floatingPalette.show(paletteX, paletteY, canvas.wrapperEl, () => {
+                this.checkCanvasSelection();
+            });
         }
     }
 
