@@ -1,16 +1,21 @@
 import { App, ItemView, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import type { Canvas, CanvasNode, CanvasCoords } from './types';
 import { CanvasConverter } from './CanvasConverter';
+import { ApiManager } from './ApiManager';
 
 // ========== 插件设置接口 ==========
-interface CanvasAISettings {
-    geminiApiKey: string;
+export interface CanvasAISettings {
     openRouterApiKey: string;
+    openRouterBaseUrl: string;
+    textModel: string;
+    imageModel: string;
 }
 
 const DEFAULT_SETTINGS: CanvasAISettings = {
-    geminiApiKey: '',
-    openRouterApiKey: ''
+    openRouterApiKey: '',
+    openRouterBaseUrl: 'https://openrouter.ai/api/v1/chat/completions',
+    textModel: 'google/gemini-2.5-flash-preview',
+    imageModel: 'google/gemini-2.5-flash-image-preview'
 };
 
 // ========== 悬浮面板模式 ==========
@@ -88,8 +93,11 @@ class FloatingPalette {
     private currentParent: HTMLElement | null = null;
     private onClose: (() => void) | null = null;
     private onDebug: (() => void) | null = null;
+    private apiManager: ApiManager;
+    private isGenerating: boolean = false;
 
-    constructor(onDebugCallback?: () => void) {
+    constructor(apiManager: ApiManager, onDebugCallback?: () => void) {
+        this.apiManager = apiManager;
         this.onDebug = onDebugCallback || null;
         this.containerEl = this.createPaletteDOM();
         this.promptInput = this.containerEl.querySelector('.canvas-ai-prompt-input') as HTMLTextAreaElement;
@@ -193,7 +201,7 @@ class FloatingPalette {
     /**
      * 处理生成按钮点击
      */
-    private handleGenerate(): void {
+    private async handleGenerate(): Promise<void> {
         const prompt = this.promptInput.value.trim();
         console.log('Canvas AI: Generate clicked');
         console.log('Mode:', this.currentMode);
@@ -204,8 +212,44 @@ class FloatingPalette {
             return;
         }
 
-        // TODO: 后续阶段实现 API 调用
-        console.log('Canvas AI: Ready to send to API (not implemented yet)');
+        if (this.isGenerating) {
+            console.log('Canvas AI: Already generating, please wait...');
+            return;
+        }
+
+        // Check if API is configured
+        if (!this.apiManager.isConfigured()) {
+            console.error('Canvas AI: API Key not configured. Please set it in plugin settings.');
+            return;
+        }
+
+        this.isGenerating = true;
+        const generateBtn = this.containerEl.querySelector('.canvas-ai-generate-btn') as HTMLButtonElement;
+        if (generateBtn) {
+            generateBtn.textContent = 'Generating...';
+            generateBtn.disabled = true;
+        }
+
+        try {
+            if (this.currentMode === 'chat') {
+                // Chat mode: text completion
+                const response = await this.apiManager.chatCompletion(prompt);
+                console.log('Canvas AI: LLM Response:', response);
+            } else {
+                // Image mode: generate image
+                const imageDataUrl = await this.apiManager.generateImage(prompt);
+                console.log('Canvas AI: Image generated, data URL length:', imageDataUrl.length);
+                console.log('Canvas AI: Image preview (first 100 chars):', imageDataUrl.substring(0, 100));
+            }
+        } catch (error: any) {
+            console.error('Canvas AI: API Error:', error.message || error);
+        } finally {
+            this.isGenerating = false;
+            if (generateBtn) {
+                generateBtn.textContent = 'Generate';
+                generateBtn.disabled = false;
+            }
+        }
     }
 
     /**
@@ -282,6 +326,7 @@ export default class CanvasAIPlugin extends Plugin {
     private sparklesButton: AiSparklesButton | null = null;
     private floatingPalette: FloatingPalette | null = null;
     private lastSelectionSize: number = 0;
+    private apiManager: ApiManager | null = null;
 
     async onload() {
         console.log('Canvas AI: 插件加载中...');
@@ -312,7 +357,10 @@ export default class CanvasAIPlugin extends Plugin {
      * 初始化悬浮组件
      */
     private initFloatingComponents(): void {
-        this.floatingPalette = new FloatingPalette(() => {
+        // Initialize API Manager
+        this.apiManager = new ApiManager(this.settings);
+
+        this.floatingPalette = new FloatingPalette(this.apiManager, () => {
             this.debugSelectedNodes();
         });
 
@@ -584,6 +632,8 @@ export default class CanvasAIPlugin extends Plugin {
 
     async saveSettings() {
         await this.saveData(this.settings);
+        // Update ApiManager settings reference
+        this.apiManager?.updateSettings(this.settings);
     }
 }
 
@@ -599,38 +649,118 @@ class CanvasAISettingTab extends PluginSettingTab {
     display(): void {
         const { containerEl } = this;
         containerEl.empty();
+        containerEl.addClass('canvas-ai-settings');
 
         containerEl.createEl('h2', { text: 'Canvas AI 设置' });
 
-        // API 配置区域
-        containerEl.createEl('h3', { text: 'API 配置' });
+        // OpenRouter 配置区域
+        containerEl.createEl('h3', { text: 'OpenRouter API 配置' });
 
-        new Setting(containerEl)
-            .setName('Gemini API Key')
-            .setDesc('输入你的 Google Gemini API 密钥')
+        // API Key with Test Button
+        const apiKeySetting = new Setting(containerEl)
+            .setName('API Key')
+            .setDesc('输入你的 OpenRouter API 密钥 (获取: openrouter.ai/keys)')
             .addText(text => text
-                .setPlaceholder('输入 API Key...')
-                .setValue(this.plugin.settings.geminiApiKey)
-                .onChange(async (value) => {
-                    this.plugin.settings.geminiApiKey = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
-            .setName('OpenRouter API Key')
-            .setDesc('输入你的 OpenRouter API 密钥（可选）')
-            .addText(text => text
-                .setPlaceholder('输入 API Key...')
+                .setPlaceholder('sk-or-v1-...')
                 .setValue(this.plugin.settings.openRouterApiKey)
                 .onChange(async (value) => {
                     this.plugin.settings.openRouterApiKey = value;
                     await this.plugin.saveSettings();
                 }));
 
+        // Add Test Connection button
+        const testBtn = apiKeySetting.controlEl.createEl('button', {
+            text: '测试连接',
+            cls: 'canvas-ai-test-btn'
+        });
+
+        const testResultEl = containerEl.createDiv({ cls: 'canvas-ai-test-result' });
+        testResultEl.style.display = 'none';
+
+        testBtn.addEventListener('click', async () => {
+            testBtn.textContent = '测试中...';
+            testBtn.disabled = true;
+            testResultEl.style.display = 'none';
+
+            try {
+                const apiManager = new ApiManager(this.plugin.settings);
+                if (!apiManager.isConfigured()) {
+                    throw new Error('请先填写 API Key');
+                }
+                const response = await apiManager.chatCompletion('Say "Connection successful!" in one line.');
+
+                testBtn.textContent = '✓ 成功';
+                testBtn.addClass('success');
+                testResultEl.textContent = `✓ 连接成功: ${response.substring(0, 50)}...`;
+                testResultEl.removeClass('error');
+                testResultEl.addClass('success');
+                testResultEl.style.display = 'block';
+
+                setTimeout(() => {
+                    testBtn.textContent = '测试连接';
+                    testBtn.removeClass('success');
+                }, 3000);
+            } catch (error: any) {
+                testBtn.textContent = '✗ 失败';
+                testBtn.addClass('error');
+                testResultEl.textContent = `✗ 连接失败: ${error.message}`;
+                testResultEl.removeClass('success');
+                testResultEl.addClass('error');
+                testResultEl.style.display = 'block';
+
+                setTimeout(() => {
+                    testBtn.textContent = '测试连接';
+                    testBtn.removeClass('error');
+                }, 3000);
+            } finally {
+                testBtn.disabled = false;
+            }
+        });
+
+        new Setting(containerEl)
+            .setName('API Base URL')
+            .setDesc('OpenRouter API 端点地址')
+            .addText(text => text
+                .setPlaceholder('https://openrouter.ai/api/v1/chat/completions')
+                .setValue(this.plugin.settings.openRouterBaseUrl)
+                .onChange(async (value) => {
+                    this.plugin.settings.openRouterBaseUrl = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // 模型配置区域
+        containerEl.createEl('h3', { text: '模型配置' });
+
+        new Setting(containerEl)
+            .setName('Text Generation Model')
+            .setDesc('用于 Chat 模式的文本生成模型')
+            .addText(text => text
+                .setPlaceholder('google/gemini-2.5-flash-preview')
+                .setValue(this.plugin.settings.textModel)
+                .onChange(async (value) => {
+                    this.plugin.settings.textModel = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Image Generation Model')
+            .setDesc('用于 Image 模式的图像生成模型')
+            .addText(text => text
+                .setPlaceholder('google/gemini-2.5-flash-image-preview')
+                .setValue(this.plugin.settings.imageModel)
+                .onChange(async (value) => {
+                    this.plugin.settings.imageModel = value;
+                    await this.plugin.saveSettings();
+                }));
+
         // 关于区域
         containerEl.createEl('h3', { text: '关于' });
         containerEl.createEl('p', {
-            text: 'Canvas AI 插件允许你在 Obsidian Canvas 中使用 Gemini AI 进行对话、文本生成和图像生成。'
+            text: 'Canvas AI 插件允许你在 Obsidian Canvas 中使用 AI 进行对话、文本生成和图像生成。'
+        });
+        containerEl.createEl('p', {
+            cls: 'setting-item-description',
+            text: '数据存储位置: .obsidian/plugins/obsidian-canvas-ai/data.json'
         });
     }
 }

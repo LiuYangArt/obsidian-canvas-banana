@@ -24,9 +24,9 @@ Plugin.loadData() 和 Plugin.saveData()。
 
 测试 (Checklist)：
 
-[ ] 启用插件不报错。
+[x] 启用插件不报错。
 
-[ ] 打开设置页，能看到 Provider 列表。
+[x] 打开设置页，能看到 Provider 列表。
 
 [ ] 点击“添加 Provider”，能输入 Name/Key 并保存到本地数据。
 
@@ -48,11 +48,11 @@ document.body.appendChild() 挂载 React Root。
 
 测试 (Checklist)：
 
-[ ] 在 Canvas 中选中一个节点。
+[x] 在 Canvas 中选中一个节点。
 
-[ ] "AI Sparkles ✨" 按钮出现在选中框旁边。
+[x] "AI Sparkles ✨" 按钮出现在选中框旁边。
 
-[ ] 点击按钮，弹出悬浮面板，可以输入文字，点击按钮有反应（console.log 即可）。
+[x] 点击按钮，弹出悬浮面板，可以输入文字，点击按钮有反应（console.log 即可）。
 
 阶段 2：Canvas 数据读取与转换 (Data Extraction)
 
@@ -68,9 +68,9 @@ document.body.appendChild() 挂载 React Root。
 
 测试 (Checklist)：
 
-[ ] 选中 1 个文本节点 + 1 个图片节点。
+[x] 选中 1 个文本节点 + 1 个图片节点。
 
-[ ] 控制台打印出这 2 个节点的 ID、Text 内容和 File 路径。
+[x] 控制台打印出这 2 个节点的 ID、Text 内容和 File 路径。
 
 步骤 2.2：实现 Converter 工具类 (核心)
 
@@ -86,11 +86,11 @@ document.body.appendChild() 挂载 React Root。
 
 测试 (Checklist)：
 
-[ ] 选中一组有连线的节点。
+[x] 选中一组有连线的节点。
 
-[ ] 在悬浮面板点击一个“Debug”按钮，控制台输出清晰的 Markdown/Mermaid 字符串。
+[x] 在悬浮面板点击一个“Debug”按钮，控制台输出清晰的 Markdown/Mermaid 字符串。
 
-[ ] 确认输出的结构符合逻辑（父子关系、连线关系正确）。
+[x] 确认输出的结构符合逻辑（父子关系、连线关系正确）。
 
 阶段 3：API 对接与异步任务管理 (Logic & API)
 

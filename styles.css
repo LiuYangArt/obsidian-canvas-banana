@@ -205,3 +205,74 @@
     color: var(--text-normal);
     border-color: var(--text-muted);
 }
+
+/* ========== Settings Page Styles ========== */
+
+/* Make setting items stack vertically with full-width inputs */
+.canvas-ai-settings .setting-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 8px;
+}
+
+.canvas-ai-settings .setting-item-info {
+    width: 100%;
+}
+
+.canvas-ai-settings .setting-item-control {
+    width: 100%;
+}
+
+.canvas-ai-settings .setting-item-control input[type="text"] {
+    width: 100%;
+}
+
+/* Test connection button */
+.canvas-ai-test-btn {
+    padding: 6px 16px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    background: var(--background-primary);
+    color: var(--text-normal);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-left: 8px;
+}
+
+.canvas-ai-test-btn:hover {
+    background: var(--interactive-accent);
+    color: white;
+    border-color: var(--interactive-accent);
+}
+
+.canvas-ai-test-btn.success {
+    background: var(--background-modifier-success);
+    border-color: var(--background-modifier-success);
+    color: white;
+}
+
+.canvas-ai-test-btn.error {
+    background: var(--background-modifier-error);
+    border-color: var(--background-modifier-error);
+    color: white;
+}
+
+.canvas-ai-test-result {
+    margin-top: 8px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    font-size: 13px;
+}
+
+.canvas-ai-test-result.success {
+    background: rgba(0, 200, 83, 0.1);
+    color: var(--text-success);
+    border: 1px solid rgba(0, 200, 83, 0.3);
+}
+
+.canvas-ai-test-result.error {
+    background: rgba(255, 82, 82, 0.1);
+    color: var(--text-error);
+    border: 1px solid rgba(255, 82, 82, 0.3);
+}
