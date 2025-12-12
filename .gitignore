@@ -1,0 +1,26 @@
+# Build artifacts
+main.js
+*.js.map
+
+# Dependencies
+node_modules/
+
+# IDE & Editor
+.vscode/
+*.code-workspace
+
+# Local development
+canvas_vault/
+.obsidian/
+*.bat
+
+# Agent/AI tools
+.agent/
+
+# User-specific / temporary
+todo.md
+data.json
+
+# OS files
+.DS_Store
+Thumbs.db
