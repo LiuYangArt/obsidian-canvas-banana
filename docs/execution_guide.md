@@ -146,11 +146,11 @@ document.body.appendChild() 挂载 React Root。
 
 测试 (Checklist)：
 
-[ ] 选中 Canvas 上的笔记。
+[x] 选中 Canvas 上的笔记。
 
-[ ] 输入 "总结这段内容"。
+[x] 输入 "总结这段内容"。
 
-[ ] Ghost Node 成功变为 AI 生成的总结文本。
+[x] Ghost Node 成功变为 AI 生成的总结文本。
 
 步骤 4.2：智能排版 (避让算法)
 
@@ -162,7 +162,7 @@ document.body.appendChild() 挂载 React Root。
 
 测试 (Checklist)：
 
-[ ] 无论选中哪里的节点，生成的回答都不会遮挡住原有的内容。
+[x] 无论选中哪里的节点，生成的回答都不会遮挡住原有的内容。
 
 阶段 5：图像处理与多模态 (Image Pipeline)
 

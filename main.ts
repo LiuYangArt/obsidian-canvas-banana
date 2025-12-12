@@ -1,4 +1,4 @@
-import { App, ItemView, Plugin, PluginSettingTab, Setting } from 'obsidian';
+import { App, ItemView, Plugin, PluginSettingTab, Setting, setIcon, setTooltip } from 'obsidian';
 import type { Canvas, CanvasNode, CanvasCoords } from './types';
 import { CanvasConverter } from './CanvasConverter';
 import { ApiManager } from './ApiManager';
@@ -21,68 +21,8 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
 // ========== 悬浮面板模式 ==========
 type PaletteMode = 'chat' | 'image';
 
-// ========== AI Sparkles 触发按钮 ==========
-class AiSparklesButton {
-    private containerEl: HTMLElement;
-    private buttonEl: HTMLElement;
-    private onClick: () => void;
-    private currentParent: HTMLElement | null = null;
-
-    constructor(onClick: () => void) {
-        this.onClick = onClick;
-        this.containerEl = document.createElement('div');
-        this.containerEl.addClass('canvas-ai-sparkles-container');
-
-        this.buttonEl = document.createElement('button');
-        this.buttonEl.addClass('canvas-ai-sparkles-btn');
-        this.buttonEl.innerHTML = '✨';
-        this.buttonEl.setAttribute('aria-label', 'AI Sparkles');
-        this.buttonEl.addEventListener('click', (e) => {
-            e.stopPropagation();
-            this.onClick();
-        });
-
-        this.containerEl.appendChild(this.buttonEl);
-    }
-
-    /**
-     * 显示按钮并定位到指定坐标
-     * @param x 屏幕 X 坐标
-     * @param y 屏幕 Y 坐标
-     * @param canvasContainer Canvas 容器元素，用于挂载组件
-     */
-    show(x: number, y: number, canvasContainer: HTMLElement): void {
-        // 计算相对于 Canvas 容器的坐标
-        const containerRect = canvasContainer.getBoundingClientRect();
-        const relativeX = x - containerRect.left;
-        const relativeY = y - containerRect.top;
-
-        this.containerEl.style.left = `${relativeX}px`;
-        this.containerEl.style.top = `${relativeY}px`;
-        this.containerEl.style.display = 'flex';
-
-        // 挂载到 Canvas 容器内
-        if (this.currentParent !== canvasContainer) {
-            this.containerEl.remove();
-            canvasContainer.appendChild(this.containerEl);
-            this.currentParent = canvasContainer;
-        }
-    }
-
-    /**
-     * 隐藏按钮
-     */
-    hide(): void {
-        this.containerEl.style.display = 'none';
-    }
-
-    /**
-     * 清理 DOM
-     */
-    destroy(): void {
-        this.containerEl.remove();
-    }
-}
+// AI Button ID constant for popup menu
+const AI_SPARKLES_BUTTON_ID = 'canvas-ai-sparkles';
 
 // ========== 悬浮面板组件 ==========
 class FloatingPalette {
@@ -339,7 +279,6 @@ class FloatingPalette {
 export default class CanvasAIPlugin extends Plugin {
     settings: CanvasAISettings;
 
-    private sparklesButton: AiSparklesButton | null = null;
     private floatingPalette: FloatingPalette | null = null;
     private lastSelectionSize: number = 0;
     private apiManager: ApiManager | null = null;
@@ -363,7 +302,6 @@ export default class CanvasAIPlugin extends Plugin {
         console.log('Canvas AI: 插件卸载中...');
 
         // 清理 DOM 组件
-        this.sparklesButton?.destroy();
         this.floatingPalette?.destroy();
 
         console.log('Canvas AI: 插件已卸载');
@@ -383,10 +321,6 @@ export default class CanvasAIPlugin extends Plugin {
         // Set up generate callback for Ghost Node creation
         this.floatingPalette.setOnGenerate(async (prompt: string, mode: PaletteMode) => {
             await this.handleGeneration(prompt, mode);
-        });
-
-        this.sparklesButton = new AiSparklesButton(() => {
-            this.onSparklesButtonClick();
         });
     }
 
@@ -622,25 +556,19 @@ export default class CanvasAIPlugin extends Plugin {
 
         // 选中状态变化检测
         if (selectionSize === 0) {
-            // 无选中，隐藏按钮（但保留已打开的面板一小段时间）
-            this.sparklesButton?.hide();
+            // 无选中，清理状态
             this.lastSelectionSize = 0;
             return;
         }
 
-        // 有节点被选中
+        // 有节点被选中，尝试向原生工具条注入 AI 按钮
         if (selectionSize > 0) {
-            // 使用节点 DOM 元素的屏幕坐标（而非 Canvas 虚拟坐标）
-            const screenBBox = this.getSelectionScreenBBox(selection);
+            this.injectAiButtonToPopupMenu(canvas);
 
-            if (screenBBox) {
-                // 如果弹窗未显示，才显示按钮
-                if (!this.floatingPalette?.visible) {
-                    const buttonX = screenBBox.right + 10;
-                    const buttonY = screenBBox.top - 10;
-                    this.sparklesButton?.show(buttonX, buttonY, canvas.wrapperEl);
-                } else {
-                    // 弹窗已显示，更新弹窗位置（加选场景）
+            // 如果弹窗已显示，更新弹窗位置（加选场景）
+            if (this.floatingPalette?.visible) {
+                const screenBBox = this.getSelectionScreenBBox(selection);
+                if (screenBBox) {
                     const paletteX = screenBBox.right + 20;
                     const paletteY = screenBBox.top;
                     this.floatingPalette.updatePosition(paletteX, paletteY, canvas.wrapperEl);
@@ -655,6 +583,32 @@ export default class CanvasAIPlugin extends Plugin {
 
             this.lastSelectionSize = selectionSize;
         }
+    }
+
+    /**
+     * 向 Canvas 原生 popup menu 注入 AI 按钮
+     */
+    private injectAiButtonToPopupMenu(canvas: Canvas): void {
+        const menuEl = canvas.menu?.menuEl;
+        if (!menuEl) return;
+
+        // 如果已存在，不重复添加
+        if (menuEl.querySelector(`#${AI_SPARKLES_BUTTON_ID}`)) return;
+
+        // 创建 AI 按钮
+        const aiButton = document.createElement('button');
+        aiButton.id = AI_SPARKLES_BUTTON_ID;
+        aiButton.classList.add('clickable-icon');
+        setIcon(aiButton, 'sparkles');
+        setTooltip(aiButton, 'AI Sparkles', { placement: 'top' });
+
+        aiButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.onSparklesButtonClick();
+        });
+
+        // 添加到工具条末尾
+        menuEl.appendChild(aiButton);
     }
 
     /**
@@ -786,29 +740,26 @@ export default class CanvasAIPlugin extends Plugin {
 
         if (this.floatingPalette.visible) {
             this.floatingPalette.hide();
-            // 关闭弹窗后重新显示按钮
-            this.checkCanvasSelection();
         } else {
-            // 获取按钮位置，将面板显示在按钮下方
+            // 获取当前 Canvas
             const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
             if (!canvasView || canvasView.getViewType() !== 'canvas') return;
 
             const canvas = (canvasView as any).canvas as Canvas | undefined;
             if (!canvas || canvas.selection.size === 0) return;
 
-            const screenBBox = this.getSelectionScreenBBox(canvas.selection);
-            if (!screenBBox) return;
+            // 获取工具条位置作为面板定位参考
+            const menuEl = canvas.menu?.menuEl;
+            if (!menuEl) return;
 
-            // 隐藏按钮
-            this.sparklesButton?.hide();
+            const menuRect = menuEl.getBoundingClientRect();
+            // 面板显示在工具条下方
+            const paletteX = menuRect.left;
+            const paletteY = menuRect.bottom + 10;
 
-            // 面板位置：选中框右侧
-            const paletteX = screenBBox.right + 20;
-            const paletteY = screenBBox.top;
-
-            // 显示弹窗，并传入关闭回调以重新显示按钮
+            // 显示弹窗
             this.floatingPalette.show(paletteX, paletteY, canvas.wrapperEl, () => {
-                this.checkCanvasSelection();
+                // 关闭时的回调
             });
         }
     }
@@ -817,7 +768,6 @@ export default class CanvasAIPlugin extends Plugin {
      * 隐藏所有悬浮组件
      */
     private hideAllFloatingComponents(): void {
-        this.sparklesButton?.hide();
         this.floatingPalette?.hide();
         this.lastSelectionSize = 0;
     }
