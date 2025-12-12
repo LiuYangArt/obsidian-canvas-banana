@@ -1,5 +1,6 @@
 import { App, ItemView, Plugin, PluginSettingTab, Setting } from 'obsidian';
 import type { Canvas, CanvasNode, CanvasCoords } from './types';
+import { CanvasConverter } from './CanvasConverter';
 
 // ========== 插件设置接口 ==========
 interface CanvasAISettings {
@@ -86,8 +87,10 @@ class FloatingPalette {
     private isVisible: boolean = false;
     private currentParent: HTMLElement | null = null;
     private onClose: (() => void) | null = null;
+    private onDebug: (() => void) | null = null;
 
-    constructor() {
+    constructor(onDebugCallback?: () => void) {
+        this.onDebug = onDebugCallback || null;
         this.containerEl = this.createPaletteDOM();
         this.promptInput = this.containerEl.querySelector('.canvas-ai-prompt-input') as HTMLTextAreaElement;
     }
@@ -121,7 +124,10 @@ class FloatingPalette {
             </div>
             <div class="canvas-ai-palette-footer">
                 <span class="canvas-ai-context-preview"></span>
-                <button class="canvas-ai-generate-btn">Generate</button>
+                <div class="canvas-ai-btn-group">
+                    <button class="canvas-ai-debug-btn">Debug</button>
+                    <button class="canvas-ai-generate-btn">Generate</button>
+                </div>
             </div>
         `;
 
@@ -141,6 +147,12 @@ class FloatingPalette {
         closeBtn?.addEventListener('click', () => {
             this.hide();
             this.onClose?.();
+        });
+
+        // 绑定 Debug 按钮
+        const debugBtn = container.querySelector('.canvas-ai-debug-btn');
+        debugBtn?.addEventListener('click', () => {
+            this.onDebug?.();
         });
 
         // 绑定生成按钮
@@ -300,7 +312,9 @@ export default class CanvasAIPlugin extends Plugin {
      * 初始化悬浮组件
      */
     private initFloatingComponents(): void {
-        this.floatingPalette = new FloatingPalette();
+        this.floatingPalette = new FloatingPalette(() => {
+            this.debugSelectedNodes();
+        });
 
         this.sparklesButton = new AiSparklesButton(() => {
             this.onSparklesButtonClick();
@@ -450,6 +464,74 @@ export default class CanvasAIPlugin extends Plugin {
         });
 
         return { imageCount, textCount };
+    }
+
+    /**
+     * 调试：打印选中节点的详细信息
+     * 用于步骤 2.1 和 2.2 的测试验证
+     */
+    private debugSelectedNodes(): void {
+        const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
+
+        if (!canvasView || canvasView.getViewType() !== 'canvas') {
+            console.log('Canvas AI Debug: Not in Canvas view');
+            return;
+        }
+
+        const canvas = (canvasView as any).canvas as Canvas | undefined;
+        if (!canvas) {
+            console.log('Canvas AI Debug: Canvas not found');
+            return;
+        }
+
+        const selection = canvas.selection;
+        if (!selection || selection.size === 0) {
+            console.log('Canvas AI Debug: No nodes selected');
+            return;
+        }
+
+        console.group('🔍 Canvas AI Debug: Selected Nodes');
+
+        // 步骤 2.1：打印每个节点的原始信息
+        console.group('📋 Raw Node Data');
+        selection.forEach((node: CanvasNode) => {
+            console.log('---');
+            console.log('ID:', node.id);
+
+            if (node.text !== undefined) {
+                console.log('Type: Text');
+                console.log('Content:', node.text);
+            } else if (node.file) {
+                console.log('Type: File');
+                console.log('File Path:', node.file.path);
+                console.log('File Extension:', node.file.extension);
+                console.log('File Name:', node.file.name);
+            } else if (node.url) {
+                console.log('Type: Link');
+                console.log('URL:', node.url);
+            } else if (node.label !== undefined) {
+                console.log('Type: Group');
+                console.log('Label:', node.label);
+            } else {
+                console.log('Type: Unknown');
+                console.log('Node Object:', node);
+            }
+        });
+        console.groupEnd();
+
+        // 步骤 2.2：使用 CanvasConverter 进行格式转换
+        console.group('📝 Converted Output');
+        const result = CanvasConverter.convert(canvas, selection);
+
+        console.log('Converted Nodes:', result.nodes);
+        console.log('Converted Edges:', result.edges);
+        console.log('\n--- Markdown Output ---\n');
+        console.log(result.markdown);
+        console.log('\n--- Mermaid Output ---\n');
+        console.log(result.mermaid);
+        console.groupEnd();
+
+        console.groupEnd();
     }
 
     /**

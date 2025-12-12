@@ -182,3 +182,26 @@
 .canvas-ai-generate-btn:active {
     transform: translateY(0);
 }
+
+/* ========== 按钮组 ========== */
+.canvas-ai-btn-group {
+    display: flex;
+    gap: 8px;
+}
+
+.canvas-ai-debug-btn {
+    padding: 8px 16px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    background: var(--background-primary);
+    color: var(--text-muted);
+    font-size: 13px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.canvas-ai-debug-btn:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+    border-color: var(--text-muted);
+}

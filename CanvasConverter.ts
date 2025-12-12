@@ -1,0 +1,344 @@
+/**
+ * CanvasConverter - Canvas 节点数据转换工具类
+ * 将选中的 Canvas 节点转换为 LLM 容易理解的 Markdown 和 Mermaid 格式
+ */
+
+import type { Canvas, CanvasNode, CanvasEdge } from './types';
+
+// ========== 转换后的数据结构 ==========
+
+/**
+ * 转换后的节点数据
+ */
+export interface ConvertedNode {
+    id: string;
+    type: 'text' | 'file' | 'link' | 'group';
+    content: string;       // 文本内容或文件引用 ![[filename]]
+    isImage: boolean;      // 是否为图片节点
+    filePath?: string;     // 文件路径（如果是文件节点）
+}
+
+/**
+ * 转换后的边（连线）数据
+ */
+export interface ConvertedEdge {
+    id: string;
+    fromId: string;
+    toId: string;
+    label?: string;
+}
+
+/**
+ * 转换结果
+ */
+export interface ConversionResult {
+    nodes: ConvertedNode[];
+    edges: ConvertedEdge[];
+    markdown: string;
+    mermaid: string;
+}
+
+// ========== 图片文件扩展名 ==========
+const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'];
+
+/**
+ * CanvasConverter 工具类
+ * 提供静态方法将 Canvas 选中节点转换为不同格式
+ */
+export class CanvasConverter {
+
+    /**
+     * 从 Canvas selection 提取节点信息
+     * @param selection 选中的节点集合
+     * @returns 转换后的节点数组
+     */
+    static extractNodes(selection: Set<CanvasNode>): ConvertedNode[] {
+        const nodes: ConvertedNode[] = [];
+
+        selection.forEach(node => {
+            const converted = this.convertNode(node);
+            if (converted) {
+                nodes.push(converted);
+            }
+        });
+
+        return nodes;
+    }
+
+    /**
+     * 转换单个节点
+     */
+    private static convertNode(node: CanvasNode): ConvertedNode | null {
+        const id = node.id;
+
+        // 文本节点
+        if (node.text !== undefined) {
+            return {
+                id,
+                type: 'text',
+                content: node.text,
+                isImage: false,
+            };
+        }
+
+        // 文件节点
+        if (node.file) {
+            const ext = node.file.extension?.toLowerCase() || '';
+            const isImage = IMAGE_EXTENSIONS.includes(ext);
+            const fileName = node.file.name || node.file.path;
+
+            return {
+                id,
+                type: 'file',
+                content: isImage ? `![[${fileName}]]` : `[[${fileName}]]`,
+                isImage,
+                filePath: node.file.path,
+            };
+        }
+
+        // 链接节点
+        if (node.url) {
+            return {
+                id,
+                type: 'link',
+                content: node.url,
+                isImage: false,
+            };
+        }
+
+        // 群组节点
+        if (node.label !== undefined) {
+            return {
+                id,
+                type: 'group',
+                content: node.label || '(Unnamed Group)',
+                isImage: false,
+            };
+        }
+
+        // 未知类型，尝试从 filePath 获取
+        if (node.filePath) {
+            const ext = node.filePath.split('.').pop()?.toLowerCase() || '';
+            const isImage = IMAGE_EXTENSIONS.includes(ext);
+            const fileName = node.filePath.split('/').pop() || node.filePath;
+
+            return {
+                id,
+                type: 'file',
+                content: isImage ? `![[${fileName}]]` : `[[${fileName}]]`,
+                isImage,
+                filePath: node.filePath,
+            };
+        }
+
+        // 无法识别的节点类型
+        console.warn('CanvasConverter: Unknown node type', node);
+        return null;
+    }
+
+    /**
+     * 获取选中节点间的边（连线）
+     * @param canvas Canvas 实例
+     * @param selectedIds 选中节点的 ID 集合
+     * @returns 转换后的边数组
+     */
+    static extractEdges(canvas: Canvas, selectedIds: Set<string>): ConvertedEdge[] {
+        const edges: ConvertedEdge[] = [];
+
+        // 遍历 Canvas 中所有的边
+        canvas.edges.forEach((edge: CanvasEdge) => {
+            const fromId = edge.from?.node?.id;
+            const toId = edge.to?.node?.id;
+
+            // 只保留两端都在选中节点中的边
+            if (fromId && toId && selectedIds.has(fromId) && selectedIds.has(toId)) {
+                edges.push({
+                    id: edge.id,
+                    fromId,
+                    toId,
+                    label: (edge as any).label,  // label 可能存在于边对象上
+                });
+            }
+        });
+
+        return edges;
+    }
+
+    /**
+     * 转换为 Markdown 格式
+     * @param nodes 转换后的节点数组
+     * @param edges 转换后的边数组
+     * @returns Markdown 字符串
+     */
+    static toMarkdown(nodes: ConvertedNode[], edges: ConvertedEdge[]): string {
+        const lines: string[] = [];
+
+        lines.push('## Selected Canvas Nodes\n');
+
+        // 输出节点
+        nodes.forEach(node => {
+            const typeLabel = this.getNodeTypeLabel(node);
+            lines.push(`### Node: ${node.id.slice(0, 8)}... (${typeLabel})`);
+            lines.push('');
+
+            // 根据节点类型格式化内容
+            if (node.type === 'text') {
+                // 文本节点：直接输出内容
+                lines.push(node.content);
+            } else if (node.type === 'file') {
+                // 文件节点：输出引用
+                lines.push(node.content);
+                if (node.filePath) {
+                    lines.push(`> Path: ${node.filePath}`);
+                }
+            } else if (node.type === 'link') {
+                // 链接节点：输出 URL
+                lines.push(`[${node.content}](${node.content})`);
+            } else if (node.type === 'group') {
+                // 群组节点：输出标签
+                lines.push(`**Group:** ${node.content}`);
+            }
+
+            lines.push('');
+        });
+
+        // 输出连线关系
+        if (edges.length > 0) {
+            lines.push('## Connections\n');
+            edges.forEach(edge => {
+                const fromNode = nodes.find(n => n.id === edge.fromId);
+                const toNode = nodes.find(n => n.id === edge.toId);
+                const fromLabel = fromNode ? edge.fromId.slice(0, 8) : edge.fromId;
+                const toLabel = toNode ? edge.toId.slice(0, 8) : edge.toId;
+
+                if (edge.label) {
+                    lines.push(`- ${fromLabel}... --[${edge.label}]--> ${toLabel}...`);
+                } else {
+                    lines.push(`- ${fromLabel}... --> ${toLabel}...`);
+                }
+            });
+            lines.push('');
+        }
+
+        return lines.join('\n');
+    }
+
+    /**
+     * 转换为 Mermaid 流程图格式
+     * @param nodes 转换后的节点数组
+     * @param edges 转换后的边数组
+     * @returns Mermaid 代码字符串
+     */
+    static toMermaid(nodes: ConvertedNode[], edges: ConvertedEdge[]): string {
+        const lines: string[] = [];
+
+        lines.push('```mermaid');
+        lines.push('graph LR');
+
+        // 输出节点定义
+        nodes.forEach(node => {
+            const label = this.sanitizeMermaidLabel(this.truncateContent(node.content, 50));
+            const shortId = node.id.slice(0, 8);
+
+            // 根据节点类型使用不同形状
+            if (node.type === 'group') {
+                // 群组使用双括号 (())
+                lines.push(`    ${shortId}(("${label}"))`);
+            } else if (node.isImage) {
+                // 图片使用菱形 {}
+                lines.push(`    ${shortId}{"${label}"}`);
+            } else if (node.type === 'link') {
+                // 链接使用平行四边形 [/ /]
+                lines.push(`    ${shortId}[/"${label}"/]`);
+            } else {
+                // 文本和文件使用方括号 []
+                lines.push(`    ${shortId}["${label}"]`);
+            }
+        });
+
+        // 输出边连接
+        edges.forEach(edge => {
+            const fromShort = edge.fromId.slice(0, 8);
+            const toShort = edge.toId.slice(0, 8);
+
+            if (edge.label) {
+                const label = this.sanitizeMermaidLabel(edge.label);
+                lines.push(`    ${fromShort} -->|"${label}"| ${toShort}`);
+            } else {
+                lines.push(`    ${fromShort} --> ${toShort}`);
+            }
+        });
+
+        lines.push('```');
+
+        return lines.join('\n');
+    }
+
+    /**
+     * 一键转换入口
+     * @param canvas Canvas 实例
+     * @param selection 选中的节点集合
+     * @returns 完整的转换结果
+     */
+    static convert(canvas: Canvas, selection: Set<CanvasNode>): ConversionResult {
+        // 提取节点
+        const nodes = this.extractNodes(selection);
+
+        // 构建选中节点 ID 集合
+        const selectedIds = new Set<string>();
+        selection.forEach(node => selectedIds.add(node.id));
+
+        // 提取边
+        const edges = this.extractEdges(canvas, selectedIds);
+
+        // 生成格式化输出
+        const markdown = this.toMarkdown(nodes, edges);
+        const mermaid = this.toMermaid(nodes, edges);
+
+        return {
+            nodes,
+            edges,
+            markdown,
+            mermaid,
+        };
+    }
+
+    // ========== 辅助方法 ==========
+
+    /**
+     * 获取节点类型标签
+     */
+    private static getNodeTypeLabel(node: ConvertedNode): string {
+        if (node.type === 'file') {
+            return node.isImage ? 'image' : 'file';
+        }
+        return node.type;
+    }
+
+    /**
+     * 截断内容
+     */
+    private static truncateContent(content: string, maxLength: number): string {
+        // 替换换行符为空格
+        const singleLine = content.replace(/\n/g, ' ').trim();
+        if (singleLine.length <= maxLength) {
+            return singleLine;
+        }
+        return singleLine.slice(0, maxLength - 3) + '...';
+    }
+
+    /**
+     * 清理 Mermaid 标签中的特殊字符
+     * 注意：Mermaid 中方括号 [] 有特殊含义，需要转义
+     * 使用 Unicode 全角方括号替代，保持可读性
+     */
+    private static sanitizeMermaidLabel(text: string): string {
+        return text
+            .replace(/"/g, "'")           // 双引号 -> 单引号
+            .replace(/\[/g, '［')          // [ -> 全角左方括号
+            .replace(/\]/g, '］')          // ] -> 全角右方括号
+            .replace(/[<>]/g, '')          // 移除尖括号
+            .replace(/[{}]/g, '')          // 移除花括号（菱形节点语法）
+            .trim();
+    }
+}
