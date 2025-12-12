@@ -216,27 +216,35 @@ class FloatingPalette {
      * @param onCloseCallback 关闭时的回调
      */
     show(x: number, y: number, canvasContainer: HTMLElement, onCloseCallback?: () => void): void {
-        // 计算相对于 Canvas 容器的坐标
-        const containerRect = canvasContainer.getBoundingClientRect();
-        const relativeX = x - containerRect.left;
-        const relativeY = y - containerRect.top;
-
-        this.containerEl.style.left = `${relativeX}px`;
-        this.containerEl.style.top = `${relativeY}px`;
-        this.containerEl.style.display = 'flex';
-        this.isVisible = true;
-        this.onClose = onCloseCallback || null;
-
-        // 挂载到 Canvas 容器内
+        // 先挂载到容器（如需要），但保持隐藏
         if (this.currentParent !== canvasContainer) {
+            this.containerEl.style.display = 'none';
             this.containerEl.remove();
             canvasContainer.appendChild(this.containerEl);
             this.currentParent = canvasContainer;
         }
 
-        // 聚焦输入框
-        setTimeout(() => this.promptInput.focus(), 50);
+        // 计算位置
+        const containerRect = canvasContainer.getBoundingClientRect();
+        const relativeX = x - containerRect.left;
+        const relativeY = y - containerRect.top;
+
+        // 先设置位置（面板仍隐藏）
+        this.containerEl.style.left = `${relativeX}px`;
+        this.containerEl.style.top = `${relativeY}px`;
+
+        // 使用 requestAnimationFrame 确保位置生效后再显示
+        requestAnimationFrame(() => {
+            this.containerEl.style.display = 'flex';
+            this.isVisible = true;
+            this.onClose = onCloseCallback || null;
+
+            // 聚焦输入框
+            setTimeout(() => this.promptInput.focus(), 50);
+        });
     }
+
+
 
     /**
      * 更新面板位置（用于加选场景）
@@ -748,19 +756,19 @@ export default class CanvasAIPlugin extends Plugin {
             const canvas = (canvasView as any).canvas as Canvas | undefined;
             if (!canvas || canvas.selection.size === 0) return;
 
-            // 获取工具条位置作为面板定位参考
-            const menuEl = canvas.menu?.menuEl;
-            if (!menuEl) return;
+            // 获取选中节点位置
+            const screenBBox = this.getSelectionScreenBBox(canvas.selection);
+            if (!screenBBox) return;
 
-            const menuRect = menuEl.getBoundingClientRect();
-            // 面板显示在工具条下方
-            const paletteX = menuRect.left;
-            const paletteY = menuRect.bottom + 10;
+            // 面板位置：选中框右侧 (与 checkCanvasSelection 保持一致)
+            const paletteX = screenBBox.right + 20;
+            const paletteY = screenBBox.top;
 
             // 显示弹窗
             this.floatingPalette.show(paletteX, paletteY, canvas.wrapperEl, () => {
                 // 关闭时的回调
             });
+
         }
     }
 
