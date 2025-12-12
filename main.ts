@@ -290,6 +290,7 @@ export default class CanvasAIPlugin extends Plugin {
     private floatingPalette: FloatingPalette | null = null;
     private lastSelectionSize: number = 0;
     private lastSelectedIds: Set<string> = new Set();
+    private hideTimer: number | null = null;
     private apiManager: ApiManager | null = null;
 
     async onload() {
@@ -564,12 +565,24 @@ export default class CanvasAIPlugin extends Plugin {
         const selectionSize = selection?.size ?? 0;
         const currentIds = new Set(Array.from(selection || []).map((n: CanvasNode) => n.id));
 
-        // 规则 3: 取消所有选中 -> 面板消失
+        // 规则 3: 取消所有选中 -> 面板消失 (防抖处理)
+        // 图片节点加选时可能会触发瞬时的 selectionSize === 0，需要防抖
         if (selectionSize === 0) {
-            this.floatingPalette?.hide();
-            this.lastSelectedIds.clear();
-            this.lastSelectionSize = 0;
+            if (this.floatingPalette?.visible && !this.hideTimer) {
+                this.hideTimer = window.setTimeout(() => {
+                    this.floatingPalette?.hide();
+                    this.lastSelectedIds.clear();
+                    this.lastSelectionSize = 0;
+                    this.hideTimer = null;
+                }, 200); // 200ms 缓冲期
+            }
             return;
+        }
+
+        // 有选中：立即取消正在进行的隐藏倒计时
+        if (this.hideTimer) {
+            window.clearTimeout(this.hideTimer);
+            this.hideTimer = null;
         }
 
         // 向原生工具条注入按钮
