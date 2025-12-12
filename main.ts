@@ -289,6 +289,7 @@ export default class CanvasAIPlugin extends Plugin {
 
     private floatingPalette: FloatingPalette | null = null;
     private lastSelectionSize: number = 0;
+    private lastSelectedIds: Set<string> = new Set();
     private apiManager: ApiManager | null = null;
 
     async onload() {
@@ -561,36 +562,58 @@ export default class CanvasAIPlugin extends Plugin {
 
         const selection = canvas.selection;
         const selectionSize = selection?.size ?? 0;
+        const currentIds = new Set(Array.from(selection || []).map((n: CanvasNode) => n.id));
 
-        // 选中状态变化检测
+        // 规则 3: 取消所有选中 -> 面板消失
         if (selectionSize === 0) {
-            // 无选中，清理状态
+            this.floatingPalette?.hide();
+            this.lastSelectedIds.clear();
             this.lastSelectionSize = 0;
             return;
         }
 
-        // 有节点被选中，尝试向原生工具条注入 AI 按钮
-        if (selectionSize > 0) {
-            this.injectAiButtonToPopupMenu(canvas);
+        // 向原生工具条注入按钮
+        this.injectAiButtonToPopupMenu(canvas);
 
-            // 如果弹窗已显示，更新弹窗位置（加选场景）
-            if (this.floatingPalette?.visible) {
-                const screenBBox = this.getSelectionScreenBBox(selection);
-                if (screenBBox) {
-                    const paletteX = screenBBox.right + 20;
-                    const paletteY = screenBBox.top;
-                    this.floatingPalette.updatePosition(paletteX, paletteY, canvas.wrapperEl);
+        // 如果面板当前是显示状态，检查是否需要自动关闭或更新位置
+        if (this.floatingPalette?.visible) {
+            // 规则 4: 选中新节点 (无重叠) -> 面板消失
+            // (除非上次记录为空，可能是刚初始化)
+            if (this.lastSelectedIds.size > 0) {
+                let hasOverlap = false;
+                for (const id of currentIds) {
+                    if (this.lastSelectedIds.has(id)) {
+                        hasOverlap = true;
+                        break;
+                    }
+                }
+
+                if (!hasOverlap) {
+                    this.floatingPalette.hide();
+                    this.lastSelectedIds = currentIds;
+                    this.lastSelectionSize = selectionSize;
+                    return;
                 }
             }
 
-            // 更新面板的上下文预览
-            if (this.floatingPalette) {
-                const { imageCount, textCount } = this.countNodeTypes(selection);
-                this.floatingPalette.updateContextPreview(selectionSize, imageCount, textCount);
+            // 规则 2: 有重叠 (添加/减少选中) -> 更新位置
+            const screenBBox = this.getSelectionScreenBBox(selection);
+            if (screenBBox) {
+                const paletteX = screenBBox.right + 20;
+                const paletteY = screenBBox.top;
+                this.floatingPalette.updatePosition(paletteX, paletteY, canvas.wrapperEl);
             }
-
-            this.lastSelectionSize = selectionSize;
         }
+
+        // 更新上下文预览
+        if (this.floatingPalette?.visible) {
+            const { imageCount, textCount } = this.countNodeTypes(selection);
+            this.floatingPalette.updateContextPreview(selectionSize, imageCount, textCount);
+        }
+
+        // 更新状态记录
+        this.lastSelectionSize = selectionSize;
+        this.lastSelectedIds = currentIds;
     }
 
     /**
@@ -763,6 +786,10 @@ export default class CanvasAIPlugin extends Plugin {
             // 面板位置：选中框右侧 (与 checkCanvasSelection 保持一致)
             const paletteX = screenBBox.right + 20;
             const paletteY = screenBBox.top;
+
+            // 记录当前选中 ID，防止 checkCanvasSelection 误判为切换上下文而自动关闭
+            this.lastSelectedIds = new Set(Array.from(canvas.selection).map(n => n.id));
+            this.lastSelectionSize = canvas.selection.size;
 
             // 显示弹窗
             this.floatingPalette.show(paletteX, paletteY, canvas.wrapperEl, () => {
