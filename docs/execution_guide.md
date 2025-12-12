@@ -108,9 +108,9 @@ document.body.appendChild() 挂载 React Root。
 
 测试 (Checklist)：
 
-[ ] 填入真实的 API Key。
+[x] 填入真实的 API Key。
 
-[ ] 点击生成，控制台能打印出 LLM 返回的 JSON 数据。
+[x] 点击生成，控制台能打印出 LLM 返回的 JSON 数据。
 
 步骤 3.2：任务队列与 Ghost Node (UI 反馈)
 
@@ -124,11 +124,11 @@ document.body.appendChild() 挂载 React Root。
 
 测试 (Checklist)：
 
-[ ] 点击生成，UI 面板收起。
+[x] 点击生成，UI 面板收起。
 
-[ ] Canvas 上出现一个新的卡片，显示加载中。
+[x] Canvas 上出现一个新的卡片，显示加载中。
 
-[ ] 3秒后（模拟 API 返回），控制台打印完成，Ghost Node 内容变为 "Hello World" (模拟结果)。
+[x] API 返回后，控制台打印完成，Ghost Node 内容变为 AI 响应结果。
 
 阶段 4：文本生成闭环 (Text Pipeline)
 

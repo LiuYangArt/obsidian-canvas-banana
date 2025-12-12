@@ -93,6 +93,7 @@ class FloatingPalette {
     private currentParent: HTMLElement | null = null;
     private onClose: (() => void) | null = null;
     private onDebug: (() => void) | null = null;
+    private onGenerate: ((prompt: string, mode: PaletteMode) => Promise<void>) | null = null;
     private apiManager: ApiManager;
     private isGenerating: boolean = false;
 
@@ -101,6 +102,13 @@ class FloatingPalette {
         this.onDebug = onDebugCallback || null;
         this.containerEl = this.createPaletteDOM();
         this.promptInput = this.containerEl.querySelector('.canvas-ai-prompt-input') as HTMLTextAreaElement;
+    }
+
+    /**
+     * Set the generate callback
+     */
+    setOnGenerate(callback: (prompt: string, mode: PaletteMode) => Promise<void>): void {
+        this.onGenerate = callback;
     }
 
     /**
@@ -223,33 +231,41 @@ class FloatingPalette {
             return;
         }
 
-        this.isGenerating = true;
-        const generateBtn = this.containerEl.querySelector('.canvas-ai-generate-btn') as HTMLButtonElement;
-        if (generateBtn) {
-            generateBtn.textContent = 'Generating...';
-            generateBtn.disabled = true;
-        }
-
-        try {
-            if (this.currentMode === 'chat') {
-                // Chat mode: text completion
-                const response = await this.apiManager.chatCompletion(prompt);
-                console.log('Canvas AI: LLM Response:', response);
-            } else {
-                // Image mode: generate image
-                const imageDataUrl = await this.apiManager.generateImage(prompt);
-                console.log('Canvas AI: Image generated, data URL length:', imageDataUrl.length);
-                console.log('Canvas AI: Image preview (first 100 chars):', imageDataUrl.substring(0, 100));
-            }
-        } catch (error: any) {
-            console.error('Canvas AI: API Error:', error.message || error);
-        } finally {
-            this.isGenerating = false;
+        // Call the onGenerate callback (which will create Ghost Node and handle API call)
+        if (this.onGenerate) {
+            this.isGenerating = true;
+            const generateBtn = this.containerEl.querySelector('.canvas-ai-generate-btn') as HTMLButtonElement;
             if (generateBtn) {
-                generateBtn.textContent = 'Generate';
-                generateBtn.disabled = false;
+                generateBtn.textContent = 'Generating...';
+                generateBtn.disabled = true;
+            }
+
+            try {
+                // Hide palette and let plugin handle the rest
+                this.hide();
+                await this.onGenerate(prompt, this.currentMode);
+            } finally {
+                this.isGenerating = false;
+                if (generateBtn) {
+                    generateBtn.textContent = 'Generate';
+                    generateBtn.disabled = false;
+                }
             }
         }
+    }
+
+    /**
+     * Get current prompt text
+     */
+    getPrompt(): string {
+        return this.promptInput.value.trim();
+    }
+
+    /**
+     * Clear prompt input
+     */
+    clearPrompt(): void {
+        this.promptInput.value = '';
     }
 
     /**
@@ -364,9 +380,129 @@ export default class CanvasAIPlugin extends Plugin {
             this.debugSelectedNodes();
         });
 
+        // Set up generate callback for Ghost Node creation
+        this.floatingPalette.setOnGenerate(async (prompt: string, mode: PaletteMode) => {
+            await this.handleGeneration(prompt, mode);
+        });
+
         this.sparklesButton = new AiSparklesButton(() => {
             this.onSparklesButtonClick();
         });
+    }
+
+    /**
+     * Handle generation with Ghost Node
+     */
+    private async handleGeneration(prompt: string, mode: PaletteMode): Promise<void> {
+        const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
+        if (!canvasView || canvasView.getViewType() !== 'canvas') {
+            console.error('Canvas AI: Not in canvas view');
+            return;
+        }
+
+        const canvas = (canvasView as any).canvas as Canvas | undefined;
+        if (!canvas) {
+            console.error('Canvas AI: Canvas not found');
+            return;
+        }
+
+        // Calculate position for ghost node (right of selection)
+        const selection = canvas.selection;
+        let nodeX = 100, nodeY = 100;
+        if (selection && selection.size > 0) {
+            const bbox = this.getSelectionBBox(selection);
+            if (bbox) {
+                nodeX = bbox.maxX + 50;
+                nodeY = bbox.minY;
+            }
+        }
+
+        // Create Ghost Node
+        const ghostNode = this.createGhostNode(canvas, nodeX, nodeY);
+        console.log('Canvas AI: Ghost Node created:', ghostNode.id);
+
+        try {
+            let response: string;
+            if (mode === 'chat') {
+                response = await this.apiManager!.chatCompletion(prompt);
+            } else {
+                // For image mode, still return text for now (image saving comes later)
+                response = await this.apiManager!.generateImage(prompt);
+            }
+
+            console.log('Canvas AI: API Response received');
+            this.updateGhostNode(ghostNode, response, false);
+        } catch (error: any) {
+            console.error('Canvas AI: API Error:', error.message || error);
+            this.updateGhostNode(ghostNode, `❗ Error: ${error.message || 'Unknown error'}`, true);
+        }
+    }
+
+    /**
+     * Create a ghost node (loading placeholder)
+     */
+    private createGhostNode(canvas: Canvas, x: number, y: number): CanvasNode {
+        const node = canvas.createTextNode({
+            pos: { x, y, width: 400, height: 100 },
+            size: { x, y, width: 400, height: 100 },
+            text: '✨ AI Generating...',
+            focus: false,
+            save: true
+        });
+
+        // Add ghost node styling
+        if (node.nodeEl) {
+            node.nodeEl.addClass('canvas-ai-ghost-node');
+        }
+
+        canvas.requestSave();
+        return node;
+    }
+
+    /**
+     * Update ghost node with response
+     */
+    private updateGhostNode(node: CanvasNode, content: string, isError: boolean): void {
+        // Remove ghost styling
+        if (node.nodeEl) {
+            node.nodeEl.removeClass('canvas-ai-ghost-node');
+            if (isError) {
+                node.nodeEl.addClass('canvas-ai-error-node');
+            }
+        }
+
+        // Update node text content
+        // Access the internal data and update
+        (node as any).setText?.(content);
+
+        // Alternative: directly set text property and re-render
+        if (!((node as any).setText)) {
+            (node as any).text = content;
+            node.render?.();
+        }
+
+        node.canvas?.requestSave();
+        console.log('Canvas AI: Ghost Node updated with content');
+    }
+
+    /**
+     * Get selection bounding box (canvas coordinates)
+     */
+    private getSelectionBBox(selection: Set<CanvasNode>): CanvasCoords | null {
+        let minX = Infinity, minY = Infinity;
+        let maxX = -Infinity, maxY = -Infinity;
+        let hasNode = false;
+
+        selection.forEach(node => {
+            minX = Math.min(minX, node.x);
+            minY = Math.min(minY, node.y);
+            maxX = Math.max(maxX, node.x + node.width);
+            maxY = Math.max(maxY, node.y + node.height);
+            hasNode = true;
+        });
+
+        if (!hasNode) return null;
+        return { minX, minY, maxX, maxY };
     }
 
     /**
