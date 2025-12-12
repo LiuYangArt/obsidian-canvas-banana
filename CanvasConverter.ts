@@ -348,12 +348,14 @@ export class CanvasConverter {
     }
 
     /**
-     * 读取图片文件内容并转换为 Base64
+     * 读取图片文件内容并转换为压缩的 WebP Base64
      * @param app Obsidian App 实例
      * @param nodes 转换后的节点数组
+     * @param compressionQuality 压缩质量 (0-100)
+     * @param maxSize 最大尺寸（宽/高都不超过此值）
      */
-    private static async readImageFileContents(app: App, nodes: ConvertedNode[]): Promise<void> {
-        console.log('CanvasConverter: readImageFileContents called, nodes:', nodes.length);
+    private static async readImageFileContents(app: App, nodes: ConvertedNode[], compressionQuality: number = 80, maxSize: number = 2048): Promise<void> {
+        console.log('CanvasConverter: readImageFileContents called, nodes:', nodes.length, 'quality:', compressionQuality, 'maxSize:', maxSize);
         for (const node of nodes) {
             console.log(`CanvasConverter: Checking node ${node.id}, type=${node.type}, isImage=${node.isImage}, filePath=${node.filePath}`);
             if (node.type === 'file' && node.filePath && node.isImage) {
@@ -362,13 +364,18 @@ export class CanvasConverter {
                     console.log(`CanvasConverter: File lookup result:`, file);
                     if (file && file instanceof TFile) {
                         const buffer = await app.vault.readBinary(file);
-                        node.base64 = this.arrayBufferToBase64(buffer);
-                        console.log(`CanvasConverter: Read image ${node.filePath}, base64 length: ${node.base64.length}`);
+
+                        // Convert to compressed WebP with size limit
+                        const compressedBase64 = await this.compressImageToWebP(buffer, compressionQuality, maxSize);
+                        node.base64 = compressedBase64;
+                        node.mimeType = 'image/webp';
+
+                        console.log(`CanvasConverter: Compressed image ${node.filePath}, base64 length: ${node.base64.length}`);
                     } else {
                         console.warn(`CanvasConverter: File not found or not TFile: ${node.filePath}`);
                     }
                 } catch (error) {
-                    console.warn(`CanvasConverter: Failed to read image file ${node.filePath}`, error);
+                    console.warn(`CanvasConverter: Failed to read/compress image file ${node.filePath}`, error);
                 }
             }
         }
@@ -388,13 +395,83 @@ export class CanvasConverter {
     }
 
     /**
+     * 使用 Canvas API 将图片压缩为 WebP 格式
+     * @param buffer 原始图片的 ArrayBuffer
+     * @param quality 压缩质量 (0-100)
+     * @param maxSize 最大尺寸（宽/高都不超过此值）
+     * @returns Base64 编码的 WebP 图片数据（不含 data: 前缀）
+     */
+    private static async compressImageToWebP(buffer: ArrayBuffer, quality: number, maxSize: number = 2048): Promise<string> {
+        return new Promise((resolve, reject) => {
+            // Create blob from buffer
+            const blob = new Blob([buffer]);
+            const url = URL.createObjectURL(blob);
+
+            // Create image element
+            const img = new Image();
+            img.onload = () => {
+                try {
+                    // Calculate target dimensions (maintain aspect ratio)
+                    let targetWidth = img.width;
+                    let targetHeight = img.height;
+
+                    if (targetWidth > maxSize || targetHeight > maxSize) {
+                        const scale = Math.min(maxSize / targetWidth, maxSize / targetHeight);
+                        targetWidth = Math.round(targetWidth * scale);
+                        targetHeight = Math.round(targetHeight * scale);
+                        console.log(`CanvasConverter: Scaling image from ${img.width}x${img.height} to ${targetWidth}x${targetHeight}`);
+                    }
+
+                    // Create canvas with target dimensions
+                    const canvas = document.createElement('canvas');
+                    canvas.width = targetWidth;
+                    canvas.height = targetHeight;
+
+                    // Draw image to canvas (scaled)
+                    const ctx = canvas.getContext('2d');
+                    if (!ctx) {
+                        reject(new Error('Failed to get canvas context'));
+                        return;
+                    }
+                    ctx.drawImage(img, 0, 0, targetWidth, targetHeight);
+
+                    // Convert to WebP with specified quality
+                    const qualityDecimal = quality / 100;
+                    const dataUrl = canvas.toDataURL('image/webp', qualityDecimal);
+
+                    // Extract base64 part (remove "data:image/webp;base64," prefix)
+                    const base64 = dataUrl.split(',')[1];
+
+                    // Cleanup
+                    URL.revokeObjectURL(url);
+
+                    console.log(`CanvasConverter: Compressed ${img.width}x${img.height} -> ${targetWidth}x${targetHeight} at ${quality}% quality`);
+                    resolve(base64);
+                } catch (error) {
+                    URL.revokeObjectURL(url);
+                    reject(error);
+                }
+            };
+
+            img.onerror = () => {
+                URL.revokeObjectURL(url);
+                reject(new Error('Failed to load image for compression'));
+            };
+
+            img.src = url;
+        });
+    }
+
+    /**
      * 一键转换入口（异步版本）
      * @param app Obsidian App 实例
      * @param canvas Canvas 实例
      * @param selection 选中的节点集合
+     * @param compressionQuality 图片压缩质量 (0-100)，默认 80
+     * @param maxSize 图片最大尺寸（宽/高都不超过此值），默认 2048
      * @returns 完整的转换结果
      */
-    static async convert(app: App, canvas: Canvas, selection: Set<CanvasNode>): Promise<ConversionResult> {
+    static async convert(app: App, canvas: Canvas, selection: Set<CanvasNode>, compressionQuality: number = 80, maxSize: number = 2048): Promise<ConversionResult> {
         // 展开 group 节点，获取其内部所有子节点
         const expandedSelection = this.expandGroupNodes(canvas, selection);
 
@@ -415,8 +492,8 @@ export class CanvasConverter {
         // 读取 .md 文件内容
         await this.readMdFileContents(app, nodes);
 
-        // 读取图片文件内容
-        await this.readImageFileContents(app, nodes);
+        // 读取图片文件内容（压缩为 WebP，并限制尺寸）
+        await this.readImageFileContents(app, nodes, compressionQuality, maxSize);
 
         // 构建选中节点 ID 集合（包含展开后的节点）
         const selectedIds = new Set<string>();

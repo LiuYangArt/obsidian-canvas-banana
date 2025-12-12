@@ -9,13 +9,17 @@ export interface CanvasAISettings {
     openRouterBaseUrl: string;
     textModel: string;
     imageModel: string;
+    imageCompressionQuality: number;  // WebP compression quality (0-100)
+    imageMaxSize: number;  // Max width/height for WebP output
 }
 
 const DEFAULT_SETTINGS: CanvasAISettings = {
     openRouterApiKey: '',
     openRouterBaseUrl: 'https://openrouter.ai/api/v1/chat/completions',
     textModel: 'google/gemini-2.5-flash-preview',
-    imageModel: 'google/gemini-2.5-flash-image-preview'
+    imageModel: 'google/gemini-2.5-flash-image-preview',
+    imageCompressionQuality: 80,  // Default 80% quality
+    imageMaxSize: 2048  // Default max size
 };
 
 // ========== 悬浮面板模式 ==========
@@ -359,7 +363,13 @@ export default class CanvasAIPlugin extends Plugin {
 
         if (selection && selection.size > 0) {
             try {
-                const conversionResult = await CanvasConverter.convert(this.app, canvas, selection);
+                const conversionResult = await CanvasConverter.convert(
+                    this.app,
+                    canvas,
+                    selection,
+                    this.settings.imageCompressionQuality,
+                    this.settings.imageMaxSize
+                );
                 contextMarkdown = conversionResult.markdown;
 
                 // Extract images
@@ -1034,6 +1044,35 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.imageModel = value;
                     await this.plugin.saveSettings();
+                }));
+
+        // 图片优化区域
+        containerEl.createEl('h3', { text: '图片优化' });
+
+        new Setting(containerEl)
+            .setName('Image Compression Quality')
+            .setDesc('WebP 压缩质量 (0-100)，值越低文件越小但质量也越低，默认 80')
+            .addSlider(slider => slider
+                .setLimits(0, 100, 1)
+                .setValue(this.plugin.settings.imageCompressionQuality)
+                .setDynamicTooltip()
+                .onChange(async (value) => {
+                    this.plugin.settings.imageCompressionQuality = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName('Image Max Size')
+            .setDesc('图片最大尺寸（像素），宽和高都不会超过此值，默认 2048')
+            .addText(text => text
+                .setPlaceholder('2048')
+                .setValue(String(this.plugin.settings.imageMaxSize))
+                .onChange(async (value) => {
+                    const num = parseInt(value, 10);
+                    if (!isNaN(num) && num > 0) {
+                        this.plugin.settings.imageMaxSize = num;
+                        await this.plugin.saveSettings();
+                    }
                 }));
 
         // 关于区域
