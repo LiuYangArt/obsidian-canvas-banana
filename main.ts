@@ -392,6 +392,7 @@ export default class CanvasAIPlugin extends Plugin {
 
     /**
      * Handle generation with Ghost Node
+     * Phase 4: Integrates selected nodes context with user prompt
      */
     private async handleGeneration(prompt: string, mode: PaletteMode): Promise<void> {
         const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
@@ -406,8 +407,21 @@ export default class CanvasAIPlugin extends Plugin {
             return;
         }
 
-        // Calculate position for ghost node (right of selection)
         const selection = canvas.selection;
+
+        // ========== Phase 4.1: Extract context from selected nodes ==========
+        let contextMarkdown = '';
+        if (selection && selection.size > 0) {
+            try {
+                const conversionResult = await CanvasConverter.convert(this.app, canvas, selection);
+                contextMarkdown = conversionResult.markdown;
+                console.log('Canvas AI: Context extracted, length:', contextMarkdown.length);
+            } catch (e) {
+                console.warn('Canvas AI: Failed to extract context:', e);
+            }
+        }
+
+        // ========== Phase 4.2: Calculate position for ghost node (right of selection) ==========
         let nodeX = 100, nodeY = 100;
         if (selection && selection.size > 0) {
             const bbox = this.getSelectionBBox(selection);
@@ -423,8 +437,17 @@ export default class CanvasAIPlugin extends Plugin {
 
         try {
             let response: string;
+
             if (mode === 'chat') {
-                response = await this.apiManager!.chatCompletion(prompt);
+                // Build system prompt with context
+                let systemPrompt = 'You are a helpful AI assistant embedded in an Obsidian Canvas. Answer concisely and use Markdown formatting.';
+
+                if (contextMarkdown) {
+                    systemPrompt += `\n\n---\nThe user has selected the following content from their canvas:\n\n${contextMarkdown}\n\n---\nBased on this context, respond to the user's request.`;
+                }
+
+                console.log('Canvas AI: Sending chat request with context');
+                response = await this.apiManager!.chatCompletion(prompt, systemPrompt);
             } else {
                 // For image mode, still return text for now (image saving comes later)
                 response = await this.apiManager!.generateImage(prompt);
