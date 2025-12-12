@@ -169,19 +169,42 @@ export class ApiManager {
      * Generate an image using OpenRouter's multimodal API
      * @param prompt Description of the image to generate
      * @param aspectRatio Optional aspect ratio (1:1, 16:9, 4:3, 9:16)
+     * @param imageSize Optional image size (e.g. 1024x1024)
      * @returns Base64 data URL of the generated image
      */
-    async generateImage(prompt: string, aspectRatio?: '1:1' | '16:9' | '4:3' | '9:16'): Promise<string> {
+    async generateImage(prompt: string, aspectRatio?: '1:1' | '16:9' | '4:3' | '9:16', imageSize?: string, inputImages?: { base64: string, mimeType: string }[]): Promise<string> {
         if (!this.isConfigured()) {
             throw new Error('OpenRouter API Key not configured. Please set it in plugin settings.');
         }
 
-        const messages: OpenRouterMessage[] = [
-            {
-                role: 'user',
-                content: prompt
+        const messages: OpenRouterMessage[] = [];
+        const contentParts: OpenRouterContentPart[] = [];
+
+        // Add images first (based on working example)
+        if (inputImages && inputImages.length > 0) {
+            for (const img of inputImages) {
+                const mime = img.mimeType || 'image/png';
+                const url = `data:${mime};base64,${img.base64}`;
+                console.log(`Canvas AI: Adding input image, mimeType: ${mime}, base64 length: ${img.base64.length}, url prefix: ${url.substring(0, 50)}`);
+                contentParts.push({
+                    type: 'image_url',
+                    image_url: {
+                        url: url
+                    }
+                });
             }
-        ];
+        }
+
+        // Add text prompt
+        contentParts.push({
+            type: 'text',
+            text: prompt
+        });
+
+        messages.push({
+            role: 'user',
+            content: contentParts
+        });
 
         const requestBody: OpenRouterRequest = {
             model: this.getImageModel(),
@@ -189,10 +212,14 @@ export class ApiManager {
             modalities: ['image', 'text']
         };
 
-        if (aspectRatio) {
-            requestBody.image_config = {
-                aspect_ratio: aspectRatio
-            };
+        if (aspectRatio || imageSize) {
+            requestBody.image_config = {};
+            if (aspectRatio) {
+                requestBody.image_config.aspect_ratio = aspectRatio;
+            }
+            if (imageSize) {
+                requestBody.image_config.image_size = imageSize;
+            }
         }
 
         console.log('Canvas AI: Sending image generation request to OpenRouter...');
@@ -225,13 +252,13 @@ export class ApiManager {
     /**
      * Send multimodal chat request with images
      * @param prompt User's prompt text
-     * @param imageBase64List Array of base64 image data (without data: prefix)
+     * @param imageList Array of { base64, mimeType }
      * @param systemPrompt Optional system prompt
      * @returns The assistant's response text
      */
     async multimodalChat(
         prompt: string,
-        imageBase64List: string[],
+        imageList: { base64: string, mimeType: string }[],
         systemPrompt?: string
     ): Promise<string> {
         if (!this.isConfigured()) {
@@ -256,11 +283,14 @@ export class ApiManager {
         ];
 
         // Add images
-        for (const base64 of imageBase64List) {
+        for (const img of imageList) {
+            const mime = img.mimeType || 'image/png';
+            const url = `data:${mime};base64,${img.base64}`;
+
             contentParts.push({
                 type: 'image_url',
                 image_url: {
-                    url: base64.startsWith('data:') ? base64 : `data:image/png;base64,${base64}`
+                    url: url
                 }
             });
         }

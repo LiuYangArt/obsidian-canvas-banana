@@ -1,6 +1,6 @@
-import { App, ItemView, Plugin, PluginSettingTab, Setting, setIcon, setTooltip } from 'obsidian';
+import { App, ItemView, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, TFile } from 'obsidian';
 import type { Canvas, CanvasNode, CanvasCoords } from './types';
-import { CanvasConverter } from './CanvasConverter';
+import { CanvasConverter, ConvertedNode } from './CanvasConverter';
 import { ApiManager } from './ApiManager';
 
 // ========== 插件设置接口 ==========
@@ -355,11 +355,24 @@ export default class CanvasAIPlugin extends Plugin {
 
         // ========== Phase 4.1: Extract context from selected nodes ==========
         let contextMarkdown = '';
+        const images: { base64: string, mimeType: string }[] = [];
+
         if (selection && selection.size > 0) {
             try {
                 const conversionResult = await CanvasConverter.convert(this.app, canvas, selection);
                 contextMarkdown = conversionResult.markdown;
-                console.log('Canvas AI: Context extracted, length:', contextMarkdown.length);
+
+                // Extract images
+                conversionResult.nodes.forEach((node: ConvertedNode) => {
+                    if (node.isImage && node.base64) {
+                        images.push({
+                            base64: node.base64,
+                            mimeType: node.mimeType || 'image/png'
+                        });
+                    }
+                });
+
+                console.log(`Canvas AI: Context extracted, length: ${contextMarkdown.length}, images: ${images.length}`);
             } catch (e) {
                 console.warn('Canvas AI: Failed to extract context:', e);
             }
@@ -391,18 +404,94 @@ export default class CanvasAIPlugin extends Plugin {
                 }
 
                 console.log('Canvas AI: Sending chat request with context');
-                response = await this.apiManager!.chatCompletion(prompt, systemPrompt);
-            } else {
-                // For image mode, still return text for now (image saving comes later)
-                response = await this.apiManager!.generateImage(prompt);
-            }
+                if (images.length > 0) {
+                    response = await this.apiManager!.multimodalChat(prompt, images, systemPrompt);
+                } else {
+                    response = await this.apiManager!.chatCompletion(prompt, systemPrompt);
+                }
+                console.log('Canvas AI: API Response received');
+                this.updateGhostNode(ghostNode, response, false);
 
-            console.log('Canvas AI: API Response received');
-            this.updateGhostNode(ghostNode, response, false);
+            } else {
+                // Image Mode
+                console.log('Canvas AI: Sending image request');
+                const base64Image = await this.apiManager!.generateImage(prompt, '1:1', '1K', images);
+
+                // Update Ghost Node to show saving status
+                this.updateGhostNode(ghostNode, '💾 Saving image...', false);
+
+                // Save to Vault
+                const savedFile = await this.saveImageToVault(base64Image, prompt);
+                console.log('Canvas AI: Image saved to', savedFile.path);
+
+                // Replace Ghost Node with Image Node
+                this.replaceGhostWithImageNode(canvas, ghostNode, savedFile);
+            }
         } catch (error: any) {
             console.error('Canvas AI: API Error:', error.message || error);
             this.updateGhostNode(ghostNode, `❗ Error: ${error.message || 'Unknown error'}`, true);
         }
+    }
+
+    /**
+     * Save base64 image to vault
+     */
+    private async saveImageToVault(base64Data: string, prompt: string): Promise<TFile> {
+        // Remove data URL prefix if present
+        const base64 = base64Data.replace(/^data:image\/\w+;base64,/, "");
+
+        // Convert base64 to buffer
+        const buffer = this.base64ToArrayBuffer(base64);
+
+        // Sanitize prompt for filename
+        const safePrompt = prompt.replace(/[\\/:*?"<>|]/g, "").slice(0, 30).trim();
+        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
+        const filename = `AI_Image_${safePrompt}_${timestamp}.png`;
+
+        // Check/Create "Canvas Images" folder in root
+        const folderName = "Canvas Images";
+        if (!this.app.vault.getAbstractFileByPath(folderName)) {
+            await this.app.vault.createFolder(folderName);
+        }
+
+        const filePath = `${folderName}/${filename}`;
+        return await this.app.vault.createBinary(filePath, buffer);
+    }
+
+    /**
+     * Helper: Base64 to ArrayBuffer
+     */
+    private base64ToArrayBuffer(base64: string): ArrayBuffer {
+        const binaryString = window.atob(base64);
+        const len = binaryString.length;
+        const bytes = new Uint8Array(len);
+        for (let i = 0; i < len; i++) {
+            bytes[i] = binaryString.charCodeAt(i);
+        }
+        return bytes.buffer;
+    }
+
+    /**
+     * Replace Ghost Node with real File Node
+     */
+    private replaceGhostWithImageNode(canvas: Canvas, ghostNode: CanvasNode, file: TFile): void {
+        const { x, y, width } = ghostNode;
+        // Calculate aspect ratio height if needed, default square for 1:1
+        const height = width;
+
+        // Remove ghost
+        (canvas as any).removeNode(ghostNode);
+
+        // Create file node
+        const fileNode = (canvas as any).createFileNode({
+            file: file,
+            pos: { x, y, width, height },
+            size: { x, y, width, height },
+            save: true,
+            focus: false
+        });
+
+        canvas.requestSave();
     }
 
     /**

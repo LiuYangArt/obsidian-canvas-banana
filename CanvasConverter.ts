@@ -11,6 +11,9 @@ import type { Canvas, CanvasNode, CanvasEdge, CanvasCoords } from './types';
 /**
  * 转换后的节点数据
  */
+/**
+ * 转换后的节点数据
+ */
 export interface ConvertedNode {
     id: string;
     type: 'text' | 'file' | 'link' | 'group';
@@ -18,6 +21,8 @@ export interface ConvertedNode {
     isImage: boolean;      // 是否为图片节点
     filePath?: string;     // 文件路径（如果是文件节点）
     fileContent?: string;  // 文件实际内容（仅限 .md 文件）
+    base64?: string;       // 图片Base64数据（仅限图片文件）
+    mimeType?: string;     // 图片MIME类型
     isGroupMember?: boolean; // 是否是通过 group 展开添加的
 }
 
@@ -90,11 +95,19 @@ export class CanvasConverter {
             const isImage = IMAGE_EXTENSIONS.includes(ext);
             const fileName = node.file.name || node.file.path;
 
+            // Basic MIME detection
+            let mimeType = 'image/png';
+            if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
+            else if (ext === 'gif') mimeType = 'image/gif';
+            else if (ext === 'webp') mimeType = 'image/webp';
+            else if (ext === 'svg') mimeType = 'image/svg+xml';
+
             return {
                 id,
                 type: 'file',
                 content: isImage ? `![[${fileName}]]` : `[[${fileName}]]`,
                 isImage,
+                mimeType: isImage ? mimeType : undefined,
                 filePath: node.file.path,
             };
         }
@@ -328,9 +341,50 @@ export class CanvasConverter {
                     } catch (error) {
                         console.warn(`CanvasConverter: Failed to read file ${node.filePath}`, error);
                     }
+
                 }
             }
         }
+    }
+
+    /**
+     * 读取图片文件内容并转换为 Base64
+     * @param app Obsidian App 实例
+     * @param nodes 转换后的节点数组
+     */
+    private static async readImageFileContents(app: App, nodes: ConvertedNode[]): Promise<void> {
+        console.log('CanvasConverter: readImageFileContents called, nodes:', nodes.length);
+        for (const node of nodes) {
+            console.log(`CanvasConverter: Checking node ${node.id}, type=${node.type}, isImage=${node.isImage}, filePath=${node.filePath}`);
+            if (node.type === 'file' && node.filePath && node.isImage) {
+                try {
+                    const file = app.vault.getAbstractFileByPath(node.filePath);
+                    console.log(`CanvasConverter: File lookup result:`, file);
+                    if (file && file instanceof TFile) {
+                        const buffer = await app.vault.readBinary(file);
+                        node.base64 = this.arrayBufferToBase64(buffer);
+                        console.log(`CanvasConverter: Read image ${node.filePath}, base64 length: ${node.base64.length}`);
+                    } else {
+                        console.warn(`CanvasConverter: File not found or not TFile: ${node.filePath}`);
+                    }
+                } catch (error) {
+                    console.warn(`CanvasConverter: Failed to read image file ${node.filePath}`, error);
+                }
+            }
+        }
+    }
+
+    /**
+     * 将 ArrayBuffer 转换为 Base64 字符串
+     */
+    private static arrayBufferToBase64(buffer: ArrayBuffer): string {
+        let binary = '';
+        const bytes = new Uint8Array(buffer);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+            binary += String.fromCharCode(bytes[i]);
+        }
+        return window.btoa(binary);
     }
 
     /**
@@ -360,6 +414,9 @@ export class CanvasConverter {
 
         // 读取 .md 文件内容
         await this.readMdFileContents(app, nodes);
+
+        // 读取图片文件内容
+        await this.readImageFileContents(app, nodes);
 
         // 构建选中节点 ID 集合（包含展开后的节点）
         const selectedIds = new Set<string>();
