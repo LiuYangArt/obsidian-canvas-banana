@@ -484,6 +484,7 @@ export default class CanvasAIPlugin extends Plugin {
 
     /**
      * Update ghost node with response
+     * Dynamically resize node height based on content length
      */
     private updateGhostNode(node: CanvasNode, content: string, isError: boolean): void {
         // Remove ghost styling
@@ -504,8 +505,44 @@ export default class CanvasAIPlugin extends Plugin {
             node.render?.();
         }
 
+        // ========== Dynamic height adjustment ==========
+        // Estimate height based on content:
+        // - Count number of lines
+        // - Consider average characters per line (approximately 50 chars at 400px width)
+        const lines = content.split('\n');
+        const lineCount = lines.length;
+
+        // Estimate wrapped lines for long lines
+        let totalEstimatedLines = 0;
+        const charsPerLine = 50; // Approximate chars per line at 400px width
+        for (const line of lines) {
+            const lineLen = line.length;
+            if (lineLen === 0) {
+                totalEstimatedLines += 1; // Empty line
+            } else {
+                totalEstimatedLines += Math.ceil(lineLen / charsPerLine);
+            }
+        }
+
+        // Calculate height: ~24px per line, minimum 100px, maximum 600px
+        const lineHeight = 24;
+        const padding = 40; // Top + bottom padding
+        const estimatedHeight = Math.min(
+            Math.max(100, totalEstimatedLines * lineHeight + padding),
+            600
+        );
+
+        // Update node dimensions
+        if ((node as any).resize) {
+            (node as any).resize({ width: 400, height: estimatedHeight });
+        } else {
+            // Fallback: directly set dimensions
+            node.width = 400;
+            node.height = estimatedHeight;
+        }
+
         node.canvas?.requestSave();
-        console.log('Canvas AI: Ghost Node updated with content');
+        console.log(`Canvas AI: Ghost Node updated, estimated ${totalEstimatedLines} lines, height: ${estimatedHeight}px`);
     }
 
     /**
