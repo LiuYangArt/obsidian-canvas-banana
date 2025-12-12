@@ -3,7 +3,8 @@
  * 将选中的 Canvas 节点转换为 LLM 容易理解的 Markdown 和 Mermaid 格式
  */
 
-import type { Canvas, CanvasNode, CanvasEdge } from './types';
+import { App, TFile } from 'obsidian';
+import type { Canvas, CanvasNode, CanvasEdge, CanvasCoords } from './types';
 
 // ========== 转换后的数据结构 ==========
 
@@ -16,6 +17,8 @@ export interface ConvertedNode {
     content: string;       // 文本内容或文件引用 ![[filename]]
     isImage: boolean;      // 是否为图片节点
     filePath?: string;     // 文件路径（如果是文件节点）
+    fileContent?: string;  // 文件实际内容（仅限 .md 文件）
+    isGroupMember?: boolean; // 是否是通过 group 展开添加的
 }
 
 /**
@@ -275,18 +278,92 @@ export class CanvasConverter {
     }
 
     /**
-     * 一键转换入口
+     * 展开 Group 节点：获取 group 内包含的所有子节点
+     * @param canvas Canvas 实例
+     * @param selection 原始选中的节点集合
+     * @returns 展开后的节点集合（包含 group 内的节点）
+     */
+    static expandGroupNodes(canvas: Canvas, selection: Set<CanvasNode>): Set<CanvasNode> {
+        const expanded = new Set<CanvasNode>(selection);
+
+        selection.forEach(node => {
+            // 检测是否为 group 节点（有 label 属性）
+            if (node.label !== undefined) {
+                // 获取 group 的包围盒
+                const bbox = node.getBBox ? node.getBBox() : node.bbox;
+                if (bbox) {
+                    // 使用 canvas.getContainingNodes 获取 group 区域内的所有节点
+                    const containedNodes = canvas.getContainingNodes(bbox);
+                    containedNodes.forEach(child => {
+                        // 排除 group 自身
+                        if (child.id !== node.id) {
+                            expanded.add(child);
+                        }
+                    });
+                }
+            }
+        });
+
+        return expanded;
+    }
+
+    /**
+     * 读取 .md 文件内容并填充到节点中
+     * @param app Obsidian App 实例
+     * @param nodes 转换后的节点数组
+     */
+    private static async readMdFileContents(app: App, nodes: ConvertedNode[]): Promise<void> {
+        for (const node of nodes) {
+            if (node.type === 'file' && node.filePath && !node.isImage) {
+                // 检查是否为 .md 文件
+                if (node.filePath.endsWith('.md')) {
+                    try {
+                        const file = app.vault.getAbstractFileByPath(node.filePath);
+                        if (file && file instanceof TFile) {
+                            const content = await app.vault.cachedRead(file);
+                            node.fileContent = content;
+                            // 更新 content 字段为文件实际内容
+                            node.content = content;
+                        }
+                    } catch (error) {
+                        console.warn(`CanvasConverter: Failed to read file ${node.filePath}`, error);
+                    }
+                }
+            }
+        }
+    }
+
+    /**
+     * 一键转换入口（异步版本）
+     * @param app Obsidian App 实例
      * @param canvas Canvas 实例
      * @param selection 选中的节点集合
      * @returns 完整的转换结果
      */
-    static convert(canvas: Canvas, selection: Set<CanvasNode>): ConversionResult {
-        // 提取节点
-        const nodes = this.extractNodes(selection);
+    static async convert(app: App, canvas: Canvas, selection: Set<CanvasNode>): Promise<ConversionResult> {
+        // 展开 group 节点，获取其内部所有子节点
+        const expandedSelection = this.expandGroupNodes(canvas, selection);
 
-        // 构建选中节点 ID 集合
+        // 标记哪些节点是通过 group 展开添加的
+        const originalIds = new Set<string>();
+        selection.forEach(node => originalIds.add(node.id));
+
+        // 提取节点
+        const nodes = this.extractNodes(expandedSelection);
+
+        // 标记 group 展开的成员节点
+        nodes.forEach(node => {
+            if (!originalIds.has(node.id)) {
+                node.isGroupMember = true;
+            }
+        });
+
+        // 读取 .md 文件内容
+        await this.readMdFileContents(app, nodes);
+
+        // 构建选中节点 ID 集合（包含展开后的节点）
         const selectedIds = new Set<string>();
-        selection.forEach(node => selectedIds.add(node.id));
+        expandedSelection.forEach(node => selectedIds.add(node.id));
 
         // 提取边
         const edges = this.extractEdges(canvas, selectedIds);

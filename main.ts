@@ -470,7 +470,7 @@ export default class CanvasAIPlugin extends Plugin {
      * 调试：打印选中节点的详细信息
      * 用于步骤 2.1 和 2.2 的测试验证
      */
-    private debugSelectedNodes(): void {
+    private async debugSelectedNodes(): Promise<void> {
         const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
 
         if (!canvasView || canvasView.getViewType() !== 'canvas') {
@@ -519,9 +519,9 @@ export default class CanvasAIPlugin extends Plugin {
         });
         console.groupEnd();
 
-        // 步骤 2.2：使用 CanvasConverter 进行格式转换
+        // 步骤 2.2：使用 CanvasConverter 进行格式转换（异步）
         console.group('📝 Converted Output');
-        const result = CanvasConverter.convert(canvas, selection);
+        const result = await CanvasConverter.convert(this.app, canvas, selection);
 
         console.log('Converted Nodes:', result.nodes);
         console.log('Converted Edges:', result.edges);
