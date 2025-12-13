@@ -1,11 +1,12 @@
 {
     "name": "obsidian-canvas-ai",
-    "version": "0.0.1",
+    "version": "1.0.0",
     "description": "Obsidian Canvas AI Plugin - 在 Canvas 视图中集成 Gemini AI",
     "main": "main.js",
     "scripts": {
-        "dev": "node esbuild.config.mjs",
-        "build": "tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
+        "version-sync": "node version-bump.mjs",
+        "dev": "npm run version-sync && node esbuild.config.mjs",
+        "build": "npm run version-sync && tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
     },
     "keywords": [
         "obsidian",
