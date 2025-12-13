@@ -354,8 +354,8 @@
 
 /* ========== Settings Page Styles ========== */
 
-/* Make setting items stack vertically with full-width inputs */
-.canvas-ai-settings .setting-item {
+/* Make setting items stack vertically with full-width inputs - REMOVED for standard layout */
+/* .canvas-ai-settings .setting-item {
     flex-direction: column;
     align-items: flex-start;
     gap: 8px;
@@ -368,8 +368,26 @@
 .canvas-ai-settings .setting-item-control {
     width: 100%;
 }
+*/
 
-.canvas-ai-settings .setting-item-control input[type="text"] {
+/* Small input for Max Size */
+.canvas-ai-settings .canvas-ai-small-input {
+    width: 80px !important;
+    text-align: right;
+}
+
+.canvas-ai-settings .setting-item-control input[type="text"]:not(.canvas-ai-small-input) {
+    width: 100%;
+}
+
+/* Fix API Provider dropdown being too narrow */
+.canvas-ai-settings .setting-item-control select {
+    min-width: 200px;
+}
+
+/* Fix System Prompt textarea width changing on resize */
+.canvas-ai-settings textarea {
+    resize: vertical;
     width: 100%;
 }
 

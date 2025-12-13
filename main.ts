@@ -1889,7 +1889,7 @@ class CanvasAISettingTab extends PluginSettingTab {
             .setDesc(statusText);
 
         const refreshBtn = refreshSetting.controlEl.createEl('button', {
-            text: this.isFetching ? '刷新中...' : '🔄 刷新模型列表',
+            text: this.isFetching ? '刷新中...' : '刷新模型列表',
             cls: 'canvas-ai-refresh-btn'
         });
 
@@ -1950,7 +1950,8 @@ class CanvasAISettingTab extends PluginSettingTab {
                         this.plugin.settings.imageMaxSize = num;
                         await this.plugin.saveSettings();
                     }
-                }));
+                })
+                .inputEl.addClass('canvas-ai-small-input'));
 
         // ========== Prompt Settings ==========
         containerEl.createEl('h3', { text: 'Prompt Settings' });
@@ -2063,30 +2064,19 @@ class CanvasAISettingTab extends PluginSettingTab {
     }): void {
         const { name, desc, modelKey, customKey, placeholder, getModels } = options;
 
-        // Use type assertion to handle the specific setting types
-        // This assumes modelKey is string property and customKey is boolean property
         const useCustom = this.plugin.settings[customKey] as boolean;
         const models = getModels();
         const hasModels = models.length > 0;
+        const isManualMode = useCustom || !hasModels;
 
-        const setting = new Setting(containerEl)
+        // 1. Model Selection (Dropdown or Input)
+        const modelSetting = new Setting(containerEl)
             .setName(name)
             .setDesc(desc);
 
-        // Toggle for custom input mode
-        setting.addToggle(toggle => toggle
-            .setTooltip('手动输入模型名称')
-            .setValue(useCustom || false) // Handle undefined
-            .onChange(async (value) => {
-                (this.plugin.settings[customKey] as boolean) = value;
-                await this.plugin.saveSettings();
-                // Re-render to switch between dropdown and text input
-                this.display();
-            }));
-
-        if (useCustom || !hasModels) {
-            // Text input mode (manual) or no models available
-            setting.addText(text => text
+        if (isManualMode) {
+            // Manual Input Mode
+            modelSetting.addText(text => text
                 .setPlaceholder(placeholder)
                 .setValue((this.plugin.settings[modelKey] as string) || '')
                 .onChange(async (value) => {
@@ -2095,14 +2085,15 @@ class CanvasAISettingTab extends PluginSettingTab {
                 }));
 
             if (!hasModels && !useCustom) {
-                setting.descEl.createEl('span', {
+                modelSetting.descEl.createEl('div', {
                     text: ' (无可用模型列表，请先刷新或手动输入)',
-                    cls: 'canvas-ai-model-hint'
+                    cls: 'canvas-ai-model-hint',
+                    attr: { style: 'color: var(--text-muted); font-size: 0.8em;' }
                 });
             }
         } else {
-            // Dropdown mode
-            setting.addDropdown(dropdown => {
+            // Dropdown Mode
+            modelSetting.addDropdown(dropdown => {
                 const currentValue = (this.plugin.settings[modelKey] as string);
 
                 // Add current value first if not in list (to preserve custom values)
@@ -2123,6 +2114,19 @@ class CanvasAISettingTab extends PluginSettingTab {
                 });
             });
         }
+
+        // 2. Manual Input Toggle (Next Line)
+        new Setting(containerEl)
+            .setName('手动输入模型名称')
+            .setDesc(isManualMode ? '关闭以从列表选择' : '开启以手动输入模型 ID')
+            .addToggle(toggle => toggle
+                .setValue(useCustom || false)
+                .onChange(async (value) => {
+                    (this.plugin.settings[customKey] as boolean) = value;
+                    await this.plugin.saveSettings();
+                    // Re-render to switch between dropdown and text input
+                    this.display();
+                }));
     }
 }
 
