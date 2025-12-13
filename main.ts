@@ -40,6 +40,9 @@ export interface CanvasAISettings {
 
     // Debug mode
     debugMode: boolean;
+
+    // Image generation system prompt
+    imageSystemPrompt: string;
 }
 
 const DEFAULT_SETTINGS: CanvasAISettings = {
@@ -64,7 +67,9 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
     defaultAspectRatio: '1:1',
     defaultResolution: '1K',
 
-    debugMode: false
+    debugMode: false,
+
+    imageSystemPrompt: 'Role: A Professional Image Creator. Use the following references for image creation.'
 };
 
 
@@ -1538,6 +1543,27 @@ class CanvasAISettingTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                     }
                 }));
+
+        // ========== Prompt Settings ==========
+        containerEl.createEl('h3', { text: 'Prompt Settings' });
+
+        new Setting(containerEl)
+            .setName('Image System Prompt')
+            .setDesc('图像生成时使用的系统提示词')
+            .addTextArea(text => text
+                .setPlaceholder('You are an expert creator...')
+                .setValue(this.plugin.settings.imageSystemPrompt)
+                .onChange(async (value) => {
+                    this.plugin.settings.imageSystemPrompt = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // Make the text area larger
+        const textAreaEl = containerEl.querySelector('.setting-item:last-child textarea');
+        if (textAreaEl) {
+            (textAreaEl as HTMLTextAreaElement).rows = 3;
+            (textAreaEl as HTMLTextAreaElement).style.width = '100%';
+        }
 
         // ========== Developer Options ==========
         containerEl.createEl('h3', { text: 'Developer Options' });

@@ -312,10 +312,10 @@ export class ApiManager {
     ): Promise<string> {
         const contentParts: OpenRouterContentPart[] = [];
 
-        // System context
+        // System context from settings
         contentParts.push({
             type: 'text',
-            text: 'You are an expert creator. Use the following references.'
+            text: this.settings.imageSystemPrompt || 'You are an expert creator. Use the following references.'
         });
 
         // Add images with role annotations
@@ -409,8 +409,8 @@ export class ApiManager {
         // Build parts array in Gemini native format
         const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
 
-        // System context
-        parts.push({ text: 'You are an expert creator. Use the following references.' });
+        // System context from settings
+        parts.push({ text: this.settings.imageSystemPrompt || 'You are an expert creator. Use the following references.' });
 
         // Add images with role annotations
         for (const img of imagesWithRoles) {
