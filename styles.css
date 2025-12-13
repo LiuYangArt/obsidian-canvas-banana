@@ -190,11 +190,26 @@
 /* ========== 面板底部 ========== */
 .canvas-ai-palette-footer {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: 8px;
     padding: 10px 12px;
     border-top: 1px solid var(--background-modifier-border);
     background: var(--background-secondary);
+}
+
+.canvas-ai-footer-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+}
+
+.canvas-ai-version-info {
+    font-size: 10px;
+    color: var(--text-faint);
+    text-align: right;
+    /* margin-right: 5px; */
+    opacity: 0.6;
 }
 
 .canvas-ai-context-preview {

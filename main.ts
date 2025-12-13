@@ -37,6 +37,9 @@ export interface CanvasAISettings {
     // Image generation defaults (palette state)
     defaultAspectRatio: string;
     defaultResolution: string;
+
+    // Debug mode
+    debugMode: boolean;
 }
 
 const DEFAULT_SETTINGS: CanvasAISettings = {
@@ -59,7 +62,9 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
     imageCompressionQuality: 80,  // Default 80% quality
     imageMaxSize: 2048,  // Default max size
     defaultAspectRatio: '1:1',
-    defaultResolution: '1K'
+    defaultResolution: '1K',
+
+    debugMode: false
 };
 
 
@@ -90,6 +95,7 @@ class FloatingPalette {
     private imageOptionsEl: HTMLElement | null = null;
     private ratioSelect: HTMLSelectElement | null = null;
     private resolutionSelect: HTMLSelectElement | null = null;
+    private debugBtnEl: HTMLButtonElement | null = null;
 
     constructor(apiManager: ApiManager, onDebugCallback?: () => void) {
         this.apiManager = apiManager;
@@ -120,6 +126,15 @@ class FloatingPalette {
         this.imageResolution = resolution;
         if (this.ratioSelect) this.ratioSelect.value = aspectRatio;
         if (this.resolutionSelect) this.resolutionSelect.value = resolution;
+    }
+
+    /**
+     * Set debug mode visibility for the Debug button
+     */
+    setDebugMode(enabled: boolean): void {
+        if (this.debugBtnEl) {
+            this.debugBtnEl.style.display = enabled ? 'block' : 'none';
+        }
     }
 
     /**
@@ -177,11 +192,14 @@ class FloatingPalette {
                 ></textarea>
             </div>
             <div class="canvas-ai-palette-footer">
-                <span class="canvas-ai-context-preview"></span>
-                <div class="canvas-ai-btn-group">
-                    <button class="canvas-ai-debug-btn">Debug</button>
-                    <button class="canvas-ai-generate-btn">Generate</button>
+                <div class="canvas-ai-footer-row">
+                    <span class="canvas-ai-context-preview"></span>
+                    <div class="canvas-ai-btn-group">
+                        <button class="canvas-ai-debug-btn" style="display: none;">Debug</button>
+                        <button class="canvas-ai-generate-btn">Generate</button>
+                    </div>
                 </div>
+                <div class="canvas-ai-version-info">🍌CanvasBanana by LiuYang v1.0</div>
             </div>
         `;
 
@@ -222,8 +240,8 @@ class FloatingPalette {
         });
 
         // 绑定 Debug 按钮
-        const debugBtn = container.querySelector('.canvas-ai-debug-btn');
-        debugBtn?.addEventListener('click', () => {
+        this.debugBtnEl = container.querySelector('.canvas-ai-debug-btn') as HTMLButtonElement;
+        this.debugBtnEl?.addEventListener('click', () => {
             this.onDebug?.();
         });
 
@@ -529,6 +547,9 @@ export default class CanvasAIPlugin extends Plugin {
             this.settings.defaultAspectRatio,
             this.settings.defaultResolution
         );
+
+        // Initialize debug mode from settings
+        this.floatingPalette.setDebugMode(this.settings.debugMode);
     }
 
     /**
@@ -1516,6 +1537,19 @@ class CanvasAISettingTab extends PluginSettingTab {
                         this.plugin.settings.imageMaxSize = num;
                         await this.plugin.saveSettings();
                     }
+                }));
+
+        // ========== Developer Options ==========
+        containerEl.createEl('h3', { text: 'Developer Options' });
+
+        new Setting(containerEl)
+            .setName('Debug Mode')
+            .setDesc('开启后在面板中显示 Debug 按钮，用于输出调试信息')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.debugMode)
+                .onChange(async (value) => {
+                    this.plugin.settings.debugMode = value;
+                    await this.plugin.saveSettings();
                 }));
 
         // ========== About Section ==========
