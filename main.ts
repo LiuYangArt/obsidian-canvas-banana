@@ -210,11 +210,14 @@ class FloatingPalette {
     // Image generation options (no model selection - always use Pro)
     private imageAspectRatio: string = '1:1';
     private imageResolution: string = '1K';
+    private chatTemperature: number = 0.5;
 
     // DOM references for image options
     private imageOptionsEl: HTMLElement | null = null;
+    private chatOptionsEl: HTMLElement | null = null;
     private ratioSelect: HTMLSelectElement | null = null;
     private resolutionSelect: HTMLSelectElement | null = null;
+    private tempInput: HTMLInputElement | null = null;
     private debugBtnEl: HTMLButtonElement | null = null;
     private versionInfoEl: HTMLElement | null = null;
 
@@ -332,6 +335,11 @@ class FloatingPalette {
                         <button class="canvas-ai-preset-btn" data-action="rename" title="Rename preset"></button>
                     </div>
                 </div>
+                <textarea 
+                    class="canvas-ai-prompt-input" 
+                    placeholder="Ask a question about selected notes..."
+                    rows="4"
+                ></textarea>
                 <div class="canvas-ai-image-options" style="display: none;">
                     <div class="canvas-ai-option-row">
                         <span class="canvas-ai-option-group">
@@ -359,11 +367,14 @@ class FloatingPalette {
                         </span>
                     </div>
                 </div>
-                <textarea 
-                    class="canvas-ai-prompt-input" 
-                    placeholder="Ask a question about selected notes..."
-                    rows="4"
-                ></textarea>
+                <div class="canvas-ai-chat-options">
+                    <div class="canvas-ai-option-row">
+                        <span class="canvas-ai-option-group">
+                            <label>Temperature</label>
+                            <input type="number" class="canvas-ai-temp-input" min="0" max="2" step="0.1" value="0.5">
+                        </span>
+                    </div>
+                </div>
             </div>
             <div class="canvas-ai-palette-footer">
                 <div class="canvas-ai-footer-row">
@@ -382,8 +393,18 @@ class FloatingPalette {
 
         // Get image options DOM references
         this.imageOptionsEl = container.querySelector('.canvas-ai-image-options');
+        this.chatOptionsEl = container.querySelector('.canvas-ai-chat-options');
         this.ratioSelect = container.querySelector('.canvas-ai-ratio-select');
         this.resolutionSelect = container.querySelector('.canvas-ai-resolution-select');
+        this.tempInput = container.querySelector('.canvas-ai-temp-input');
+
+        // Bind temperature input change
+        this.tempInput?.addEventListener('input', () => {
+            const val = parseFloat(this.tempInput!.value);
+            if (!isNaN(val)) {
+                this.chatTemperature = Math.max(0, Math.min(2, val));
+            }
+        });
 
         // Get preset DOM references
         this.presetSelect = container.querySelector('.canvas-ai-preset-select');
@@ -436,7 +457,7 @@ class FloatingPalette {
                 tab.addClass('active');
                 this.currentMode = tab.getAttribute('data-mode') as PaletteMode;
                 this.updatePlaceholder();
-                this.updateImageOptionsVisibility();
+                this.updateOptionsVisibility();
                 this.refreshPresetDropdown();
             });
         });
@@ -471,11 +492,14 @@ class FloatingPalette {
     }
 
     /**
-     * Show/hide image options based on current mode
+     * Show/hide options based on current mode
      */
-    private updateImageOptionsVisibility(): void {
+    private updateOptionsVisibility(): void {
         if (this.imageOptionsEl) {
             this.imageOptionsEl.style.display = this.currentMode === 'image' ? 'flex' : 'none';
+        }
+        if (this.chatOptionsEl) {
+            this.chatOptionsEl.style.display = this.currentMode === 'chat' ? 'flex' : 'none';
         }
     }
 
@@ -775,6 +799,15 @@ class FloatingPalette {
     }
 
     /**
+     * Get current chat options
+     */
+    getChatOptions(): { temperature: number } {
+        return {
+            temperature: this.chatTemperature
+        };
+    }
+
+    /**
      * 显示面板并定位
      * @param x 屏幕 X 坐标
      * @param y 屏幕 Y 坐标
@@ -1032,6 +1065,9 @@ export default class CanvasAIPlugin extends Plugin {
                     systemPrompt += `\n\n---\nThe user has selected the following content from their canvas:\n\n${intent.contextText}\n\n---\nBased on this context, respond to the user's request.`;
                 }
 
+                // Get chat options from palette
+                const chatOptions = this.floatingPalette!.getChatOptions();
+
                 console.log('Canvas AI: Sending chat request with context');
                 if (intent.images.length > 0) {
                     // Convert to simple format for multimodalChat
@@ -1039,9 +1075,9 @@ export default class CanvasAIPlugin extends Plugin {
                         base64: img.base64,
                         mimeType: img.mimeType
                     }));
-                    response = await this.apiManager!.multimodalChat(intent.instruction, simpleImages, systemPrompt);
+                    response = await this.apiManager!.multimodalChat(intent.instruction, simpleImages, systemPrompt, chatOptions.temperature);
                 } else {
-                    response = await this.apiManager!.chatCompletion(intent.instruction, systemPrompt);
+                    response = await this.apiManager!.chatCompletion(intent.instruction, systemPrompt, chatOptions.temperature);
                 }
                 console.log('Canvas AI: API Response received');
                 this.updateGhostNode(ghostNode, response, false);

@@ -33,6 +33,7 @@ export interface OpenRouterRequest {
     modalities?: ('text' | 'image')[];
     image_config?: OpenRouterImageConfig;
     reasoning?: { enabled: boolean };
+    temperature?: number;
 }
 
 export interface OpenRouterChoice {
@@ -145,7 +146,7 @@ export class ApiManager {
      * @param systemPrompt Optional system prompt
      * @returns The assistant's response text
      */
-    async chatCompletion(prompt: string, systemPrompt?: string): Promise<string> {
+    async chatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): Promise<string> {
         if (!this.isConfigured()) {
             throw new Error('OpenRouter API Key not configured. Please set it in plugin settings.');
         }
@@ -166,7 +167,8 @@ export class ApiManager {
 
         const requestBody: OpenRouterRequest = {
             model: this.getTextModel(),
-            messages: messages
+            messages: messages,
+            temperature: temperature
         };
 
         console.log('Canvas AI: Sending chat request to OpenRouter...');
@@ -578,7 +580,8 @@ export class ApiManager {
     async multimodalChat(
         prompt: string,
         imageList: { base64: string, mimeType: string }[],
-        systemPrompt?: string
+        systemPrompt?: string,
+        temperature: number = 0.5
     ): Promise<string> {
         if (!this.isConfigured()) {
             throw new Error('OpenRouter API Key not configured. Please set it in plugin settings.');
@@ -621,7 +624,8 @@ export class ApiManager {
 
         const requestBody: OpenRouterRequest = {
             model: this.getTextModel(),
-            messages: messages
+            messages: messages,
+            temperature: temperature
         };
 
         console.log('Canvas AI: Sending multimodal chat request to OpenRouter...');
