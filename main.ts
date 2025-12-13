@@ -10,6 +10,8 @@ export interface CanvasAISettings {
     openRouterBaseUrl: string;
     textModel: string;
     imageModel: string;
+    useCustomTextModel: boolean;   // true = manual input, false = dropdown
+    useCustomImageModel: boolean;  // true = manual input, false = dropdown
     imageCompressionQuality: number;  // WebP compression quality (0-100)
     imageMaxSize: number;  // Max width/height for WebP output
 }
@@ -17,11 +19,14 @@ export interface CanvasAISettings {
 const DEFAULT_SETTINGS: CanvasAISettings = {
     openRouterApiKey: '',
     openRouterBaseUrl: 'https://openrouter.ai/api/v1/chat/completions',
-    textModel: 'google/gemini-2.5-flash-preview',
-    imageModel: 'google/gemini-2.5-flash-image-preview',
+    textModel: 'google/gemini-2.5-flash',
+    imageModel: 'google/gemini-2.5-flash-preview:thinking',
+    useCustomTextModel: false,
+    useCustomImageModel: false,
     imageCompressionQuality: 80,  // Default 80% quality
     imageMaxSize: 2048  // Default max size
 };
+
 
 // ========== 悬浮面板模式 ==========
 type PaletteMode = 'chat' | 'image';
@@ -1004,15 +1009,88 @@ export default class CanvasAIPlugin extends Plugin {
 }
 
 // ========== 设置页面 ==========
+
+// Model info structure from OpenRouter API
+interface OpenRouterModel {
+    id: string;
+    name: string;
+    outputModalities: string[];
+}
+
 class CanvasAISettingTab extends PluginSettingTab {
     plugin: CanvasAIPlugin;
+    private modelCache: OpenRouterModel[] = [];
+    private modelsFetched: boolean = false;
+    private isFetching: boolean = false;
 
     constructor(app: App, plugin: CanvasAIPlugin) {
         super(app, plugin);
         this.plugin = plugin;
     }
 
-    display(): void {
+    /**
+     * Fetch models from OpenRouter API
+     */
+    private async fetchModels(): Promise<void> {
+        if (this.isFetching) return;
+
+        const apiKey = this.plugin.settings.openRouterApiKey;
+        if (!apiKey) {
+            console.log('Canvas AI Settings: No API key, skipping model fetch');
+            return;
+        }
+
+        this.isFetching = true;
+        try {
+            const response = await fetch('https://openrouter.ai/api/v1/models', {
+                method: 'GET',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`API returned ${response.status}`);
+            }
+
+            const data = await response.json();
+
+            // Parse and cache model info
+            this.modelCache = (data.data || []).map((m: any) => ({
+                id: m.id || '',
+                name: m.name || m.id || '',
+                outputModalities: m.architecture?.output_modalities || ['text']
+            }));
+
+            this.modelsFetched = true;
+            console.log(`Canvas AI Settings: Fetched ${this.modelCache.length} models`);
+        } catch (error: any) {
+            console.error('Canvas AI Settings: Failed to fetch models:', error.message);
+            // Keep existing cache or empty
+        } finally {
+            this.isFetching = false;
+        }
+    }
+
+    /**
+     * Get models that support text output
+     */
+    private getTextModels(): OpenRouterModel[] {
+        return this.modelCache.filter(m =>
+            m.outputModalities.includes('text')
+        );
+    }
+
+    /**
+     * Get models that support image output
+     */
+    private getImageModels(): OpenRouterModel[] {
+        return this.modelCache.filter(m =>
+            m.outputModalities.includes('image')
+        );
+    }
+
+    async display(): Promise<void> {
         const { containerEl } = this;
         containerEl.empty();
         containerEl.addClass('canvas-ai-settings');
@@ -1094,30 +1172,53 @@ class CanvasAISettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 }));
 
-        // 模型配置区域
+        // ========== 模型配置区域 ==========
         containerEl.createEl('h3', { text: '模型配置' });
 
-        new Setting(containerEl)
-            .setName('Text Generation Model')
-            .setDesc('用于 Chat 模式的文本生成模型')
-            .addText(text => text
-                .setPlaceholder('google/gemini-2.5-flash-preview')
-                .setValue(this.plugin.settings.textModel)
-                .onChange(async (value) => {
-                    this.plugin.settings.textModel = value;
-                    await this.plugin.saveSettings();
-                }));
+        // Fetch models if not already fetched
+        if (!this.modelsFetched && this.plugin.settings.openRouterApiKey) {
+            await this.fetchModels();
+        }
 
-        new Setting(containerEl)
-            .setName('Image Generation Model')
-            .setDesc('用于 Image 模式的图像生成模型')
-            .addText(text => text
-                .setPlaceholder('google/gemini-2.5-flash-image-preview')
-                .setValue(this.plugin.settings.imageModel)
-                .onChange(async (value) => {
-                    this.plugin.settings.imageModel = value;
-                    await this.plugin.saveSettings();
-                }));
+        // Refresh button
+        const refreshSetting = new Setting(containerEl)
+            .setName('模型列表')
+            .setDesc(this.modelsFetched
+                ? `已加载 ${this.modelCache.length} 个模型 (文本: ${this.getTextModels().length}, 图像: ${this.getImageModels().length})`
+                : '点击刷新按钮获取可用模型列表');
+
+        const refreshBtn = refreshSetting.controlEl.createEl('button', {
+            text: '🔄 刷新模型列表',
+            cls: 'canvas-ai-refresh-btn'
+        });
+
+        refreshBtn.addEventListener('click', async () => {
+            refreshBtn.textContent = '获取中...';
+            refreshBtn.disabled = true;
+            await this.fetchModels();
+            // Re-render the entire settings page to update dropdowns
+            this.display();
+        });
+
+        // ========== Text Model Setting ==========
+        this.renderModelSetting(containerEl, {
+            name: 'Text Generation Model',
+            desc: '用于 Chat 模式的文本生成模型',
+            modelKey: 'textModel',
+            customKey: 'useCustomTextModel',
+            placeholder: 'google/gemini-2.5-flash',
+            getModels: () => this.getTextModels()
+        });
+
+        // ========== Image Model Setting ==========
+        this.renderModelSetting(containerEl, {
+            name: 'Image Generation Model',
+            desc: '用于 Image 模式的图像生成模型',
+            modelKey: 'imageModel',
+            customKey: 'useCustomImageModel',
+            placeholder: 'google/gemini-2.5-flash-preview:thinking',
+            getModels: () => this.getImageModels()
+        });
 
         // 图片优化区域
         containerEl.createEl('h3', { text: '图片优化' });
@@ -1158,4 +1259,77 @@ class CanvasAISettingTab extends PluginSettingTab {
             text: '数据存储位置: .obsidian/plugins/obsidian-canvas-ai/data.json'
         });
     }
+
+    /**
+     * Render a model selection setting with dropdown/text input toggle
+     */
+    private renderModelSetting(containerEl: HTMLElement, options: {
+        name: string;
+        desc: string;
+        modelKey: 'textModel' | 'imageModel';
+        customKey: 'useCustomTextModel' | 'useCustomImageModel';
+        placeholder: string;
+        getModels: () => OpenRouterModel[];
+    }): void {
+        const { name, desc, modelKey, customKey, placeholder, getModels } = options;
+        const useCustom = this.plugin.settings[customKey];
+        const models = getModels();
+        const hasModels = models.length > 0;
+
+        const setting = new Setting(containerEl)
+            .setName(name)
+            .setDesc(desc);
+
+        // Toggle for custom input mode
+        setting.addToggle(toggle => toggle
+            .setTooltip('手动输入模型名称')
+            .setValue(useCustom)
+            .onChange(async (value) => {
+                this.plugin.settings[customKey] = value;
+                await this.plugin.saveSettings();
+                // Re-render to switch between dropdown and text input
+                this.display();
+            }));
+
+        if (useCustom || !hasModels) {
+            // Text input mode (manual) or no models available
+            setting.addText(text => text
+                .setPlaceholder(placeholder)
+                .setValue(this.plugin.settings[modelKey])
+                .onChange(async (value) => {
+                    this.plugin.settings[modelKey] = value;
+                    await this.plugin.saveSettings();
+                }));
+
+            if (!hasModels && !useCustom) {
+                setting.descEl.createEl('span', {
+                    text: ' (无可用模型列表，请先刷新或手动输入)',
+                    cls: 'canvas-ai-model-hint'
+                });
+            }
+        } else {
+            // Dropdown mode
+            setting.addDropdown(dropdown => {
+                const currentValue = this.plugin.settings[modelKey];
+
+                // Add current value first if not in list (to preserve custom values)
+                const modelIds = models.map(m => m.id);
+                if (currentValue && !modelIds.includes(currentValue)) {
+                    dropdown.addOption(currentValue, `${currentValue} (当前)`);
+                }
+
+                // Add all models from API
+                for (const model of models) {
+                    dropdown.addOption(model.id, `${model.name} (${model.id})`);
+                }
+
+                dropdown.setValue(currentValue);
+                dropdown.onChange(async (value) => {
+                    this.plugin.settings[modelKey] = value;
+                    await this.plugin.saveSettings();
+                });
+            });
+        }
+    }
 }
+
