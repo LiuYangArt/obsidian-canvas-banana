@@ -39,22 +39,24 @@ Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增�
 
 由于本插件目前可能处于测试阶段或未上架社区商店，请按照以下步骤手动安装：
 
-1.  **获取文件**
-    *   从 GitHub Release 页面下载最新版本的发布包（包含 `main.js`, `manifest.json`, `styles.css`）。
+1.  **插件下载**
+    *   [https://github.com/LiuYangArt/obsidian-canvas-banana/blob/main/Plugin/canvas-banana.zip](https://github.com/LiuYangArt/obsidian-canvas-banana/blob/main/Plugin/canvas-banana.zip)
 
 2.  **创建插件文件夹**
     *   打开你的 Obsidian 仓库目录。
     *   进入 `.obsidian/plugins/` 目录。
-    *   新建一个文件夹，命名为 `obsidian-canvas-ai`。
+    *   把zip包解压进去。<br><img width="803" height="573" alt="image" src="https://github.com/user-attachments/assets/e2d07451-3d49-41b5-888e-484d853cb22e" />
 
-3.  **放入文件**
-    *   将下载的 `main.js`, `manifest.json`, `styles.css` 复制到刚才创建的文件夹中。
 
-4.  **启用插件**
+
+
+3.  **启用插件**
     *   重启 Obsidian。
     *   进入 **设置** -> **第三方插件**。
     *   关闭 "安全模式"（如果尚未关闭）。
     *   在插件列表中找到 "Canvas Banana" 并点击开关启用。
+    <br><img width="1601" height="157" alt="image" src="https://github.com/user-attachments/assets/b07f3f52-61bc-454d-90c7-c531fe129f73" />
+
 
 ## 🚀 功能操作指南
 
