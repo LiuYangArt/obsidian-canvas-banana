@@ -82,7 +82,10 @@ export class IntentResolver {
 
         // Step 2: 指令策略 - 确定最终发给 AI 的文本指令
         const usedAsLabelIds = this.getUsedAsLabelIds(preprocessed.effectiveNodes, edges);
-        const instruction = this.resolveInstruction(userInput, preprocessed.effectiveNodes, usedAsLabelIds, mode);
+        const { instruction, usedAsInstructionIds } = this.resolveInstruction(userInput, preprocessed.effectiveNodes, usedAsLabelIds, mode);
+
+        // Merge used IDs: nodes used as labels OR as instruction should not appear in context
+        const excludeFromContextIds = new Set([...usedAsLabelIds, ...usedAsInstructionIds]);
 
         // 构建图片列表（带角色）
         const images: ImageWithRole[] = [];
@@ -103,8 +106,8 @@ export class IntentResolver {
             images.splice(MAX_REFERENCE_IMAGES);
         }
 
-        // 构建上下文文本（非图片内容）
-        const contextText = this.buildContextText(preprocessed.effectiveNodes, usedAsLabelIds);
+        // 构建上下文文本（非图片内容，排除已用作标签或指令的节点）
+        const contextText = this.buildContextText(preprocessed.effectiveNodes, excludeFromContextIds);
 
         // 判断是否可以生成
         const canGenerate = images.length > 0 || instruction.trim().length > 0 || contextText.length > 0;
@@ -279,16 +282,19 @@ export class IntentResolver {
     /**
      * Step 2: 指令回退策略
      * Priority A: 用户输入 > Priority B: 选区文本 > Priority C: 默认预设
+     * Returns both instruction and the IDs of text nodes used as instruction
      */
     static resolveInstruction(
         userInput: string,
         nodes: ConvertedNode[],
         usedAsLabelIds: Set<string>,
         mode: 'chat' | 'image'
-    ): string {
+    ): { instruction: string; usedAsInstructionIds: Set<string> } {
+        const usedAsInstructionIds = new Set<string>();
+
         // Priority A: 用户显式输入
         if (userInput && userInput.trim()) {
-            return userInput.trim();
+            return { instruction: userInput.trim(), usedAsInstructionIds };
         }
 
         // Priority B: 未被用作标签的文本节点内容
@@ -296,18 +302,19 @@ export class IntentResolver {
         for (const node of nodes) {
             if (node.type === 'text' && node.content && !usedAsLabelIds.has(node.id)) {
                 textContents.push(node.content.trim());
+                usedAsInstructionIds.add(node.id);  // Mark as used for instruction
             }
         }
 
         if (textContents.length > 0) {
-            return textContents.join('\n\n');
+            return { instruction: textContents.join('\n\n'), usedAsInstructionIds };
         }
 
         // Priority C: 默认预设
         if (mode === 'chat') {
-            return 'Summarize the selected content.';
+            return { instruction: 'Summarize the selected content.', usedAsInstructionIds };
         } else {
-            return 'Generate an image based on these references.';
+            return { instruction: 'Generate an image based on these references.', usedAsInstructionIds };
         }
     }
 
