@@ -2,6 +2,7 @@ import { App, ItemView, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, 
 import type { Canvas, CanvasNode, CanvasCoords } from './types';
 import { CanvasConverter, ConvertedNode } from './canvas-converter';
 import { ApiManager } from './api-manager';
+import { IntentResolver, ResolvedIntent } from './intent-resolver';
 
 // ========== 插件设置接口 ==========
 export interface CanvasAISettings {
@@ -129,7 +130,7 @@ class FloatingPalette {
         if (this.currentMode === 'chat') {
             this.promptInput.placeholder = 'Ask a question about selected notes...';
         } else {
-            this.promptInput.placeholder = 'Describe the image you want to generate...';
+            this.promptInput.placeholder = 'Describe the image, or leave empty to use selected text...';
         }
     }
 
@@ -157,12 +158,9 @@ class FloatingPalette {
         const prompt = this.promptInput.value.trim();
         console.log('Canvas AI: Generate clicked');
         console.log('Mode:', this.currentMode);
-        console.log('Prompt:', prompt);
+        console.log('Prompt:', prompt || '(empty - will use fallback)');
 
-        if (!prompt) {
-            console.log('Canvas AI: Empty prompt, skipped');
-            return;
-        }
+        // Note: Empty prompt is now allowed - IntentResolver will handle fallback
 
         if (this.isGenerating) {
             console.log('Canvas AI: Already generating, please wait...');
@@ -340,9 +338,9 @@ export default class CanvasAIPlugin extends Plugin {
 
     /**
      * Handle generation with Ghost Node
-     * Phase 4: Integrates selected nodes context with user prompt
+     * Uses IntentResolver for intelligent intent parsing (design_doc_v2.md 3.2-3.6)
      */
-    private async handleGeneration(prompt: string, mode: PaletteMode): Promise<void> {
+    private async handleGeneration(userPrompt: string, mode: PaletteMode): Promise<void> {
         const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
         if (!canvasView || canvasView.getViewType() !== 'canvas') {
             console.error('Canvas AI: Not in canvas view');
@@ -357,38 +355,34 @@ export default class CanvasAIPlugin extends Plugin {
 
         const selection = canvas.selection;
 
-        // ========== Phase 4.1: Extract context from selected nodes ==========
-        let contextMarkdown = '';
-        const images: { base64: string, mimeType: string }[] = [];
-
-        if (selection && selection.size > 0) {
-            try {
-                const conversionResult = await CanvasConverter.convert(
-                    this.app,
-                    canvas,
-                    selection,
-                    this.settings.imageCompressionQuality,
-                    this.settings.imageMaxSize
-                );
-                contextMarkdown = conversionResult.markdown;
-
-                // Extract images
-                conversionResult.nodes.forEach((node: ConvertedNode) => {
-                    if (node.isImage && node.base64) {
-                        images.push({
-                            base64: node.base64,
-                            mimeType: node.mimeType || 'image/png'
-                        });
-                    }
-                });
-
-                console.log(`Canvas AI: Context extracted, length: ${contextMarkdown.length}, images: ${images.length}`);
-            } catch (e) {
-                console.warn('Canvas AI: Failed to extract context:', e);
-            }
+        // ========== Use IntentResolver for intelligent parsing ==========
+        let intent: ResolvedIntent;
+        try {
+            intent = await IntentResolver.resolve(
+                this.app,
+                canvas,
+                selection || new Set(),
+                userPrompt,
+                mode,
+                this.settings
+            );
+        } catch (e) {
+            console.error('Canvas AI: Intent resolution failed:', e);
+            return;
         }
 
-        // ========== Phase 4.2: Calculate position for ghost node (right of selection) ==========
+        // Check if generation is possible
+        if (!intent.canGenerate) {
+            console.log('Canvas AI: Nothing to generate (no images, no text, no prompt)');
+            return;
+        }
+
+        // Log warnings
+        if (intent.warnings.length > 0) {
+            console.warn('Canvas AI: Warnings:', intent.warnings);
+        }
+
+        // ========== Calculate position for ghost node (right of selection) ==========
         let nodeX = 100, nodeY = 100;
         if (selection && selection.size > 0) {
             const bbox = this.getSelectionBBox(selection);
@@ -406,32 +400,46 @@ export default class CanvasAIPlugin extends Plugin {
             let response: string;
 
             if (mode === 'chat') {
-                // Build system prompt with context
+                // Chat Mode - use context and instruction
                 let systemPrompt = 'You are a helpful AI assistant embedded in an Obsidian Canvas. Answer concisely and use Markdown formatting.';
 
-                if (contextMarkdown) {
-                    systemPrompt += `\n\n---\nThe user has selected the following content from their canvas:\n\n${contextMarkdown}\n\n---\nBased on this context, respond to the user's request.`;
+                if (intent.contextText) {
+                    systemPrompt += `\n\n---\nThe user has selected the following content from their canvas:\n\n${intent.contextText}\n\n---\nBased on this context, respond to the user's request.`;
                 }
 
                 console.log('Canvas AI: Sending chat request with context');
-                if (images.length > 0) {
-                    response = await this.apiManager!.multimodalChat(prompt, images, systemPrompt);
+                if (intent.images.length > 0) {
+                    // Convert to simple format for multimodalChat
+                    const simpleImages = intent.images.map(img => ({
+                        base64: img.base64,
+                        mimeType: img.mimeType
+                    }));
+                    response = await this.apiManager!.multimodalChat(intent.instruction, simpleImages, systemPrompt);
                 } else {
-                    response = await this.apiManager!.chatCompletion(prompt, systemPrompt);
+                    response = await this.apiManager!.chatCompletion(intent.instruction, systemPrompt);
                 }
                 console.log('Canvas AI: API Response received');
                 this.updateGhostNode(ghostNode, response, false);
 
             } else {
-                // Image Mode
-                console.log('Canvas AI: Sending image request');
-                const base64Image = await this.apiManager!.generateImage(prompt, '1:1', '1K', images);
+                // Image Mode - use new generateImageWithRoles
+                console.log('Canvas AI: Sending image request with roles');
+                console.log('Canvas AI: Instruction:', intent.instruction);
+                console.log('Canvas AI: Images with roles:', intent.images.map(i => i.role));
+
+                const base64Image = await this.apiManager!.generateImageWithRoles(
+                    intent.instruction,
+                    intent.images,
+                    intent.contextText,
+                    '1:1',
+                    '1K'
+                );
 
                 // Update Ghost Node to show saving status
                 this.updateGhostNode(ghostNode, '💾 Saving image...', false);
 
                 // Save to Vault
-                const savedFile = await this.saveImageToVault(base64Image, prompt);
+                const savedFile = await this.saveImageToVault(base64Image, intent.instruction);
                 console.log('Canvas AI: Image saved to', savedFile.path);
 
                 // Replace Ghost Node with Image Node
@@ -870,6 +878,71 @@ export default class CanvasAIPlugin extends Plugin {
         console.log(result.markdown);
         console.log('\n--- Mermaid Output ---\n');
         console.log(result.mermaid);
+        console.groupEnd();
+
+        // ========== 新增：IntentResolver 解析输出 ==========
+        console.group('🎨 IntentResolver Output (Image Mode Simulation)');
+        try {
+            const intent = await IntentResolver.resolve(
+                this.app,
+                canvas,
+                selection,
+                '',  // 模拟空输入，测试回退策略
+                'image',
+                this.settings
+            );
+
+            console.log('✅ canGenerate:', intent.canGenerate);
+
+            console.group('📷 Images with Roles');
+            intent.images.forEach((img, idx) => {
+                console.log(`[${idx + 1}] Role: "${img.role}", MimeType: ${img.mimeType}, Base64 Length: ${img.base64.length}`);
+            });
+            if (intent.images.length === 0) {
+                console.log('(No images in selection)');
+            }
+            console.groupEnd();
+
+            console.group('📝 Instruction (Fallback Result)');
+            console.log('Final Instruction:', intent.instruction);
+            console.log('Instruction Length:', intent.instruction.length);
+            console.groupEnd();
+
+            console.group('📄 Context Text');
+            if (intent.contextText) {
+                console.log(intent.contextText);
+            } else {
+                console.log('(No context text)');
+            }
+            console.groupEnd();
+
+            if (intent.warnings.length > 0) {
+                console.group('⚠️ Warnings');
+                intent.warnings.forEach(w => console.warn(w));
+                console.groupEnd();
+            }
+
+            // 模拟 Payload 结构
+            console.group('📦 Simulated API Payload Structure');
+            const payloadPreview = {
+                model: this.settings.imageModel,
+                modalities: ['image', 'text'],
+                content_structure: [
+                    { type: 'text', text: 'You are an expert creator...' },
+                    ...intent.images.map(img => [
+                        { type: 'text', text: `[Ref: ${img.role}]` },
+                        { type: 'image_url', base64_length: img.base64.length }
+                    ]).flat(),
+                    intent.contextText ? { type: 'text', text: '[Context]...' } : null,
+                    { type: 'text', text: `INSTRUCTION: ${intent.instruction.substring(0, 100)}${intent.instruction.length > 100 ? '...' : ''}` }
+                ].filter(Boolean)
+            };
+            console.log(JSON.stringify(payloadPreview, null, 2));
+            console.groupEnd();
+
+        } catch (e) {
+            console.error('IntentResolver failed:', e);
+        }
         console.groupEnd();
 
         console.groupEnd();

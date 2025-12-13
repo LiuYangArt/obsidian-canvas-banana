@@ -325,7 +325,7 @@ export class CanvasConverter {
      * @param app Obsidian App 实例
      * @param nodes 转换后的节点数组
      */
-    private static async readMdFileContents(app: App, nodes: ConvertedNode[]): Promise<void> {
+    static async readMdFileContents(app: App, nodes: ConvertedNode[]): Promise<void> {
         for (const node of nodes) {
             if (node.type === 'file' && node.filePath && !node.isImage) {
                 // 检查是否为 .md 文件
@@ -354,7 +354,7 @@ export class CanvasConverter {
      * @param compressionQuality 压缩质量 (0-100)
      * @param maxSize 最大尺寸（宽/高都不超过此值）
      */
-    private static async readImageFileContents(app: App, nodes: ConvertedNode[], compressionQuality: number = 80, maxSize: number = 2048): Promise<void> {
+    static async readImageFileContents(app: App, nodes: ConvertedNode[], compressionQuality: number = 80, maxSize: number = 2048): Promise<void> {
         console.log('CanvasConverter: readImageFileContents called, nodes:', nodes.length, 'quality:', compressionQuality, 'maxSize:', maxSize);
         for (const node of nodes) {
             console.log(`CanvasConverter: Checking node ${node.id}, type=${node.type}, isImage=${node.isImage}, filePath=${node.filePath}`);

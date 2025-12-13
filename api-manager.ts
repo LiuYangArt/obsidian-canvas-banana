@@ -250,6 +250,112 @@ export class ApiManager {
     }
 
     /**
+     * Generate an image with role-annotated references
+     * Follows design_doc_v2.md Section 4 payload format
+     * @param instruction The main instruction/prompt
+     * @param imagesWithRoles Array of images with their semantic roles
+     * @param contextText Additional context text
+     * @param aspectRatio Optional aspect ratio
+     * @param imageSize Optional image size
+     * @returns Base64 data URL of the generated image
+     */
+    async generateImageWithRoles(
+        instruction: string,
+        imagesWithRoles: { base64: string, mimeType: string, role: string }[],
+        contextText?: string,
+        aspectRatio?: '1:1' | '16:9' | '4:3' | '9:16',
+        imageSize?: string
+    ): Promise<string> {
+        if (!this.isConfigured()) {
+            throw new Error('OpenRouter API Key not configured. Please set it in plugin settings.');
+        }
+
+        const contentParts: OpenRouterContentPart[] = [];
+
+        // System context
+        contentParts.push({
+            type: 'text',
+            text: 'You are an expert creator. Use the following references.'
+        });
+
+        // Add images with role annotations
+        for (const img of imagesWithRoles) {
+            const mime = img.mimeType || 'image/png';
+            const url = `data:${mime};base64,${img.base64}`;
+
+            // Add role label before image
+            contentParts.push({
+                type: 'text',
+                text: `\n[Ref: ${img.role}]`
+            });
+
+            contentParts.push({
+                type: 'image_url',
+                image_url: { url }
+            });
+        }
+
+        // Add context text if present
+        if (contextText && contextText.trim()) {
+            contentParts.push({
+                type: 'text',
+                text: `\n[Context]\n${contextText}`
+            });
+        }
+
+        // Add instruction
+        contentParts.push({
+            type: 'text',
+            text: `\nINSTRUCTION: ${instruction}`
+        });
+
+        const messages: OpenRouterMessage[] = [{
+            role: 'user',
+            content: contentParts
+        }];
+
+        const requestBody: OpenRouterRequest = {
+            model: this.getImageModel(),
+            messages,
+            modalities: ['image', 'text']
+        };
+
+        if (aspectRatio || imageSize) {
+            requestBody.image_config = {};
+            if (aspectRatio) {
+                requestBody.image_config.aspect_ratio = aspectRatio;
+            }
+            if (imageSize) {
+                requestBody.image_config.image_size = imageSize;
+            }
+        }
+
+        console.log('Canvas AI: Sending image generation request with roles...');
+        console.log('Request body:', JSON.stringify(requestBody, null, 2));
+
+        const response = await this.sendRequest(requestBody);
+
+        if (response.error) {
+            throw new Error(`OpenRouter API Error: ${response.error.message}`);
+        }
+
+        if (!response.choices || response.choices.length === 0) {
+            throw new Error('OpenRouter returned no choices');
+        }
+
+        const message = response.choices[0].message;
+
+        if (message.images && message.images.length > 0) {
+            const imageUrl = message.images[0].image_url.url;
+            console.log('Canvas AI: Received image, length:', imageUrl.length);
+            return imageUrl;
+        }
+
+        console.log('Canvas AI: No image in response, content:', message.content);
+        throw new Error(`Image generation failed: ${message.content || 'No image returned'}`);
+    }
+
+    /**
      * Send multimodal chat request with images
      * @param prompt User's prompt text
      * @param imageList Array of { base64, mimeType }
