@@ -262,6 +262,12 @@
     color: var(--text-faint);
 }
 
+
+
+/* .canvas-ai-prompt-input::-webkit-resizer {
+    background: transparent;
+} */
+
 /* ========== 面板底部 ========== */
 .canvas-ai-palette-footer {
     display: flex;

@@ -1,4 +1,4 @@
-import { App, ItemView, Modal, Notice, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, TFile } from 'obsidian';
+import { App, ItemView, Modal, Notice, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, TFile, Scope } from 'obsidian';
 import type { Canvas, CanvasNode, CanvasCoords } from './types';
 import { CanvasConverter, ConvertedNode } from './canvas-converter';
 import { ApiManager } from './api-manager';
@@ -228,13 +228,30 @@ class FloatingPalette {
     private imagePresets: PromptPreset[] = [];
     private onPresetChange: ((presets: PromptPreset[], mode: PaletteMode) => void) | null = null;
     private app: App;
+    private scope: Scope;
 
     constructor(app: App, apiManager: ApiManager, onDebugCallback?: () => void) {
         this.app = app;
         this.apiManager = apiManager;
         this.onDebug = onDebugCallback || null;
+        this.scope = new Scope(this.app.scope);
+        this.scope = new Scope(this.app.scope);
+        // We push a scope to tell Obsidian we are in a different context,
+        // but we don't register specific blockers that return false because
+        // that would prevent the default behavior (typing/cursor movement) of the textarea.
+        // Instead, we rely on stopping propagation at the DOM level.
+
         this.containerEl = this.createPaletteDOM();
         this.promptInput = this.containerEl.querySelector('.canvas-ai-prompt-input') as HTMLTextAreaElement;
+
+        // Manage Scope on focus/blur
+        this.promptInput.addEventListener('focus', () => {
+            this.app.keymap.pushScope(this.scope);
+        });
+
+        this.promptInput.addEventListener('blur', () => {
+            this.app.keymap.popScope(this.scope);
+        });
     }
 
     /**
@@ -290,6 +307,10 @@ class FloatingPalette {
         // 阻止点击事件冒泡，避免失去 Canvas 选中状态
         container.addEventListener('mousedown', (e) => e.stopPropagation());
         container.addEventListener('click', (e) => e.stopPropagation());
+
+        // 阻止所有键盘事件冒泡，确保输入框操作不会影响 Canvas 节点
+        // Canvas 可能在 capture 阶段监听，因此使用 capture: true
+
 
         container.innerHTML = `
             <div class="canvas-ai-palette-header">
@@ -436,6 +457,15 @@ class FloatingPalette {
         // 绑定生成按钮
         const generateBtn = container.querySelector('.canvas-ai-generate-btn');
         generateBtn?.addEventListener('click', () => this.handleGenerate());
+
+        // Prevent keyboard events from bubbling to Canvas when textarea is focused
+        const promptInput = container.querySelector('.canvas-ai-prompt-input');
+        if (promptInput) {
+            const stopPropagation = (e: Event) => e.stopPropagation();
+            promptInput.addEventListener('keydown', stopPropagation);
+            promptInput.addEventListener('keyup', stopPropagation);
+            promptInput.addEventListener('keypress', stopPropagation);
+        }
 
         return container;
     }
