@@ -1,6 +1,6 @@
 {
     "id": "obsidian-canvas-ai",
-    "name": "Canvas AI",
+    "name": "Canvas Banana",
     "version": "0.0.1",
     "minAppVersion": "0.15.0",
     "description": "在 Obsidian Canvas 视图中集成 Gemini AI，支持 AI 对话、文本生成和图像生成。",
