@@ -67,6 +67,8 @@ Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增�
 3.  填入你的 **API Key**。
 4.  (可选) 选择或自定义你偏好的 Text/Image 模型。
 
+- 获得api [yunwu](https://yunwu.ai/register?aff=VE3i) | [gptgod](https://gptgod.site/#/register?invite_code=5ax35dxlk4bys0j7jnzqypwkc)
+
 ### 2. 唤起操作面板
 1.  打开一个 **Canvas (白板)** 文件。
 2.  使用鼠标框选或点击选中一个或多个节点。
