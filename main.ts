@@ -37,6 +37,7 @@ export interface CanvasAISettings {
     // Image generation defaults (palette state)
     defaultAspectRatio: string;
     defaultResolution: string;
+    defaultChatTemperature: number;
 
     // Debug mode
     debugMode: boolean;
@@ -70,6 +71,7 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
     imageMaxSize: 2048,  // Default max size
     defaultAspectRatio: '1:1',
     defaultResolution: '1K',
+    defaultChatTemperature: 0.5,
 
     debugMode: false,
 
@@ -204,7 +206,7 @@ class FloatingPalette {
     private onClose: (() => void) | null = null;
     private onDebug: (() => void) | null = null;
     private onGenerate: ((prompt: string, mode: PaletteMode) => Promise<void>) | null = null;
-    private onSettingsChange: ((key: 'aspectRatio' | 'resolution', value: string) => void) | null = null;
+    private onSettingsChange: ((key: 'aspectRatio' | 'resolution' | 'chatTemperature', value: string | number) => void) | null = null;
     private apiManager: ApiManager;
     private pendingTaskCount: number = 0;
     // Image generation options (no model selection - always use Pro)
@@ -265,20 +267,31 @@ class FloatingPalette {
     }
 
     /**
-     * Set the settings change callback for persisting image options
+     * Set the callback for settings change
      */
-    setOnSettingsChange(callback: (key: 'aspectRatio' | 'resolution', value: string) => void): void {
+    setOnSettingsChange(callback: (key: 'aspectRatio' | 'resolution' | 'chatTemperature', value: string | number) => void): void {
         this.onSettingsChange = callback;
     }
 
     /**
-     * Initialize image options from saved settings
+     * Initialize image options from settings
      */
     initImageOptions(aspectRatio: string, resolution: string): void {
         this.imageAspectRatio = aspectRatio;
         this.imageResolution = resolution;
+
         if (this.ratioSelect) this.ratioSelect.value = aspectRatio;
         if (this.resolutionSelect) this.resolutionSelect.value = resolution;
+    }
+
+    /**
+     * Initialize chat options from settings
+     */
+    initChatOptions(temperature: number): void {
+        this.chatTemperature = temperature;
+        if (this.tempInput) {
+            this.tempInput.value = String(temperature);
+        }
     }
 
     /**
@@ -398,11 +411,24 @@ class FloatingPalette {
         this.resolutionSelect = container.querySelector('.canvas-ai-resolution-select');
         this.tempInput = container.querySelector('.canvas-ai-temp-input');
 
-        // Bind temperature input change
+        // Bind temperature input events
         this.tempInput?.addEventListener('input', () => {
             const val = parseFloat(this.tempInput!.value);
             if (!isNaN(val)) {
-                this.chatTemperature = Math.max(0, Math.min(2, val));
+                this.chatTemperature = val; // Update internal state immediately
+            }
+        });
+
+        this.tempInput?.addEventListener('change', () => {
+            const val = parseFloat(this.tempInput!.value);
+            if (!isNaN(val)) {
+                const clampedVal = Math.max(0, Math.min(2, val));
+                this.chatTemperature = clampedVal;
+                this.tempInput!.value = String(clampedVal); // Auto-correct display
+                this.onSettingsChange?.('chatTemperature', clampedVal);
+            } else {
+                // Revert to current valid value if NaN
+                this.tempInput!.value = String(this.chatTemperature);
             }
         });
 
@@ -958,9 +984,11 @@ export default class CanvasAIPlugin extends Plugin {
         // Set up settings change callback for persisting image options
         this.floatingPalette.setOnSettingsChange((key, value) => {
             if (key === 'aspectRatio') {
-                this.settings.defaultAspectRatio = value;
+                this.settings.defaultAspectRatio = value as string;
             } else if (key === 'resolution') {
-                this.settings.defaultResolution = value;
+                this.settings.defaultResolution = value as string;
+            } else if (key === 'chatTemperature') {
+                this.settings.defaultChatTemperature = value as number;
             }
             this.saveSettings();
         });
@@ -979,6 +1007,10 @@ export default class CanvasAIPlugin extends Plugin {
         this.floatingPalette.initImageOptions(
             this.settings.defaultAspectRatio,
             this.settings.defaultResolution
+        );
+
+        this.floatingPalette.initChatOptions(
+            this.settings.defaultChatTemperature
         );
 
         // Initialize presets from saved settings
