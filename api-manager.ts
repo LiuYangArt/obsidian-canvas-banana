@@ -111,17 +111,25 @@ export class ApiManager {
     }
 
     /**
-     * Get text generation model
+     * Get text generation model based on active provider
      */
     private getTextModel(): string {
-        return this.settings.textModel || 'google/gemini-2.5-flash-preview';
+        const provider = this.getActiveProvider();
+        if (provider === 'yunwu') {
+            return this.settings.yunwuTextModel || 'gemini-2.0-flash';
+        }
+        return this.settings.openRouterTextModel || 'google/gemini-2.0-flash-001';
     }
 
     /**
-     * Get image generation model
+     * Get image generation model based on active provider
      */
     private getImageModel(): string {
-        return this.settings.imageModel || 'google/gemini-3-pro-image-preview';
+        const provider = this.getActiveProvider();
+        if (provider === 'yunwu') {
+            return this.settings.yunwuImageModel || 'gemini-3-pro-image-preview';
+        }
+        return this.settings.openRouterImageModel || 'google/gemini-2.0-flash-001';
     }
 
     /**

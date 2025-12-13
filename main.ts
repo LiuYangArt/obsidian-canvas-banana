@@ -13,14 +13,25 @@ export interface CanvasAISettings {
     // OpenRouter settings
     openRouterApiKey: string;
     openRouterBaseUrl: string;
+    openRouterTextModel: string;
+    openRouterImageModel: string;
+    openRouterUseCustomTextModel: boolean;
+    openRouterUseCustomImageModel: boolean;
+
     // Yunwu settings
     yunwuApiKey: string;
     yunwuBaseUrl: string;
-    // Model settings
-    textModel: string;
-    imageModel: string;  // Image generation model (Pro)
-    useCustomTextModel: boolean;   // true = manual input, false = dropdown
-    useCustomImageModel: boolean;  // true = manual input, false = dropdown
+    yunwuTextModel: string;
+    yunwuImageModel: string;
+    yunwuUseCustomTextModel: boolean;
+    yunwuUseCustomImageModel: boolean;
+
+    // Legacy fields (for migration)
+    textModel?: string;
+    imageModel?: string;
+    useCustomTextModel?: boolean;
+    useCustomImageModel?: boolean;
+
     imageCompressionQuality: number;  // WebP compression quality (0-100)
     imageMaxSize: number;  // Max width/height for WebP output
     // Image generation defaults (palette state)
@@ -30,14 +41,21 @@ export interface CanvasAISettings {
 
 const DEFAULT_SETTINGS: CanvasAISettings = {
     apiProvider: 'openrouter',
+
     openRouterApiKey: '',
     openRouterBaseUrl: 'https://openrouter.ai/api/v1/chat/completions',
+    openRouterTextModel: 'google/gemini-2.0-flash-001',
+    openRouterImageModel: 'google/gemini-2.0-flash-001', // Placeholder default
+    openRouterUseCustomTextModel: false,
+    openRouterUseCustomImageModel: false,
+
     yunwuApiKey: '',
     yunwuBaseUrl: 'https://yunwu.ai',
-    textModel: 'google/gemini-2.5-flash',
-    imageModel: 'google/gemini-3-pro-image-preview',
-    useCustomTextModel: false,
-    useCustomImageModel: false,
+    yunwuTextModel: 'gemini-2.0-flash',
+    yunwuImageModel: 'gemini-3-pro-image-preview',
+    yunwuUseCustomTextModel: false,
+    yunwuUseCustomImageModel: false,
+
     imageCompressionQuality: 80,  // Default 80% quality
     imageMaxSize: 2048,  // Default max size
     defaultAspectRatio: '1:1',
@@ -392,6 +410,29 @@ export default class CanvasAIPlugin extends Plugin {
         console.log('Canvas AI: 插件加载中...');
 
         await this.loadSettings();
+
+        // Migration: Move legacy settings to OpenRouter settings if needed
+        if (this.settings.textModel && !this.settings.openRouterTextModel) {
+            this.settings.openRouterTextModel = this.settings.textModel;
+            this.settings.textModel = undefined; // Clear legacy
+        }
+        if (this.settings.imageModel && !this.settings.openRouterImageModel) {
+            this.settings.openRouterImageModel = this.settings.imageModel;
+            this.settings.imageModel = undefined;
+        }
+        if (this.settings.useCustomTextModel !== undefined && this.settings.openRouterUseCustomTextModel === undefined) {
+            // @ts-ignore
+            this.settings.openRouterUseCustomTextModel = this.settings.useCustomTextModel;
+            this.settings.useCustomTextModel = undefined;
+        }
+        if (this.settings.useCustomImageModel !== undefined && this.settings.openRouterUseCustomImageModel === undefined) {
+            // @ts-ignore
+            this.settings.openRouterUseCustomImageModel = this.settings.useCustomImageModel;
+            this.settings.useCustomImageModel = undefined;
+        }
+        await this.saveSettings();
+
+        // Register settings tab
         this.addSettingTab(new CanvasAISettingTab(this.app, this));
 
         // 初始化悬浮组件
@@ -1251,15 +1292,20 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.apiProvider = value as ApiProvider;
                     await this.plugin.saveSettings();
+
+                    // Auto-refresh models when switching provider
+                    this.modelsFetched = false;
+                    await this.fetchModels();
+
                     // Re-render to show/hide provider-specific settings
                     this.display();
                 }));
 
-        const isOpenRouter = this.plugin.settings.apiProvider === 'openrouter';
         const isYunwu = this.plugin.settings.apiProvider === 'yunwu';
+        // Yunwu uses same OpenAI-compatible models endpoint
 
-        // ========== OpenRouter Configuration ==========
-        if (isOpenRouter) {
+        // ========== Configuration Section ==========
+        if (!isYunwu) { // OpenRouter
             // API Key with Test Button
             const apiKeySetting = new Setting(containerEl)
                 .setName('OpenRouter API Key')
@@ -1272,54 +1318,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                     }));
 
-            // Add Test Connection button
-            const testBtn = apiKeySetting.controlEl.createEl('button', {
-                text: '测试连接',
-                cls: 'canvas-ai-test-btn'
-            });
-
-            const testResultEl = containerEl.createDiv({ cls: 'canvas-ai-test-result' });
-            testResultEl.style.display = 'none';
-
-            testBtn.addEventListener('click', async () => {
-                testBtn.textContent = '测试中...';
-                testBtn.disabled = true;
-                testResultEl.style.display = 'none';
-
-                try {
-                    const apiManager = new ApiManager(this.plugin.settings);
-                    if (!apiManager.isConfigured()) {
-                        throw new Error('请先填写 API Key');
-                    }
-                    const response = await apiManager.chatCompletion('Say "Connection successful!" in one line.');
-
-                    testBtn.textContent = '✓ 成功';
-                    testBtn.addClass('success');
-                    testResultEl.textContent = `✓ 连接成功: ${response.substring(0, 50)}...`;
-                    testResultEl.removeClass('error');
-                    testResultEl.addClass('success');
-                    testResultEl.style.display = 'block';
-
-                    setTimeout(() => {
-                        testBtn.textContent = '测试连接';
-                        testBtn.removeClass('success');
-                    }, 3000);
-                } catch (error: any) {
-                    testBtn.textContent = '✗ 失败';
-                    testBtn.addClass('error');
-                    testResultEl.textContent = `✗ 连接失败: ${error.message}`;
-                    testResultEl.removeClass('success');
-                    testResultEl.addClass('error');
-                    testResultEl.style.display = 'block';
-
-                    setTimeout(() => {
-                        testBtn.textContent = '测试连接';
-                        testBtn.removeClass('error');
-                    }, 3000);
-                } finally {
-                    testBtn.disabled = false;
-                }
-            });
+            this.addTestButton(apiKeySetting.controlEl, containerEl);
 
             new Setting(containerEl)
                 .setName('API Base URL')
@@ -1331,10 +1330,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                         this.plugin.settings.openRouterBaseUrl = value;
                         await this.plugin.saveSettings();
                     }));
-        }
-
-        // ========== Yunwu Configuration ==========
-        if (isYunwu) {
+        } else { // Yunwu
             const yunwuKeySetting = new Setting(containerEl)
                 .setName('Yunwu API Key')
                 .setDesc('输入你的 Yunwu API 密钥')
@@ -1346,54 +1342,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                     }));
 
-            // Add Test Connection button for Yunwu
-            const testBtn = yunwuKeySetting.controlEl.createEl('button', {
-                text: '测试连接',
-                cls: 'canvas-ai-test-btn'
-            });
-
-            const testResultEl = containerEl.createDiv({ cls: 'canvas-ai-test-result' });
-            testResultEl.style.display = 'none';
-
-            testBtn.addEventListener('click', async () => {
-                testBtn.textContent = '测试中...';
-                testBtn.disabled = true;
-                testResultEl.style.display = 'none';
-
-                try {
-                    const apiManager = new ApiManager(this.plugin.settings);
-                    if (!apiManager.isConfigured()) {
-                        throw new Error('请先填写 API Key');
-                    }
-                    const response = await apiManager.chatCompletion('Say "Connection successful!" in one line.');
-
-                    testBtn.textContent = '✓ 成功';
-                    testBtn.addClass('success');
-                    testResultEl.textContent = `✓ 连接成功: ${response.substring(0, 50)}...`;
-                    testResultEl.removeClass('error');
-                    testResultEl.addClass('success');
-                    testResultEl.style.display = 'block';
-
-                    setTimeout(() => {
-                        testBtn.textContent = '测试连接';
-                        testBtn.removeClass('success');
-                    }, 3000);
-                } catch (error: any) {
-                    testBtn.textContent = '✗ 失败';
-                    testBtn.addClass('error');
-                    testResultEl.textContent = `✗ 连接失败: ${error.message}`;
-                    testResultEl.removeClass('success');
-                    testResultEl.addClass('error');
-                    testResultEl.style.display = 'block';
-
-                    setTimeout(() => {
-                        testBtn.textContent = '测试连接';
-                        testBtn.removeClass('error');
-                    }, 3000);
-                } finally {
-                    testBtn.disabled = false;
-                }
-            });
+            this.addTestButton(yunwuKeySetting.controlEl, containerEl);
 
             new Setting(containerEl)
                 .setName('Yunwu Base URL')
@@ -1411,7 +1360,8 @@ class CanvasAISettingTab extends PluginSettingTab {
         containerEl.createEl('h3', { text: '模型配置' });
 
         // Fetch models if not already fetched
-        if (!this.modelsFetched && this.plugin.settings.openRouterApiKey) {
+        const apiKey = isYunwu ? this.plugin.settings.yunwuApiKey : this.plugin.settings.openRouterApiKey;
+        if (!this.modelsFetched && apiKey) {
             await this.fetchModels();
         }
 
@@ -1419,7 +1369,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         const refreshSetting = new Setting(containerEl)
             .setName('模型列表')
             .setDesc(this.modelsFetched
-                ? `已加载 ${this.modelCache.length} 个模型 (文本: ${this.getTextModels().length}, 图像: ${this.getImageModels().length})`
+                ? `已加载 ${this.modelCache.length} 个模型 (文本: ${this.getTextModels().length}, 图像: ${this.getImageModels().length}) 来自 ${isYunwu ? 'Yunwu' : 'OpenRouter'}`
                 : '点击刷新按钮获取可用模型列表');
 
         const refreshBtn = refreshSetting.controlEl.createEl('button', {
@@ -1430,6 +1380,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         refreshBtn.addEventListener('click', async () => {
             refreshBtn.textContent = '获取中...';
             refreshBtn.disabled = true;
+            this.modelsFetched = false; // Force refresh
             await this.fetchModels();
             // Re-render the entire settings page to update dropdowns
             this.display();
@@ -1439,19 +1390,19 @@ class CanvasAISettingTab extends PluginSettingTab {
         this.renderModelSetting(containerEl, {
             name: 'Text Generation Model',
             desc: '用于 Chat 模式的文本生成模型',
-            modelKey: 'textModel',
-            customKey: 'useCustomTextModel',
-            placeholder: 'google/gemini-2.5-flash',
+            modelKey: isYunwu ? 'yunwuTextModel' : 'openRouterTextModel',
+            customKey: isYunwu ? 'yunwuUseCustomTextModel' : 'openRouterUseCustomTextModel',
+            placeholder: isYunwu ? 'gemini-2.0-flash' : 'google/gemini-2.0-flash-001',
             getModels: () => this.getTextModels()
         });
 
         // ========== Image Model Setting ==========
         this.renderModelSetting(containerEl, {
             name: 'Image Generation Model',
-            desc: '用于 Image 模式的图像生成模型 (Gemini 3 Pro Image Preview)',
-            modelKey: 'imageModel',
-            customKey: 'useCustomImageModel',
-            placeholder: 'google/gemini-3-pro-image-preview',
+            desc: '用于 Image 模式的图像生成模型',
+            modelKey: isYunwu ? 'yunwuImageModel' : 'openRouterImageModel',
+            customKey: isYunwu ? 'yunwuUseCustomImageModel' : 'openRouterUseCustomImageModel',
+            placeholder: isYunwu ? 'gemini-3-pro-image-preview' : 'google/gemini-2.0-flash-001',
             getModels: () => this.getImageModels()
         });
 
@@ -1462,7 +1413,7 @@ class CanvasAISettingTab extends PluginSettingTab {
             .setName('Image Compression Quality')
             .setDesc('WebP 压缩质量 (0-100)，值越低文件越小但质量也越低，默认 80')
             .addSlider(slider => slider
-                .setLimits(0, 100, 1)
+                .setLimits(1, 100, 1)
                 .setValue(this.plugin.settings.imageCompressionQuality)
                 .setDynamicTooltip()
                 .onChange(async (value) => {
@@ -1472,20 +1423,20 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Image Max Size')
-            .setDesc('图片最大尺寸（像素），宽和高都不会超过此值，默认 2048')
+            .setDesc('WebP 图片最大尺寸 (长边)，默认 2048')
             .addText(text => text
                 .setPlaceholder('2048')
                 .setValue(String(this.plugin.settings.imageMaxSize))
                 .onChange(async (value) => {
-                    const num = parseInt(value, 10);
+                    const num = parseInt(value);
                     if (!isNaN(num) && num > 0) {
                         this.plugin.settings.imageMaxSize = num;
                         await this.plugin.saveSettings();
                     }
                 }));
 
-        // 关于区域
-        containerEl.createEl('h3', { text: '关于' });
+        // ========== About Section ==========
+        containerEl.createEl('h3', { text: 'About' });
         containerEl.createEl('p', {
             text: 'Canvas AI 插件允许你在 Obsidian Canvas 中使用 AI 进行对话、文本生成和图像生成。'
         });
@@ -1496,18 +1447,74 @@ class CanvasAISettingTab extends PluginSettingTab {
     }
 
     /**
+     * Helper to add test button
+     */
+    private addTestButton(parentEl: HTMLElement, resultContainer: HTMLElement) {
+        const testBtn = parentEl.createEl('button', {
+            text: '测试连接',
+            cls: 'canvas-ai-test-btn'
+        });
+
+        const testResultEl = resultContainer.createDiv({ cls: 'canvas-ai-test-result' });
+        testResultEl.style.display = 'none';
+
+        testBtn.addEventListener('click', async () => {
+            testBtn.textContent = '测试中...';
+            testBtn.disabled = true;
+            testResultEl.style.display = 'none';
+
+            try {
+                const apiManager = new ApiManager(this.plugin.settings);
+                if (!apiManager.isConfigured()) {
+                    throw new Error('请先填写 API Key');
+                }
+                const response = await apiManager.chatCompletion('Say "Connection successful!" in one line.');
+
+                testBtn.textContent = '✓ 成功';
+                testBtn.addClass('success');
+                testResultEl.textContent = `✓ 连接成功: ${response.substring(0, 50)}...`;
+                testResultEl.removeClass('error');
+                testResultEl.addClass('success');
+                testResultEl.style.display = 'block';
+
+                setTimeout(() => {
+                    testBtn.textContent = '测试连接';
+                    testBtn.removeClass('success');
+                }, 3000);
+            } catch (error: any) {
+                testBtn.textContent = '✗ 失败';
+                testBtn.addClass('error');
+                testResultEl.textContent = `✗ 连接失败: ${error.message}`;
+                testResultEl.removeClass('success');
+                testResultEl.addClass('error');
+                testResultEl.style.display = 'block';
+
+                setTimeout(() => {
+                    testBtn.textContent = '测试连接';
+                    testBtn.removeClass('error');
+                }, 3000);
+            } finally {
+                testBtn.disabled = false;
+            }
+        });
+    }
+
+    /**
      * Render a model selection setting with dropdown/text input toggle
      */
     private renderModelSetting(containerEl: HTMLElement, options: {
         name: string;
         desc: string;
-        modelKey: 'textModel' | 'imageModel';
-        customKey: 'useCustomTextModel' | 'useCustomImageModel';
+        modelKey: keyof CanvasAISettings;
+        customKey: keyof CanvasAISettings;
         placeholder: string;
         getModels: () => OpenRouterModel[];
     }): void {
         const { name, desc, modelKey, customKey, placeholder, getModels } = options;
-        const useCustom = this.plugin.settings[customKey];
+
+        // Use type assertion to handle the specific setting types
+        // This assumes modelKey is string property and customKey is boolean property
+        const useCustom = this.plugin.settings[customKey] as boolean;
         const models = getModels();
         const hasModels = models.length > 0;
 
@@ -1518,9 +1525,9 @@ class CanvasAISettingTab extends PluginSettingTab {
         // Toggle for custom input mode
         setting.addToggle(toggle => toggle
             .setTooltip('手动输入模型名称')
-            .setValue(useCustom)
+            .setValue(useCustom || false) // Handle undefined
             .onChange(async (value) => {
-                this.plugin.settings[customKey] = value;
+                (this.plugin.settings[customKey] as boolean) = value;
                 await this.plugin.saveSettings();
                 // Re-render to switch between dropdown and text input
                 this.display();
@@ -1530,9 +1537,9 @@ class CanvasAISettingTab extends PluginSettingTab {
             // Text input mode (manual) or no models available
             setting.addText(text => text
                 .setPlaceholder(placeholder)
-                .setValue(this.plugin.settings[modelKey])
+                .setValue((this.plugin.settings[modelKey] as string) || '')
                 .onChange(async (value) => {
-                    this.plugin.settings[modelKey] = value;
+                    (this.plugin.settings[modelKey] as string) = value;
                     await this.plugin.saveSettings();
                 }));
 
@@ -1545,7 +1552,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         } else {
             // Dropdown mode
             setting.addDropdown(dropdown => {
-                const currentValue = this.plugin.settings[modelKey];
+                const currentValue = (this.plugin.settings[modelKey] as string);
 
                 // Add current value first if not in list (to preserve custom values)
                 const modelIds = models.map(m => m.id);
@@ -1558,9 +1565,9 @@ class CanvasAISettingTab extends PluginSettingTab {
                     dropdown.addOption(model.id, `${model.name} (${model.id})`);
                 }
 
-                dropdown.setValue(currentValue);
+                dropdown.setValue(currentValue || '');
                 dropdown.onChange(async (value) => {
-                    this.plugin.settings[modelKey] = value;
+                    (this.plugin.settings[modelKey] as string) = value;
                     await this.plugin.saveSettings();
                 });
             });
