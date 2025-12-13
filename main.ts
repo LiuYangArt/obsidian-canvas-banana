@@ -1,4 +1,4 @@
-import { App, ItemView, Notice, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, TFile } from 'obsidian';
+import { App, ItemView, Modal, Notice, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, TFile } from 'obsidian';
 import type { Canvas, CanvasNode, CanvasCoords } from './types';
 import { CanvasConverter, ConvertedNode } from './canvas-converter';
 import { ApiManager } from './api-manager';
@@ -43,6 +43,10 @@ export interface CanvasAISettings {
 
     // Image generation system prompt
     imageSystemPrompt: string;
+
+    // Prompt presets - separate for chat and image modes
+    chatPresets: PromptPreset[];
+    imagePresets: PromptPreset[];
 }
 
 const DEFAULT_SETTINGS: CanvasAISettings = {
@@ -69,15 +73,126 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
 
     debugMode: false,
 
-    imageSystemPrompt: 'Role: A Professional Image Creator. Use the following references for image creation.'
+    imageSystemPrompt: 'Role: A Professional Image Creator. Use the following references for image creation.',
+
+    chatPresets: [],
+    imagePresets: []
 };
 
+
+// ========== Prompt Preset Interface ==========
+export interface PromptPreset {
+    id: string;      // UUID
+    name: string;    // Display name
+    prompt: string;  // Prompt content
+}
 
 // ========== 悬浮面板模式 ==========
 type PaletteMode = 'chat' | 'image';
 
 // AI Button ID constant for popup menu
 const AI_SPARKLES_BUTTON_ID = 'canvas-ai-sparkles';
+
+// ========== Input Modal for Preset Names ==========
+class InputModal extends Modal {
+    private result: string = '';
+    private onSubmit: (result: string) => void;
+    private title: string;
+    private placeholder: string;
+    private defaultValue: string;
+
+    constructor(app: App, title: string, placeholder: string, defaultValue: string, onSubmit: (result: string) => void) {
+        super(app);
+        this.title = title;
+        this.placeholder = placeholder;
+        this.defaultValue = defaultValue;
+        this.onSubmit = onSubmit;
+    }
+
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.createEl('h3', { text: this.title });
+
+        const inputEl = contentEl.createEl('input', {
+            type: 'text',
+            placeholder: this.placeholder,
+            value: this.defaultValue
+        });
+        inputEl.addClass('canvas-ai-modal-input');
+        inputEl.style.width = '100%';
+        inputEl.style.marginBottom = '16px';
+        this.result = this.defaultValue;
+
+        inputEl.addEventListener('input', (e) => {
+            this.result = (e.target as HTMLInputElement).value;
+        });
+
+        inputEl.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                this.close();
+                if (this.result.trim()) {
+                    this.onSubmit(this.result.trim());
+                }
+            }
+        });
+
+        const buttonContainer = contentEl.createDiv({ cls: 'modal-button-container' });
+
+        const cancelBtn = buttonContainer.createEl('button', { text: 'Cancel' });
+        cancelBtn.addEventListener('click', () => this.close());
+
+        const submitBtn = buttonContainer.createEl('button', { text: 'OK', cls: 'mod-cta' });
+        submitBtn.addEventListener('click', () => {
+            this.close();
+            if (this.result.trim()) {
+                this.onSubmit(this.result.trim());
+            }
+        });
+
+        // Focus input
+        setTimeout(() => inputEl.focus(), 50);
+    }
+
+    onClose() {
+        const { contentEl } = this;
+        contentEl.empty();
+    }
+}
+
+// ========== Confirm Modal for Delete ==========
+class ConfirmModal extends Modal {
+    private onConfirm: () => void;
+    private message: string;
+
+    constructor(app: App, message: string, onConfirm: () => void) {
+        super(app);
+        this.message = message;
+        this.onConfirm = onConfirm;
+    }
+
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.createEl('h3', { text: 'Confirm Delete' });
+        contentEl.createEl('p', { text: this.message });
+
+        const buttonContainer = contentEl.createDiv({ cls: 'modal-button-container' });
+
+        const cancelBtn = buttonContainer.createEl('button', { text: 'Cancel' });
+        cancelBtn.addEventListener('click', () => this.close());
+
+        const deleteBtn = buttonContainer.createEl('button', { text: 'Delete', cls: 'mod-warning' });
+        deleteBtn.addEventListener('click', () => {
+            this.close();
+            this.onConfirm();
+        });
+    }
+
+    onClose() {
+        const { contentEl } = this;
+        contentEl.empty();
+    }
+}
 
 // ========== 悬浮面板组件 ==========
 class FloatingPalette {
@@ -103,7 +218,19 @@ class FloatingPalette {
     private debugBtnEl: HTMLButtonElement | null = null;
     private versionInfoEl: HTMLElement | null = null;
 
-    constructor(apiManager: ApiManager, onDebugCallback?: () => void) {
+    // Preset related
+    private presetSelect: HTMLSelectElement | null = null;
+    private presetAddBtn: HTMLButtonElement | null = null;
+    private presetDeleteBtn: HTMLButtonElement | null = null;
+    private presetSaveBtn: HTMLButtonElement | null = null;
+    private presetRenameBtn: HTMLButtonElement | null = null;
+    private chatPresets: PromptPreset[] = [];
+    private imagePresets: PromptPreset[] = [];
+    private onPresetChange: ((presets: PromptPreset[], mode: PaletteMode) => void) | null = null;
+    private app: App;
+
+    constructor(app: App, apiManager: ApiManager, onDebugCallback?: () => void) {
+        this.app = app;
         this.apiManager = apiManager;
         this.onDebug = onDebugCallback || null;
         this.containerEl = this.createPaletteDOM();
@@ -173,6 +300,17 @@ class FloatingPalette {
                 <button class="canvas-ai-close-btn">×</button>
             </div>
             <div class="canvas-ai-palette-body">
+                <div class="canvas-ai-preset-row">
+                    <select class="canvas-ai-preset-select dropdown">
+                        <option value="">Select prompt preset</option>
+                    </select>
+                    <div class="canvas-ai-preset-actions">
+                        <button class="canvas-ai-preset-btn" data-action="add" title="Add preset"></button>
+                        <button class="canvas-ai-preset-btn" data-action="delete" title="Delete preset"></button>
+                        <button class="canvas-ai-preset-btn" data-action="save" title="Save preset"></button>
+                        <button class="canvas-ai-preset-btn" data-action="rename" title="Rename preset"></button>
+                    </div>
+                </div>
                 <div class="canvas-ai-image-options" style="display: none;">
                     <div class="canvas-ai-option-row">
                         <span class="canvas-ai-option-group">
@@ -226,6 +364,37 @@ class FloatingPalette {
         this.ratioSelect = container.querySelector('.canvas-ai-ratio-select');
         this.resolutionSelect = container.querySelector('.canvas-ai-resolution-select');
 
+        // Get preset DOM references
+        this.presetSelect = container.querySelector('.canvas-ai-preset-select');
+        this.presetAddBtn = container.querySelector('.canvas-ai-preset-btn[data-action="add"]');
+        this.presetDeleteBtn = container.querySelector('.canvas-ai-preset-btn[data-action="delete"]');
+        this.presetSaveBtn = container.querySelector('.canvas-ai-preset-btn[data-action="save"]');
+        this.presetRenameBtn = container.querySelector('.canvas-ai-preset-btn[data-action="rename"]');
+
+        // Set icons for preset buttons using Lucide icons
+        if (this.presetAddBtn) setIcon(this.presetAddBtn, 'circle-plus');
+        if (this.presetDeleteBtn) setIcon(this.presetDeleteBtn, 'circle-x');
+        if (this.presetSaveBtn) setIcon(this.presetSaveBtn, 'save');
+        if (this.presetRenameBtn) setIcon(this.presetRenameBtn, 'book-a');
+
+        // Bind preset select change
+        this.presetSelect?.addEventListener('change', () => {
+            const selectedId = this.presetSelect!.value;
+            if (selectedId) {
+                const presets = this.currentMode === 'chat' ? this.chatPresets : this.imagePresets;
+                const preset = presets.find(p => p.id === selectedId);
+                if (preset) {
+                    this.promptInput.value = preset.prompt;
+                }
+            }
+        });
+
+        // Bind preset action buttons
+        this.presetAddBtn?.addEventListener('click', () => this.handlePresetAdd());
+        this.presetDeleteBtn?.addEventListener('click', () => this.handlePresetDelete());
+        this.presetSaveBtn?.addEventListener('click', () => this.handlePresetSave());
+        this.presetRenameBtn?.addEventListener('click', () => this.handlePresetRename());
+
         // Bind ratio select change
         this.ratioSelect?.addEventListener('change', () => {
             this.imageAspectRatio = this.ratioSelect!.value;
@@ -247,6 +416,7 @@ class FloatingPalette {
                 this.currentMode = tab.getAttribute('data-mode') as PaletteMode;
                 this.updatePlaceholder();
                 this.updateImageOptionsVisibility();
+                this.refreshPresetDropdown();
             });
         });
 
@@ -277,6 +447,175 @@ class FloatingPalette {
         if (this.imageOptionsEl) {
             this.imageOptionsEl.style.display = this.currentMode === 'image' ? 'flex' : 'none';
         }
+    }
+
+    /**
+     * Refresh the preset dropdown based on current mode
+     */
+    private refreshPresetDropdown(): void {
+        if (!this.presetSelect) return;
+
+        const presets = this.currentMode === 'chat' ? this.chatPresets : this.imagePresets;
+
+        // Clear existing options except the default
+        this.presetSelect.innerHTML = '<option value="">Select prompt preset</option>';
+
+        // Add preset options
+        presets.forEach(preset => {
+            const option = document.createElement('option');
+            option.value = preset.id;
+            option.textContent = preset.name;
+            this.presetSelect!.appendChild(option);
+        });
+    }
+
+    /**
+     * Handle Add preset button click
+     */
+    private handlePresetAdd(): void {
+        new InputModal(
+            this.app,
+            'New Preset',
+            'Enter preset name',
+            '',
+            (name) => {
+                const newPreset: PromptPreset = {
+                    id: this.generateId(),
+                    name: name,
+                    prompt: this.promptInput.value
+                };
+
+                if (this.currentMode === 'chat') {
+                    this.chatPresets.push(newPreset);
+                    this.onPresetChange?.(this.chatPresets, 'chat');
+                } else {
+                    this.imagePresets.push(newPreset);
+                    this.onPresetChange?.(this.imagePresets, 'image');
+                }
+
+                this.refreshPresetDropdown();
+                // Focus on new preset
+                if (this.presetSelect) {
+                    this.presetSelect.value = newPreset.id;
+                }
+            }
+        ).open();
+    }
+
+    /**
+     * Handle Delete preset button click
+     */
+    private handlePresetDelete(): void {
+        const selectedId = this.presetSelect?.value;
+        if (!selectedId) {
+            new Notice('Please select a preset to delete');
+            return;
+        }
+
+        const presets = this.currentMode === 'chat' ? this.chatPresets : this.imagePresets;
+        const preset = presets.find(p => p.id === selectedId);
+        if (!preset) return;
+
+        new ConfirmModal(
+            this.app,
+            `Are you sure you want to delete "${preset.name}"?`,
+            () => {
+                if (this.currentMode === 'chat') {
+                    this.chatPresets = this.chatPresets.filter(p => p.id !== selectedId);
+                    this.onPresetChange?.(this.chatPresets, 'chat');
+                } else {
+                    this.imagePresets = this.imagePresets.filter(p => p.id !== selectedId);
+                    this.onPresetChange?.(this.imagePresets, 'image');
+                }
+
+                this.refreshPresetDropdown();
+            }
+        ).open();
+    }
+
+    /**
+     * Handle Save preset button click
+     */
+    private handlePresetSave(): void {
+        const selectedId = this.presetSelect?.value;
+        if (!selectedId) {
+            new Notice('Please select a preset to save');
+            return;
+        }
+
+        const presets = this.currentMode === 'chat' ? this.chatPresets : this.imagePresets;
+        const preset = presets.find(p => p.id === selectedId);
+        if (!preset) return;
+
+        preset.prompt = this.promptInput.value;
+
+        if (this.currentMode === 'chat') {
+            this.onPresetChange?.(this.chatPresets, 'chat');
+        } else {
+            this.onPresetChange?.(this.imagePresets, 'image');
+        }
+
+        new Notice(`Preset "${preset.name}" saved`);
+    }
+
+    /**
+     * Handle Rename preset button click
+     */
+    private handlePresetRename(): void {
+        const selectedId = this.presetSelect?.value;
+        if (!selectedId) {
+            new Notice('Please select a preset to rename');
+            return;
+        }
+
+        const presets = this.currentMode === 'chat' ? this.chatPresets : this.imagePresets;
+        const preset = presets.find(p => p.id === selectedId);
+        if (!preset) return;
+
+        new InputModal(
+            this.app,
+            'Rename Preset',
+            'Enter new name',
+            preset.name,
+            (newName) => {
+                preset.name = newName;
+
+                if (this.currentMode === 'chat') {
+                    this.onPresetChange?.(this.chatPresets, 'chat');
+                } else {
+                    this.onPresetChange?.(this.imagePresets, 'image');
+                }
+
+                this.refreshPresetDropdown();
+                // Keep selection on renamed preset
+                if (this.presetSelect) {
+                    this.presetSelect.value = selectedId;
+                }
+            }
+        ).open();
+    }
+
+    /**
+     * Initialize presets from saved settings
+     */
+    initPresets(chatPresets: PromptPreset[], imagePresets: PromptPreset[]): void {
+        this.chatPresets = [...chatPresets];
+        this.imagePresets = [...imagePresets];
+        this.refreshPresetDropdown();
+    }
+
+    /**
+     * Set the preset change callback for persisting presets
+     */
+    setOnPresetChange(callback: (presets: PromptPreset[], mode: PaletteMode) => void): void {
+        this.onPresetChange = callback;
+    }
+
+    /**
+     * Generate a simple unique ID
+     */
+    private generateId(): string {
+        return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
     }
 
     /**
@@ -544,7 +883,7 @@ export default class CanvasAIPlugin extends Plugin {
         // Initialize API Manager
         this.apiManager = new ApiManager(this.settings);
 
-        this.floatingPalette = new FloatingPalette(this.apiManager, () => {
+        this.floatingPalette = new FloatingPalette(this.app, this.apiManager, () => {
             this.debugSelectedNodes();
         });
 
@@ -563,10 +902,26 @@ export default class CanvasAIPlugin extends Plugin {
             this.saveSettings();
         });
 
+        // Set up preset change callback for persisting presets
+        this.floatingPalette.setOnPresetChange((presets, mode) => {
+            if (mode === 'chat') {
+                this.settings.chatPresets = presets;
+            } else {
+                this.settings.imagePresets = presets;
+            }
+            this.saveSettings();
+        });
+
         // Initialize palette with saved settings
         this.floatingPalette.initImageOptions(
             this.settings.defaultAspectRatio,
             this.settings.defaultResolution
+        );
+
+        // Initialize presets from saved settings
+        this.floatingPalette.initPresets(
+            this.settings.chatPresets || [],
+            this.settings.imagePresets || []
         );
 
         // Initialize debug mode from settings
