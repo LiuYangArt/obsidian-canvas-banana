@@ -1,4 +1,4 @@
-import { App, ItemView, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, TFile } from 'obsidian';
+import { App, ItemView, Notice, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, TFile } from 'obsidian';
 import type { Canvas, CanvasNode, CanvasCoords } from './types';
 import { CanvasConverter, ConvertedNode } from './canvas-converter';
 import { ApiManager } from './api-manager';
@@ -1232,8 +1232,11 @@ class CanvasAISettingTab extends PluginSettingTab {
         } catch (error: any) {
             console.error('Canvas AI Settings: Failed to fetch models:', error.message);
             // Keep existing cache or empty
+            new Notice(`无法获取模型列表: ${error.message}`);
         } finally {
             this.isFetching = false;
+            // Update UI after fetch completes (success or error)
+            this.display();
         }
     }
 
@@ -1293,11 +1296,11 @@ class CanvasAISettingTab extends PluginSettingTab {
                     this.plugin.settings.apiProvider = value as ApiProvider;
                     await this.plugin.saveSettings();
 
-                    // Auto-refresh models when switching provider
+                    // Auto-refresh models when switching provider (Non-blocking)
                     this.modelsFetched = false;
-                    await this.fetchModels();
+                    this.fetchModels(); // Fire and forget
 
-                    // Re-render to show/hide provider-specific settings
+                    // Re-render immediately to show/hide provider-specific settings
                     this.display();
                 }));
 
@@ -1359,31 +1362,37 @@ class CanvasAISettingTab extends PluginSettingTab {
         // ========== 模型配置区域 ==========
         containerEl.createEl('h3', { text: '模型配置' });
 
-        // Fetch models if not already fetched
+        // Fetch models if not already fetched (Non-blocking)
         const apiKey = isYunwu ? this.plugin.settings.yunwuApiKey : this.plugin.settings.openRouterApiKey;
-        if (!this.modelsFetched && apiKey) {
-            await this.fetchModels();
+        if (!this.modelsFetched && apiKey && !this.isFetching) {
+            this.fetchModels();
         }
 
         // Refresh button
+        let statusText = '点击刷新按钮获取可用模型列表';
+        if (this.isFetching) {
+            statusText = '⏳ 正在获取模型列表...';
+        } else if (this.modelsFetched) {
+            statusText = `已加载 ${this.modelCache.length} 个模型 (文本: ${this.getTextModels().length}, 图像: ${this.getImageModels().length}) 来自 ${isYunwu ? 'Yunwu' : 'OpenRouter'}`;
+        }
+
         const refreshSetting = new Setting(containerEl)
             .setName('模型列表')
-            .setDesc(this.modelsFetched
-                ? `已加载 ${this.modelCache.length} 个模型 (文本: ${this.getTextModels().length}, 图像: ${this.getImageModels().length}) 来自 ${isYunwu ? 'Yunwu' : 'OpenRouter'}`
-                : '点击刷新按钮获取可用模型列表');
+            .setDesc(statusText);
 
         const refreshBtn = refreshSetting.controlEl.createEl('button', {
-            text: '🔄 刷新模型列表',
+            text: this.isFetching ? '刷新中...' : '🔄 刷新模型列表',
             cls: 'canvas-ai-refresh-btn'
         });
+
+        refreshBtn.disabled = this.isFetching;
 
         refreshBtn.addEventListener('click', async () => {
             refreshBtn.textContent = '获取中...';
             refreshBtn.disabled = true;
             this.modelsFetched = false; // Force refresh
-            await this.fetchModels();
-            // Re-render the entire settings page to update dropdowns
-            this.display();
+            this.fetchModels(); // Fire and forget
+            // UI will be updated by fetchModels finally block
         });
 
         // ========== Text Model Setting ==========
