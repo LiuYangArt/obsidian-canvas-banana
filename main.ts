@@ -1139,12 +1139,16 @@ class CanvasAISettingTab extends PluginSettingTab {
     }
 
     /**
-     * Fetch models from OpenRouter API
+     * Fetch models from API (OpenRouter or Yunwu based on provider)
      */
     private async fetchModels(): Promise<void> {
         if (this.isFetching) return;
 
-        const apiKey = this.plugin.settings.openRouterApiKey;
+        const isYunwu = this.plugin.settings.apiProvider === 'yunwu';
+        const apiKey = isYunwu
+            ? this.plugin.settings.yunwuApiKey
+            : this.plugin.settings.openRouterApiKey;
+
         if (!apiKey) {
             console.log('Canvas AI Settings: No API key, skipping model fetch');
             return;
@@ -1152,11 +1156,21 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         this.isFetching = true;
         try {
-            const response = await fetch('https://openrouter.ai/api/v1/models', {
+            let endpoint: string;
+            let headers: Record<string, string>;
+
+            if (isYunwu) {
+                // Yunwu uses same OpenAI-compatible models endpoint
+                endpoint = `${this.plugin.settings.yunwuBaseUrl || 'https://yunwu.ai'}/v1/models`;
+                headers = { 'Authorization': `Bearer ${apiKey}` };
+            } else {
+                endpoint = 'https://openrouter.ai/api/v1/models';
+                headers = { 'Authorization': `Bearer ${apiKey}` };
+            }
+
+            const response = await fetch(endpoint, {
                 method: 'GET',
-                headers: {
-                    'Authorization': `Bearer ${apiKey}`
-                }
+                headers: headers
             });
 
             if (!response.ok) {
@@ -1173,7 +1187,7 @@ class CanvasAISettingTab extends PluginSettingTab {
             }));
 
             this.modelsFetched = true;
-            console.log(`Canvas AI Settings: Fetched ${this.modelCache.length} models`);
+            console.log(`Canvas AI Settings: Fetched ${this.modelCache.length} models from ${isYunwu ? 'Yunwu' : 'OpenRouter'}`);
         } catch (error: any) {
             console.error('Canvas AI Settings: Failed to fetch models:', error.message);
             // Keep existing cache or empty
@@ -1182,22 +1196,39 @@ class CanvasAISettingTab extends PluginSettingTab {
         }
     }
 
+    // Model keyword filters
+    private static TEXT_MODEL_KEYWORDS = ['gpt', 'gemini'];
+    private static IMAGE_MODEL_KEYWORDS = ['gemini', 'banana'];
+
     /**
-     * Get models that support text output
+     * Get models that support text output, filtered by keywords
+     * For Yunwu: only filter by keywords (no outputModalities check)
      */
     private getTextModels(): OpenRouterModel[] {
-        return this.modelCache.filter(m =>
-            m.outputModalities.includes('text')
-        );
+        const isYunwu = this.plugin.settings.apiProvider === 'yunwu';
+        return this.modelCache.filter(m => {
+            // For OpenRouter, must support text output; for Yunwu, skip this check
+            if (!isYunwu && !m.outputModalities.includes('text')) return false;
+            // Filter by keywords (case-insensitive)
+            const idLower = m.id.toLowerCase();
+            return CanvasAISettingTab.TEXT_MODEL_KEYWORDS.some(kw => idLower.includes(kw));
+        });
     }
 
     /**
-     * Get models that support image output
+     * Get models that support image output, filtered by keywords
+     * For Yunwu: only filter by keywords (no outputModalities check)
+     * Must contain BOTH 'gemini' AND 'image' in the model ID
      */
     private getImageModels(): OpenRouterModel[] {
-        return this.modelCache.filter(m =>
-            m.outputModalities.includes('image')
-        );
+        const isYunwu = this.plugin.settings.apiProvider === 'yunwu';
+        return this.modelCache.filter(m => {
+            // For OpenRouter, must support image output; for Yunwu, skip this check
+            if (!isYunwu && !m.outputModalities.includes('image')) return false;
+            // Must contain both 'gemini' AND 'image' (case-insensitive)
+            const idLower = m.id.toLowerCase();
+            return idLower.includes('gemini') && idLower.includes('image');
+        });
     }
 
     async display(): Promise<void> {

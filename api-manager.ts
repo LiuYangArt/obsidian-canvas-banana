@@ -349,7 +349,7 @@ export class ApiManager {
         const requestBody: OpenRouterRequest = {
             model: this.getImageModel(),
             messages,
-            modalities: ['image', 'text']
+            modalities: ['image']  // Only request image output to ensure generation
         };
 
         if (aspectRatio || resolution) {
@@ -435,7 +435,7 @@ export class ApiManager {
                 parts: parts
             }],
             generationConfig: {
-                responseModalities: ['TEXT', 'IMAGE']
+                responseModalities: ['IMAGE']  // Only request image output
             }
         };
 
