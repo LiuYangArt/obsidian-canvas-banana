@@ -331,7 +331,7 @@ class FloatingPalette {
         container.innerHTML = `
             <div class="canvas-ai-palette-header">
                 <div class="canvas-ai-tabs">
-                    <button class="canvas-ai-tab active" data-mode="chat">Chat</button>
+                    <button class="canvas-ai-tab active" data-mode="chat">Text</button>
                     <button class="canvas-ai-tab" data-mode="image">Image</button>
                 </div>
                 <button class="canvas-ai-close-btn">×</button>
@@ -350,7 +350,7 @@ class FloatingPalette {
                 </div>
                 <textarea 
                     class="canvas-ai-prompt-input" 
-                    placeholder="Ask a question about selected notes..."
+                    placeholder="Enter instructions or ask a question..."
                     rows="4"
                 ></textarea>
                 <div class="canvas-ai-image-options" style="display: none;">
@@ -703,7 +703,7 @@ class FloatingPalette {
      */
     private updatePlaceholder(): void {
         if (this.currentMode === 'chat') {
-            this.promptInput.placeholder = 'Ask a question about selected notes...';
+            this.promptInput.placeholder = 'Enter instructions or ask a question...';
         } else {
             this.promptInput.placeholder = 'Describe the image, or leave empty to use selected text...';
         }
