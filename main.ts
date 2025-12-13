@@ -1344,6 +1344,10 @@ export default class CanvasAIPlugin extends Plugin {
         return { minX, minY, maxX, maxY };
     }
 
+    // Track last click target type for robust closing
+    private lastClickWasBackground: boolean = false;
+    private lastInteractionWasDeleteOrEsc: boolean = false;
+
     /**
      * 注册 Canvas 选中状态监听
      */
@@ -1355,17 +1359,64 @@ export default class CanvasAIPlugin extends Plugin {
             })
         );
 
+        // 监听全局鼠标按下事件，用于判断点击意图
+        this.registerDomEvent(document, 'mousedown', (evt: MouseEvent) => {
+            // 鼠标操作时，重置键盘状态
+            this.lastInteractionWasDeleteOrEsc = false;
+
+            const target = evt.target as HTMLElement;
+            // 检查是否点击了 Canvas 及其 UI 元素
+            const isCanvasClick = target.closest('.canvas-wrapper');
+            if (isCanvasClick) {
+                // 如果点击了 节点、连线、或者我们的 AI 面板，则不算"背景点击"
+                const isNode = target.closest('.canvas-node');
+                const isEdge = target.closest('.canvas-edge');
+                const isPalette = target.closest('.canvas-ai-palette');
+                const isMenu = target.closest('.menu'); // 上下文菜单
+
+                if (!isNode && !isEdge && !isPalette && !isMenu) {
+                    this.lastClickWasBackground = true;
+                } else {
+                    this.lastClickWasBackground = false;
+                }
+            } else {
+                // Canvas 区域外点击，视为背景点击 (用于关闭)
+                this.lastClickWasBackground = true;
+            }
+        });
+
+        // 监听键盘事件，用于捕获 Delete/Backspace/Escape
+        this.registerDomEvent(document, 'keydown', (evt: KeyboardEvent) => {
+            if (evt.key === 'Delete' || evt.key === 'Backspace' || evt.key === 'Escape') {
+                this.lastInteractionWasDeleteOrEsc = true;
+                // 重置鼠标状态
+                this.lastClickWasBackground = false;
+            } else {
+                this.lastInteractionWasDeleteOrEsc = false;
+            }
+        });
+
         // 监听活动叶子变化
         this.registerEvent(
-            this.app.workspace.on('active-leaf-change', () => {
+            this.app.workspace.on('active-leaf-change', (leaf) => {
+                // 只有当真正的 View 发生变化时才隐藏
+                // 如果在同一个 Canvas 内切换焦点，不应该隐藏
+                const currentView = this.app.workspace.getActiveViewOfType(ItemView);
+                if (currentView?.getViewType() === 'canvas' && leaf?.view === currentView) {
+                    return;
+                }
                 this.hideAllFloatingComponents();
             })
         );
 
         // 监听文件打开（切换文件时隐藏）
+        // 只有当真正离开 Canvas 视图时才隐藏，点击 Canvas 内的文件节点不应该隐藏面板
         this.registerEvent(
             this.app.workspace.on('file-open', () => {
-                this.hideAllFloatingComponents();
+                const currentView = this.app.workspace.getActiveViewOfType(ItemView);
+                if (currentView?.getViewType() !== 'canvas') {
+                    this.hideAllFloatingComponents();
+                }
             })
         );
 
@@ -1400,17 +1451,26 @@ export default class CanvasAIPlugin extends Plugin {
         const selectionSize = selection?.size ?? 0;
         const currentIds = new Set(Array.from(selection || []).map((n: CanvasNode) => n.id));
 
-        // 规则 3: 取消所有选中 -> 面板消失 (防抖处理)
-        // 图片节点加选时可能会触发瞬时的 selectionSize === 0，需要防抖
+        // 规则 3: 取消所有选中 -> 面板消失 
+        // 改进：只有在明确点击背景或按下 Delete/Esc 时才关闭面板
+        // 对于其他原因导致的 selectionSize === 0（如切换节点的过渡态），完全忽略
         if (selectionSize === 0) {
-            if (this.floatingPalette?.visible && !this.hideTimer) {
+            const shouldCloseExplicitly = this.lastClickWasBackground || this.lastInteractionWasDeleteOrEsc;
+
+            if (this.floatingPalette?.visible && !this.hideTimer && shouldCloseExplicitly) {
+                // 明确的关闭意图：快速关闭
                 this.hideTimer = window.setTimeout(() => {
-                    this.floatingPalette?.hide();
-                    this.lastSelectedIds.clear();
-                    this.lastSelectionSize = 0;
+                    // 二次确认：计时器结束时，如果真的还是 0 选中，才关闭
+                    const currentSelection = (canvas as any).selection;
+                    if (!currentSelection || currentSelection.size === 0) {
+                        this.floatingPalette?.hide();
+                        this.lastSelectedIds.clear();
+                        this.lastSelectionSize = 0;
+                    }
                     this.hideTimer = null;
-                }, 50); // 200ms 缓冲期
+                }, 50);
             }
+            // 如果没有明确的关闭意图，完全不做任何事情，等待新的选中
             return;
         }
 
@@ -1420,31 +1480,16 @@ export default class CanvasAIPlugin extends Plugin {
             this.hideTimer = null;
         }
 
+        // 重置状态
+        this.lastClickWasBackground = false;
+        this.lastInteractionWasDeleteOrEsc = false;
+
         // 向原生工具条注入按钮
         this.injectAiButtonToPopupMenu(canvas);
 
         // 如果面板当前是显示状态，检查是否需要自动关闭或更新位置
         if (this.floatingPalette?.visible) {
-            // 规则 4: 选中新节点 (无重叠) -> 面板消失
-            // (除非上次记录为空，可能是刚初始化)
-            if (this.lastSelectedIds.size > 0) {
-                let hasOverlap = false;
-                for (const id of currentIds) {
-                    if (this.lastSelectedIds.has(id)) {
-                        hasOverlap = true;
-                        break;
-                    }
-                }
-
-                if (!hasOverlap) {
-                    this.floatingPalette.hide();
-                    this.lastSelectedIds = currentIds;
-                    this.lastSelectionSize = selectionSize;
-                    return;
-                }
-            }
-
-            // 规则 2: 有重叠 (添加/减少选中) -> 更新位置
+            // 规则: 选中变化 -> 更新位置
             const screenBBox = this.getSelectionScreenBBox(selection);
             if (screenBBox) {
                 const paletteX = screenBBox.right + 20;
