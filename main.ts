@@ -167,8 +167,8 @@ class FloatingPalette {
         container.innerHTML = `
             <div class="canvas-ai-palette-header">
                 <div class="canvas-ai-tabs">
-                    <button class="canvas-ai-tab active" data-mode="chat">💬 Chat</button>
-                    <button class="canvas-ai-tab" data-mode="image">🎨 Image</button>
+                    <button class="canvas-ai-tab active" data-mode="chat">Chat</button>
+                    <button class="canvas-ai-tab" data-mode="image">Image</button>
                 </div>
                 <button class="canvas-ai-close-btn">×</button>
             </div>
@@ -293,7 +293,7 @@ class FloatingPalette {
     /**
      * 更新上下文预览信息
      */
-    updateContextPreview(nodeCount: number, imageCount: number, textCount: number): void {
+    updateContextPreview(nodeCount: number, imageCount: number, textCount: number, groupCount: number = 0): void {
         const preview = this.containerEl.querySelector('.canvas-ai-context-preview');
         if (preview) {
             if (nodeCount === 0) {
@@ -302,6 +302,7 @@ class FloatingPalette {
                 const parts: string[] = [];
                 if (imageCount > 0) parts.push(`${imageCount} Image`);
                 if (textCount > 0) parts.push(`${textCount} Text`);
+                if (groupCount > 0) parts.push(`${groupCount} Group`);
                 preview.textContent = `🔗 ${nodeCount} Nodes Selected (${parts.join(', ')})`;
             }
         }
@@ -332,8 +333,10 @@ class FloatingPalette {
 
         if (this.pendingTaskCount === 0) {
             generateBtn.textContent = 'Generate';
+            generateBtn.removeClass('generating');
         } else {
             generateBtn.textContent = `Generating ${this.pendingTaskCount} Task(s)`;
+            generateBtn.addClass('generating');
         }
         // Button always stays enabled for multi-task support
         generateBtn.disabled = false;
@@ -999,8 +1002,8 @@ export default class CanvasAIPlugin extends Plugin {
 
         // 更新上下文预览
         if (this.floatingPalette?.visible) {
-            const { imageCount, textCount } = this.countNodeTypes(selection);
-            this.floatingPalette.updateContextPreview(selectionSize, imageCount, textCount);
+            const { imageCount, textCount, groupCount } = this.countNodeTypes(selection);
+            this.floatingPalette.updateContextPreview(selectionSize, imageCount, textCount, groupCount);
         }
 
         // 更新状态记录
@@ -1064,12 +1067,16 @@ export default class CanvasAIPlugin extends Plugin {
     /**
      * 统计节点类型数量
      */
-    private countNodeTypes(selection: Set<CanvasNode>): { imageCount: number; textCount: number } {
+    private countNodeTypes(selection: Set<CanvasNode>): { imageCount: number; textCount: number; groupCount: number } {
         let imageCount = 0;
         let textCount = 0;
+        let groupCount = 0;
 
         selection.forEach(node => {
-            if (node.file) {
+            if ((node as any).label !== undefined) {
+                // Group 节点（有 label 属性）
+                groupCount++;
+            } else if (node.file) {
                 // 文件节点，检查是否为图片
                 const ext = node.file.extension?.toLowerCase();
                 if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) {
@@ -1084,7 +1091,7 @@ export default class CanvasAIPlugin extends Plugin {
             }
         });
 
-        return { imageCount, textCount };
+        return { imageCount, textCount, groupCount };
     }
 
     /**
