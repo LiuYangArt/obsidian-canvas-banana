@@ -82,16 +82,31 @@ export class ApiManager {
     }
 
     /**
-     * Get the API key to use
+     * Get the current active provider
+     */
+    private getActiveProvider(): 'openrouter' | 'yunwu' {
+        return this.settings.apiProvider || 'openrouter';
+    }
+
+    /**
+     * Get the API key to use based on active provider
      */
     private getApiKey(): string {
+        if (this.getActiveProvider() === 'yunwu') {
+            return this.settings.yunwuApiKey || '';
+        }
         return this.settings.openRouterApiKey || '';
     }
 
     /**
-     * Get the base URL (from settings or default)
+     * Get the chat endpoint URL based on active provider
+     * Both OpenRouter and Yunwu use OpenAI-compatible format for chat
      */
-    private getBaseUrl(): string {
+    private getChatEndpoint(): string {
+        if (this.getActiveProvider() === 'yunwu') {
+            const base = this.settings.yunwuBaseUrl || 'https://yunwu.ai';
+            return `${base}/v1/chat/completions`;
+        }
         return this.settings.openRouterBaseUrl || 'https://openrouter.ai/api/v1/chat/completions';
     }
 
@@ -103,26 +118,10 @@ export class ApiManager {
     }
 
     /**
-     * Get image generation model (Pro - high quality)
+     * Get image generation model
      */
-    private getImageModelPro(): string {
-        return this.settings.imageModelPro || 'google/gemini-3-pro-image-preview';
-    }
-
-    /**
-     * Get image generation model (Flash - fast)
-     */
-    private getImageModelFlash(): string {
-        return this.settings.imageModelFlash || 'google/gemini-2.5-flash-image';
-    }
-
-    /**
-     * Get image model by type
-     * Extensibility: This abstraction allows easy addition of new providers
-     * by adding provider-specific model resolution in the future.
-     */
-    getImageModelByType(modelType: 'pro' | 'flash'): string {
-        return modelType === 'pro' ? this.getImageModelPro() : this.getImageModelFlash();
+    private getImageModel(): string {
+        return this.settings.imageModel || 'google/gemini-3-pro-image-preview';
     }
 
     /**
@@ -223,7 +222,7 @@ export class ApiManager {
         });
 
         const requestBody: OpenRouterRequest = {
-            model: this.getImageModelFlash(), // Default to Flash for legacy generateImage
+            model: this.getImageModel(),
             messages: messages,
             modalities: ['image', 'text']
         };
@@ -273,7 +272,6 @@ export class ApiManager {
      * @param contextText Additional context text
      * @param aspectRatio Optional aspect ratio (supports extended ratios)
      * @param resolution Optional resolution (1K, 2K, 4K)
-     * @param modelType Optional model type ('pro' or 'flash', defaults to 'flash')
      * @returns Base64 data URL of the generated image
      */
     async generateImageWithRoles(
@@ -281,13 +279,29 @@ export class ApiManager {
         imagesWithRoles: { base64: string, mimeType: string, role: string }[],
         contextText?: string,
         aspectRatio?: string,
-        resolution?: string,
-        modelType?: 'pro' | 'flash'
+        resolution?: string
     ): Promise<string> {
         if (!this.isConfigured()) {
-            throw new Error('OpenRouter API Key not configured. Please set it in plugin settings.');
+            throw new Error('API Key not configured. Please set it in plugin settings.');
         }
 
+        // Route to provider-specific implementation
+        if (this.getActiveProvider() === 'yunwu') {
+            return this.generateImageYunwu(instruction, imagesWithRoles, contextText, aspectRatio, resolution);
+        }
+        return this.generateImageOpenRouter(instruction, imagesWithRoles, contextText, aspectRatio, resolution);
+    }
+
+    /**
+     * Generate image using OpenRouter format (OpenAI-compatible with image_config)
+     */
+    private async generateImageOpenRouter(
+        instruction: string,
+        imagesWithRoles: { base64: string, mimeType: string, role: string }[],
+        contextText?: string,
+        aspectRatio?: string,
+        resolution?: string
+    ): Promise<string> {
         const contentParts: OpenRouterContentPart[] = [];
 
         // System context
@@ -333,7 +347,7 @@ export class ApiManager {
         }];
 
         const requestBody: OpenRouterRequest = {
-            model: this.getImageModelByType(modelType || 'flash'),
+            model: this.getImageModel(),
             messages,
             modalities: ['image', 'text']
         };
@@ -348,7 +362,7 @@ export class ApiManager {
             }
         }
 
-        console.log('Canvas AI: Sending image generation request with roles...');
+        console.log('Canvas AI: [OpenRouter] Sending image generation request...');
         console.log('Request body:', JSON.stringify(requestBody, null, 2));
 
         const response = await this.sendRequest(requestBody);
@@ -371,6 +385,179 @@ export class ApiManager {
 
         console.log('Canvas AI: No image in response, content:', message.content);
         throw new Error(`Image generation failed: ${message.content || 'No image returned'}`);
+    }
+
+    /**
+     * Generate image using Yunwu native Gemini format
+     * Uses different parameter names: aspectRatio (no underscore), imageSize (no underscore)
+     */
+    private async generateImageYunwu(
+        instruction: string,
+        imagesWithRoles: { base64: string, mimeType: string, role: string }[],
+        contextText?: string,
+        aspectRatio?: string,
+        resolution?: string
+    ): Promise<string> {
+        // Build parts array in Gemini native format
+        const parts: Array<{ text?: string; inline_data?: { mime_type: string; data: string } }> = [];
+
+        // System context
+        parts.push({ text: 'You are an expert creator. Use the following references.' });
+
+        // Add images with role annotations
+        for (const img of imagesWithRoles) {
+            const mime = img.mimeType || 'image/png';
+
+            // Add role label before image
+            parts.push({ text: `\n[Ref: ${img.role}]` });
+
+            // Add image as inline_data (Gemini native format)
+            parts.push({
+                inline_data: {
+                    mime_type: mime,
+                    data: img.base64
+                }
+            });
+        }
+
+        // Add context text if present
+        if (contextText && contextText.trim()) {
+            parts.push({ text: `\n[Context]\n${contextText}` });
+        }
+
+        // Add instruction
+        parts.push({ text: `\nINSTRUCTION: ${instruction}` });
+
+        // Build request body in Gemini native format
+        const requestBody: any = {
+            contents: [{
+                role: 'user',
+                parts: parts
+            }],
+            generationConfig: {
+                responseModalities: ['TEXT', 'IMAGE']
+            }
+        };
+
+        // Add image config with camelCase parameter names (Yunwu/Gemini native format)
+        if (aspectRatio || resolution) {
+            requestBody.generationConfig.imageConfig = {};
+            if (aspectRatio) {
+                requestBody.generationConfig.imageConfig.aspectRatio = aspectRatio;
+            }
+            if (resolution) {
+                requestBody.generationConfig.imageConfig.imageSize = resolution;
+            }
+        }
+
+        console.log('Canvas AI: [Yunwu] Sending image generation request...');
+        console.log('Request body:', JSON.stringify(requestBody, null, 2));
+
+        // Yunwu image generation uses a different endpoint
+        const apiKey = this.getApiKey();
+        const baseUrl = this.settings.yunwuBaseUrl || 'https://yunwu.ai';
+        const model = this.getImageModel();
+        const endpoint = `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+        const requestParams: RequestUrlParam = {
+            url: endpoint,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        };
+
+        try {
+            const response = await requestUrl(requestParams);
+            const data = response.json;
+
+            // Parse Yunwu/Gemini response format
+            return this.parseYunwuImageResponse(data);
+        } catch (error: any) {
+            if (error.status) {
+                const errorBody = error.json || { message: error.message };
+                console.error('Canvas AI: Yunwu HTTP Error', error.status, errorBody);
+                throw new Error(`HTTP ${error.status}: ${errorBody.error?.message || error.message}`);
+            }
+            throw error;
+        }
+    }
+
+    /**
+     * Parse Yunwu/Gemini image response
+     * Handles both base64 and URL formats, and various MIME types
+     */
+    private async parseYunwuImageResponse(data: any): Promise<string> {
+        // Gemini response format: candidates[0].content.parts[]
+        const candidates = data.candidates;
+        if (!candidates || candidates.length === 0) {
+            throw new Error('Yunwu returned no candidates');
+        }
+
+        const parts = candidates[0]?.content?.parts;
+        if (!parts || parts.length === 0) {
+            throw new Error('Yunwu returned no parts in response');
+        }
+
+        // Find image part
+        for (const part of parts) {
+            // Check for inline_data (base64)
+            if (part.inline_data) {
+                const mimeType = part.inline_data.mime_type || 'image/png';
+                const base64Data = part.inline_data.data;
+                console.log('Canvas AI: Yunwu returned base64 image, mimeType:', mimeType);
+                return `data:${mimeType};base64,${base64Data}`;
+            }
+
+            // Check for file_data (URL)
+            if (part.file_data) {
+                const url = part.file_data.file_uri;
+                console.log('Canvas AI: Yunwu returned URL, fetching:', url);
+                return await this.fetchImageAsDataUrl(url);
+            }
+        }
+
+        // No image found, check for text content (may contain error or refusal)
+        const textPart = parts.find((p: any) => p.text);
+        const textContent = textPart?.text || 'No image returned';
+        console.log('Canvas AI: No image in Yunwu response, text:', textContent);
+        throw new Error(`Image generation failed: ${textContent}`);
+    }
+
+    /**
+     * Fetch image from URL and convert to data URL
+     */
+    private async fetchImageAsDataUrl(url: string): Promise<string> {
+        try {
+            const response = await requestUrl({ url, method: 'GET' });
+            const arrayBuffer = response.arrayBuffer;
+
+            // Detect MIME type from response or URL
+            let mimeType = 'image/png';
+            const contentType = response.headers['content-type'];
+            if (contentType) {
+                mimeType = contentType.split(';')[0].trim();
+            } else if (url.includes('.jpg') || url.includes('.jpeg')) {
+                mimeType = 'image/jpeg';
+            } else if (url.includes('.webp')) {
+                mimeType = 'image/webp';
+            }
+
+            // Convert to base64
+            const uint8Array = new Uint8Array(arrayBuffer);
+            let binary = '';
+            for (let i = 0; i < uint8Array.length; i++) {
+                binary += String.fromCharCode(uint8Array[i]);
+            }
+            const base64Data = window.btoa(binary);
+
+            console.log('Canvas AI: Fetched image, mimeType:', mimeType, 'size:', arrayBuffer.byteLength);
+            return `data:${mimeType};base64,${base64Data}`;
+        } catch (error: any) {
+            console.error('Canvas AI: Failed to fetch image from URL:', error);
+            throw new Error(`Failed to fetch image: ${error.message}`);
+        }
     }
 
     /**
@@ -445,13 +632,14 @@ export class ApiManager {
     }
 
     /**
-     * Internal method to send request to OpenRouter
+     * Internal method to send chat request (OpenAI-compatible format)
+     * Works for both OpenRouter and Yunwu chat endpoints
      */
     private async sendRequest(body: OpenRouterRequest): Promise<OpenRouterResponse> {
         const apiKey = this.getApiKey();
 
         const requestParams: RequestUrlParam = {
-            url: this.getBaseUrl(),
+            url: this.getChatEndpoint(),
             method: 'POST',
             headers: {
                 'Authorization': `Bearer ${apiKey}`,

@@ -5,36 +5,41 @@ import { ApiManager } from './api-manager';
 import { IntentResolver, ResolvedIntent } from './intent-resolver';
 
 // ========== 插件设置接口 ==========
+export type ApiProvider = 'openrouter' | 'yunwu';
+
 export interface CanvasAISettings {
+    // API Provider selection
+    apiProvider: ApiProvider;
+    // OpenRouter settings
     openRouterApiKey: string;
     openRouterBaseUrl: string;
+    // Yunwu settings
+    yunwuApiKey: string;
+    yunwuBaseUrl: string;
+    // Model settings
     textModel: string;
-    // Image models - separate for Pro (quality) and Flash (speed)
-    imageModelPro: string;
-    imageModelFlash: string;
+    imageModel: string;  // Image generation model (Pro)
     useCustomTextModel: boolean;   // true = manual input, false = dropdown
-    useCustomImageModelPro: boolean;  // true = manual input, false = dropdown
-    useCustomImageModelFlash: boolean;
+    useCustomImageModel: boolean;  // true = manual input, false = dropdown
     imageCompressionQuality: number;  // WebP compression quality (0-100)
     imageMaxSize: number;  // Max width/height for WebP output
     // Image generation defaults (palette state)
-    defaultImageModelType: 'pro' | 'flash';
     defaultAspectRatio: string;
     defaultResolution: string;
 }
 
 const DEFAULT_SETTINGS: CanvasAISettings = {
+    apiProvider: 'openrouter',
     openRouterApiKey: '',
     openRouterBaseUrl: 'https://openrouter.ai/api/v1/chat/completions',
+    yunwuApiKey: '',
+    yunwuBaseUrl: 'https://yunwu.ai',
     textModel: 'google/gemini-2.5-flash',
-    imageModelPro: 'google/gemini-3-pro-image-preview',
-    imageModelFlash: 'google/gemini-2.5-flash-image',
+    imageModel: 'google/gemini-3-pro-image-preview',
     useCustomTextModel: false,
-    useCustomImageModelPro: false,
-    useCustomImageModelFlash: false,
+    useCustomImageModel: false,
     imageCompressionQuality: 80,  // Default 80% quality
     imageMaxSize: 2048,  // Default max size
-    defaultImageModelType: 'flash',
     defaultAspectRatio: '1:1',
     defaultResolution: '1K'
 };
@@ -58,15 +63,12 @@ class FloatingPalette {
     private onGenerate: ((prompt: string, mode: PaletteMode) => Promise<void>) | null = null;
     private apiManager: ApiManager;
     private isGenerating: boolean = false;
-
-    // Image generation options
-    private imageModelType: 'pro' | 'flash' = 'flash';
+    // Image generation options (no model selection - always use Pro)
     private imageAspectRatio: string = '1:1';
     private imageResolution: string = '1K';
 
     // DOM references for image options
     private imageOptionsEl: HTMLElement | null = null;
-    private modelSelect: HTMLSelectElement | null = null;
     private ratioSelect: HTMLSelectElement | null = null;
     private resolutionSelect: HTMLSelectElement | null = null;
 
@@ -107,32 +109,29 @@ class FloatingPalette {
             <div class="canvas-ai-palette-body">
                 <div class="canvas-ai-image-options" style="display: none;">
                     <div class="canvas-ai-option-row">
-                        <label>Model</label>
-                        <select class="canvas-ai-model-select dropdown">
-                            <option value="flash">Flash (Fast)</option>
-                            <option value="pro">Pro (Quality)</option>
-                        </select>
-                    </div>
-                    <div class="canvas-ai-option-row">
-                        <label>Ratio</label>
-                        <select class="canvas-ai-ratio-select dropdown">
-                            <option value="1:1">1:1</option>
-                            <option value="2:3">2:3</option>
-                            <option value="3:2">3:2</option>
-                            <option value="3:4">3:4</option>
-                            <option value="4:3">4:3</option>
-                            <option value="4:5">4:5</option>
-                            <option value="5:4">5:4</option>
-                            <option value="9:16">9:16</option>
-                            <option value="16:9">16:9</option>
-                            <option value="21:9">21:9</option>
-                        </select>
-                    </div>
-                    <div class="canvas-ai-option-row">
-                        <label>Resolution</label>
-                        <select class="canvas-ai-resolution-select dropdown">
-                            <option value="1K">1K</option>
-                        </select>
+                        <span class="canvas-ai-option-group">
+                            <label>Resolution</label>
+                            <select class="canvas-ai-resolution-select dropdown">
+                                <option value="1K">1K</option>
+                                <option value="2K">2K</option>
+                                <option value="4K">4K</option>
+                            </select>
+                        </span>
+                        <span class="canvas-ai-option-group">
+                            <label>Ratio</label>
+                            <select class="canvas-ai-ratio-select dropdown">
+                                <option value="1:1">1:1</option>
+                                <option value="2:3">2:3</option>
+                                <option value="3:2">3:2</option>
+                                <option value="3:4">3:4</option>
+                                <option value="4:3">4:3</option>
+                                <option value="4:5">4:5</option>
+                                <option value="5:4">5:4</option>
+                                <option value="9:16">9:16</option>
+                                <option value="16:9">16:9</option>
+                                <option value="21:9">21:9</option>
+                            </select>
+                        </span>
                     </div>
                 </div>
                 <textarea 
@@ -152,15 +151,8 @@ class FloatingPalette {
 
         // Get image options DOM references
         this.imageOptionsEl = container.querySelector('.canvas-ai-image-options');
-        this.modelSelect = container.querySelector('.canvas-ai-model-select');
         this.ratioSelect = container.querySelector('.canvas-ai-ratio-select');
         this.resolutionSelect = container.querySelector('.canvas-ai-resolution-select');
-
-        // Bind model select change - update resolution options
-        this.modelSelect?.addEventListener('change', () => {
-            this.imageModelType = this.modelSelect!.value as 'pro' | 'flash';
-            this.updateResolutionOptions();
-        });
 
         // Bind ratio select change
         this.ratioSelect?.addEventListener('change', () => {
@@ -202,42 +194,6 @@ class FloatingPalette {
         generateBtn?.addEventListener('click', () => this.handleGenerate());
 
         return container;
-    }
-
-    /**
-     * Update resolution dropdown options based on model type
-     * Flash only supports 1K, Pro supports 1K/2K/4K
-     */
-    private updateResolutionOptions(): void {
-        if (!this.resolutionSelect) return;
-
-        this.resolutionSelect.innerHTML = '';
-
-        if (this.imageModelType === 'pro') {
-            // Pro model supports 1K, 2K, 4K
-            const options = ['1K', '2K', '4K'];
-            for (const opt of options) {
-                const optEl = document.createElement('option');
-                optEl.value = opt;
-                optEl.text = opt;
-                this.resolutionSelect.appendChild(optEl);
-            }
-            // Restore previous selection if valid, otherwise default to 1K
-            if (['1K', '2K', '4K'].includes(this.imageResolution)) {
-                this.resolutionSelect.value = this.imageResolution;
-            } else {
-                this.resolutionSelect.value = '1K';
-                this.imageResolution = '1K';
-            }
-        } else {
-            // Flash model only supports 1K
-            const optEl = document.createElement('option');
-            optEl.value = '1K';
-            optEl.text = '1K';
-            this.resolutionSelect.appendChild(optEl);
-            this.resolutionSelect.value = '1K';
-            this.imageResolution = '1K';
-        }
     }
 
     /**
@@ -340,9 +296,8 @@ class FloatingPalette {
      * Get current image generation options
      * Used by plugin to pass selected options to API
      */
-    getImageOptions(): { modelType: 'pro' | 'flash', aspectRatio: string, resolution: string } {
+    getImageOptions(): { aspectRatio: string, resolution: string } {
         return {
-            modelType: this.imageModelType,
             aspectRatio: this.imageAspectRatio,
             resolution: this.imageResolution
         };
@@ -573,8 +528,7 @@ export default class CanvasAIPlugin extends Plugin {
                     intent.images,
                     intent.contextText,
                     imageOptions.aspectRatio,
-                    imageOptions.resolution,
-                    imageOptions.modelType
+                    imageOptions.resolution
                 );
 
                 // Update Ghost Node to show saving status
@@ -595,10 +549,28 @@ export default class CanvasAIPlugin extends Plugin {
 
     /**
      * Save base64 image to vault
+     * Detects MIME type from data URL and uses correct file extension
      */
     private async saveImageToVault(base64Data: string, prompt: string): Promise<TFile> {
-        // Remove data URL prefix if present
-        const base64 = base64Data.replace(/^data:image\/\w+;base64,/, "");
+        // Extract MIME type and base64 data
+        let mimeType = 'image/png';
+        let base64 = base64Data;
+
+        const dataUrlMatch = base64Data.match(/^data:(image\/\w+);base64,(.+)$/);
+        if (dataUrlMatch) {
+            mimeType = dataUrlMatch[1];
+            base64 = dataUrlMatch[2];
+        }
+
+        // Determine file extension based on MIME type
+        let extension = '.png';
+        if (mimeType === 'image/jpeg' || mimeType === 'image/jpg') {
+            extension = '.jpg';
+        } else if (mimeType === 'image/webp') {
+            extension = '.webp';
+        } else if (mimeType === 'image/gif') {
+            extension = '.gif';
+        }
 
         // Convert base64 to buffer
         const buffer = this.base64ToArrayBuffer(base64);
@@ -606,7 +578,7 @@ export default class CanvasAIPlugin extends Plugin {
         // Sanitize prompt for filename
         const safePrompt = prompt.replace(/[\\/:*?"<>|]/g, "").slice(0, 30).trim();
         const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-        const filename = `AI_Image_${safePrompt}_${timestamp}.png`;
+        const filename = `AI_Image_${safePrompt}_${timestamp}${extension}`;
 
         // Check/Create "Canvas Images" folder in root
         const folderName = "Canvas Images";
@@ -615,6 +587,7 @@ export default class CanvasAIPlugin extends Plugin {
         }
 
         const filePath = `${folderName}/${filename}`;
+        console.log(`Canvas AI: Saving image to ${filePath}, mimeType: ${mimeType}`);
         return await this.app.vault.createBinary(filePath, buffer);
     }
 
@@ -1067,7 +1040,7 @@ export default class CanvasAIPlugin extends Plugin {
             // 模拟 Payload 结构
             console.group('📦 Simulated API Payload Structure');
             const payloadPreview = {
-                model: this.settings.imageModelFlash + ' (or Pro: ' + this.settings.imageModelPro + ')',
+                model: this.settings.imageModel,
                 modalities: ['image', 'text'],
                 content_structure: [
                     { type: 'text', text: 'You are an expert creator...' },
@@ -1234,80 +1207,174 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         containerEl.createEl('h2', { text: 'Canvas AI 设置' });
 
-        // OpenRouter 配置区域
-        containerEl.createEl('h3', { text: 'OpenRouter API 配置' });
-
-        // API Key with Test Button
-        const apiKeySetting = new Setting(containerEl)
-            .setName('API Key')
-            .setDesc('输入你的 OpenRouter API 密钥 (获取: openrouter.ai/keys)')
-            .addText(text => text
-                .setPlaceholder('sk-or-v1-...')
-                .setValue(this.plugin.settings.openRouterApiKey)
-                .onChange(async (value) => {
-                    this.plugin.settings.openRouterApiKey = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Add Test Connection button
-        const testBtn = apiKeySetting.controlEl.createEl('button', {
-            text: '测试连接',
-            cls: 'canvas-ai-test-btn'
-        });
-
-        const testResultEl = containerEl.createDiv({ cls: 'canvas-ai-test-result' });
-        testResultEl.style.display = 'none';
-
-        testBtn.addEventListener('click', async () => {
-            testBtn.textContent = '测试中...';
-            testBtn.disabled = true;
-            testResultEl.style.display = 'none';
-
-            try {
-                const apiManager = new ApiManager(this.plugin.settings);
-                if (!apiManager.isConfigured()) {
-                    throw new Error('请先填写 API Key');
-                }
-                const response = await apiManager.chatCompletion('Say "Connection successful!" in one line.');
-
-                testBtn.textContent = '✓ 成功';
-                testBtn.addClass('success');
-                testResultEl.textContent = `✓ 连接成功: ${response.substring(0, 50)}...`;
-                testResultEl.removeClass('error');
-                testResultEl.addClass('success');
-                testResultEl.style.display = 'block';
-
-                setTimeout(() => {
-                    testBtn.textContent = '测试连接';
-                    testBtn.removeClass('success');
-                }, 3000);
-            } catch (error: any) {
-                testBtn.textContent = '✗ 失败';
-                testBtn.addClass('error');
-                testResultEl.textContent = `✗ 连接失败: ${error.message}`;
-                testResultEl.removeClass('success');
-                testResultEl.addClass('error');
-                testResultEl.style.display = 'block';
-
-                setTimeout(() => {
-                    testBtn.textContent = '测试连接';
-                    testBtn.removeClass('error');
-                }, 3000);
-            } finally {
-                testBtn.disabled = false;
-            }
-        });
+        // ========== API Provider Selection ==========
+        containerEl.createEl('h3', { text: 'API 配置' });
 
         new Setting(containerEl)
-            .setName('API Base URL')
-            .setDesc('OpenRouter API 端点地址')
-            .addText(text => text
-                .setPlaceholder('https://openrouter.ai/api/v1/chat/completions')
-                .setValue(this.plugin.settings.openRouterBaseUrl)
+            .setName('API Provider')
+            .setDesc('选择 API 服务提供商')
+            .addDropdown(dropdown => dropdown
+                .addOption('openrouter', 'OpenRouter')
+                .addOption('yunwu', 'Yunwu')
+                .setValue(this.plugin.settings.apiProvider)
                 .onChange(async (value) => {
-                    this.plugin.settings.openRouterBaseUrl = value;
+                    this.plugin.settings.apiProvider = value as ApiProvider;
                     await this.plugin.saveSettings();
+                    // Re-render to show/hide provider-specific settings
+                    this.display();
                 }));
+
+        const isOpenRouter = this.plugin.settings.apiProvider === 'openrouter';
+        const isYunwu = this.plugin.settings.apiProvider === 'yunwu';
+
+        // ========== OpenRouter Configuration ==========
+        if (isOpenRouter) {
+            // API Key with Test Button
+            const apiKeySetting = new Setting(containerEl)
+                .setName('OpenRouter API Key')
+                .setDesc('输入你的 OpenRouter API 密钥 (获取: openrouter.ai/keys)')
+                .addText(text => text
+                    .setPlaceholder('sk-or-v1-...')
+                    .setValue(this.plugin.settings.openRouterApiKey)
+                    .onChange(async (value) => {
+                        this.plugin.settings.openRouterApiKey = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            // Add Test Connection button
+            const testBtn = apiKeySetting.controlEl.createEl('button', {
+                text: '测试连接',
+                cls: 'canvas-ai-test-btn'
+            });
+
+            const testResultEl = containerEl.createDiv({ cls: 'canvas-ai-test-result' });
+            testResultEl.style.display = 'none';
+
+            testBtn.addEventListener('click', async () => {
+                testBtn.textContent = '测试中...';
+                testBtn.disabled = true;
+                testResultEl.style.display = 'none';
+
+                try {
+                    const apiManager = new ApiManager(this.plugin.settings);
+                    if (!apiManager.isConfigured()) {
+                        throw new Error('请先填写 API Key');
+                    }
+                    const response = await apiManager.chatCompletion('Say "Connection successful!" in one line.');
+
+                    testBtn.textContent = '✓ 成功';
+                    testBtn.addClass('success');
+                    testResultEl.textContent = `✓ 连接成功: ${response.substring(0, 50)}...`;
+                    testResultEl.removeClass('error');
+                    testResultEl.addClass('success');
+                    testResultEl.style.display = 'block';
+
+                    setTimeout(() => {
+                        testBtn.textContent = '测试连接';
+                        testBtn.removeClass('success');
+                    }, 3000);
+                } catch (error: any) {
+                    testBtn.textContent = '✗ 失败';
+                    testBtn.addClass('error');
+                    testResultEl.textContent = `✗ 连接失败: ${error.message}`;
+                    testResultEl.removeClass('success');
+                    testResultEl.addClass('error');
+                    testResultEl.style.display = 'block';
+
+                    setTimeout(() => {
+                        testBtn.textContent = '测试连接';
+                        testBtn.removeClass('error');
+                    }, 3000);
+                } finally {
+                    testBtn.disabled = false;
+                }
+            });
+
+            new Setting(containerEl)
+                .setName('API Base URL')
+                .setDesc('OpenRouter API 端点地址')
+                .addText(text => text
+                    .setPlaceholder('https://openrouter.ai/api/v1/chat/completions')
+                    .setValue(this.plugin.settings.openRouterBaseUrl)
+                    .onChange(async (value) => {
+                        this.plugin.settings.openRouterBaseUrl = value;
+                        await this.plugin.saveSettings();
+                    }));
+        }
+
+        // ========== Yunwu Configuration ==========
+        if (isYunwu) {
+            const yunwuKeySetting = new Setting(containerEl)
+                .setName('Yunwu API Key')
+                .setDesc('输入你的 Yunwu API 密钥')
+                .addText(text => text
+                    .setPlaceholder('sk-...')
+                    .setValue(this.plugin.settings.yunwuApiKey)
+                    .onChange(async (value) => {
+                        this.plugin.settings.yunwuApiKey = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            // Add Test Connection button for Yunwu
+            const testBtn = yunwuKeySetting.controlEl.createEl('button', {
+                text: '测试连接',
+                cls: 'canvas-ai-test-btn'
+            });
+
+            const testResultEl = containerEl.createDiv({ cls: 'canvas-ai-test-result' });
+            testResultEl.style.display = 'none';
+
+            testBtn.addEventListener('click', async () => {
+                testBtn.textContent = '测试中...';
+                testBtn.disabled = true;
+                testResultEl.style.display = 'none';
+
+                try {
+                    const apiManager = new ApiManager(this.plugin.settings);
+                    if (!apiManager.isConfigured()) {
+                        throw new Error('请先填写 API Key');
+                    }
+                    const response = await apiManager.chatCompletion('Say "Connection successful!" in one line.');
+
+                    testBtn.textContent = '✓ 成功';
+                    testBtn.addClass('success');
+                    testResultEl.textContent = `✓ 连接成功: ${response.substring(0, 50)}...`;
+                    testResultEl.removeClass('error');
+                    testResultEl.addClass('success');
+                    testResultEl.style.display = 'block';
+
+                    setTimeout(() => {
+                        testBtn.textContent = '测试连接';
+                        testBtn.removeClass('success');
+                    }, 3000);
+                } catch (error: any) {
+                    testBtn.textContent = '✗ 失败';
+                    testBtn.addClass('error');
+                    testResultEl.textContent = `✗ 连接失败: ${error.message}`;
+                    testResultEl.removeClass('success');
+                    testResultEl.addClass('error');
+                    testResultEl.style.display = 'block';
+
+                    setTimeout(() => {
+                        testBtn.textContent = '测试连接';
+                        testBtn.removeClass('error');
+                    }, 3000);
+                } finally {
+                    testBtn.disabled = false;
+                }
+            });
+
+            new Setting(containerEl)
+                .setName('Yunwu Base URL')
+                .setDesc('Yunwu API 端点地址')
+                .addText(text => text
+                    .setPlaceholder('https://yunwu.ai')
+                    .setValue(this.plugin.settings.yunwuBaseUrl)
+                    .onChange(async (value) => {
+                        this.plugin.settings.yunwuBaseUrl = value;
+                        await this.plugin.saveSettings();
+                    }));
+        }
 
         // ========== 模型配置区域 ==========
         containerEl.createEl('h3', { text: '模型配置' });
@@ -1347,23 +1414,13 @@ class CanvasAISettingTab extends PluginSettingTab {
             getModels: () => this.getTextModels()
         });
 
-        // ========== Image Model (Pro) Setting ==========
+        // ========== Image Model Setting ==========
         this.renderModelSetting(containerEl, {
-            name: 'Image Model (Pro)',
-            desc: '高质量图像生成模型 - 支持 1K/2K/4K 分辨率',
-            modelKey: 'imageModelPro',
-            customKey: 'useCustomImageModelPro',
+            name: 'Image Generation Model',
+            desc: '用于 Image 模式的图像生成模型 (Gemini 3 Pro Image Preview)',
+            modelKey: 'imageModel',
+            customKey: 'useCustomImageModel',
             placeholder: 'google/gemini-3-pro-image-preview',
-            getModels: () => this.getImageModels()
-        });
-
-        // ========== Image Model (Flash) Setting ==========
-        this.renderModelSetting(containerEl, {
-            name: 'Image Model (Flash)',
-            desc: '快速图像生成模型 - 仅支持 1K 分辨率',
-            modelKey: 'imageModelFlash',
-            customKey: 'useCustomImageModelFlash',
-            placeholder: 'google/gemini-2.5-flash-image',
             getModels: () => this.getImageModels()
         });
 
@@ -1413,8 +1470,8 @@ class CanvasAISettingTab extends PluginSettingTab {
     private renderModelSetting(containerEl: HTMLElement, options: {
         name: string;
         desc: string;
-        modelKey: 'textModel' | 'imageModelPro' | 'imageModelFlash';
-        customKey: 'useCustomTextModel' | 'useCustomImageModelPro' | 'useCustomImageModelFlash';
+        modelKey: 'textModel' | 'imageModel';
+        customKey: 'useCustomTextModel' | 'useCustomImageModel';
         placeholder: string;
         getModels: () => OpenRouterModel[];
     }): void {

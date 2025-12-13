@@ -102,7 +102,7 @@
     flex-direction: column;
     gap: 8px;
     margin-bottom: 12px;
-    padding: 10px;
+    padding: 10px 12px;
     background: var(--background-secondary);
     border-radius: 8px;
     border: 1px solid var(--background-modifier-border);
@@ -112,34 +112,54 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    gap: 12px;
+    gap: 16px;
 }
 
-.canvas-ai-option-row label {
+.canvas-ai-option-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex: 1;
+}
+
+.canvas-ai-option-group label {
     font-size: 12px;
     color: var(--text-muted);
-    min-width: 70px;
     font-weight: 500;
+    white-space: nowrap;
 }
 
-.canvas-ai-option-row select {
+.canvas-ai-option-row select,
+.canvas-ai-option-group select {
     flex: 1;
-    max-width: 140px;
-    padding: 4px 8px;
+    min-width: 60px;
+    max-width: 100px;
+    padding: 5px 8px;
     border: 1px solid var(--background-modifier-border);
     border-radius: 6px;
     background: var(--background-primary);
     color: var(--text-normal);
     font-size: 12px;
     cursor: pointer;
+    /* Reset appearance to avoid browser-specific icon issues */
+    -webkit-appearance: none;
+    -moz-appearance: none;
+    appearance: none;
+    /* Add custom dropdown arrow */
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 6px center;
+    padding-right: 24px;
 }
 
-.canvas-ai-option-row select:focus {
+.canvas-ai-option-row select:focus,
+.canvas-ai-option-group select:focus {
     outline: none;
     border-color: var(--interactive-accent);
 }
 
-.canvas-ai-option-row select:hover {
+.canvas-ai-option-row select:hover,
+.canvas-ai-option-group select:hover {
     border-color: var(--text-muted);
 }
 
