@@ -3,6 +3,7 @@ import type { Canvas, CanvasNode, CanvasCoords } from './types';
 import { CanvasConverter, ConvertedNode } from './canvas-converter';
 import { ApiManager } from './api-manager';
 import { IntentResolver, ResolvedIntent } from './intent-resolver';
+import { t } from './lang/helpers';
 
 // ========== Plugin Settings Interfaces ==========
 export type ApiProvider = 'openrouter' | 'yunwu';
@@ -141,10 +142,10 @@ class InputModal extends Modal {
 
         const buttonContainer = contentEl.createDiv({ cls: 'modal-button-container' });
 
-        const cancelBtn = buttonContainer.createEl('button', { text: 'Cancel' });
+        const cancelBtn = buttonContainer.createEl('button', { text: t('Cancel') });
         cancelBtn.addEventListener('click', () => this.close());
 
-        const submitBtn = buttonContainer.createEl('button', { text: 'OK', cls: 'mod-cta' });
+        const submitBtn = buttonContainer.createEl('button', { text: t('OK'), cls: 'mod-cta' });
         submitBtn.addEventListener('click', () => {
             this.close();
             if (this.result.trim()) {
@@ -175,15 +176,15 @@ class ConfirmModal extends Modal {
 
     onOpen() {
         const { contentEl } = this;
-        contentEl.createEl('h3', { text: 'Confirm Delete' });
+        contentEl.createEl('h3', { text: t('Confirm Delete') });
         contentEl.createEl('p', { text: this.message });
 
         const buttonContainer = contentEl.createDiv({ cls: 'modal-button-container' });
 
-        const cancelBtn = buttonContainer.createEl('button', { text: 'Cancel' });
+        const cancelBtn = buttonContainer.createEl('button', { text: t('Cancel') });
         cancelBtn.addEventListener('click', () => this.close());
 
-        const deleteBtn = buttonContainer.createEl('button', { text: 'Delete', cls: 'mod-warning' });
+        const deleteBtn = buttonContainer.createEl('button', { text: t('Delete'), cls: 'mod-warning' });
         deleteBtn.addEventListener('click', () => {
             this.close();
             this.onConfirm();
@@ -331,32 +332,32 @@ class FloatingPalette {
         container.innerHTML = `
             <div class="canvas-ai-palette-header">
                 <div class="canvas-ai-tabs">
-                    <button class="canvas-ai-tab active" data-mode="chat">Text</button>
-                    <button class="canvas-ai-tab" data-mode="image">Image</button>
+                    <button class="canvas-ai-tab active" data-mode="chat">${t('Text')}</button>
+                    <button class="canvas-ai-tab" data-mode="image">${t('Image')}</button>
                 </div>
                 <button class="canvas-ai-close-btn">×</button>
             </div>
             <div class="canvas-ai-palette-body">
                 <div class="canvas-ai-preset-row">
                     <select class="canvas-ai-preset-select dropdown">
-                        <option value="">Select prompt preset</option>
+                        <option value="">${t('Select prompt preset')}</option>
                     </select>
                     <div class="canvas-ai-preset-actions">
-                        <button class="canvas-ai-preset-btn" data-action="add" title="Add preset"></button>
-                        <button class="canvas-ai-preset-btn" data-action="delete" title="Delete preset"></button>
-                        <button class="canvas-ai-preset-btn" data-action="save" title="Save preset"></button>
-                        <button class="canvas-ai-preset-btn" data-action="rename" title="Rename preset"></button>
+                        <button class="canvas-ai-preset-btn" data-action="add" title="${t('New Preset')}"></button>
+                        <button class="canvas-ai-preset-btn" data-action="delete" title="${t('Delete')}"></button>
+                        <button class="canvas-ai-preset-btn" data-action="save" title="${t('Save')}"></button>
+                        <button class="canvas-ai-preset-btn" data-action="rename" title="${t('Rename Preset')}"></button>
                     </div>
                 </div>
                 <textarea 
                     class="canvas-ai-prompt-input" 
-                    placeholder="Enter instructions or ask a question..."
+                    placeholder="${t('Enter instructions')}"
                     rows="4"
                 ></textarea>
                 <div class="canvas-ai-image-options" style="display: none;">
                     <div class="canvas-ai-option-row">
                         <span class="canvas-ai-option-group">
-                            <label>Resolution</label>
+                            <label>${t('Resolution')}</label>
                             <select class="canvas-ai-resolution-select dropdown">
                                 <option value="1K">1K</option>
                                 <option value="2K">2K</option>
@@ -364,7 +365,7 @@ class FloatingPalette {
                             </select>
                         </span>
                         <span class="canvas-ai-option-group">
-                            <label>Ratio</label>
+                            <label>${t('Ratio')}</label>
                             <select class="canvas-ai-ratio-select dropdown">
                                 <option value="1:1">1:1</option>
                                 <option value="2:3">2:3</option>
@@ -383,7 +384,7 @@ class FloatingPalette {
                 <div class="canvas-ai-chat-options">
                     <div class="canvas-ai-option-row">
                         <span class="canvas-ai-option-group">
-                            <label>Temperature</label>
+                            <label>${t('Temperature')}</label>
                             <input type="number" class="canvas-ai-temp-input" min="0" max="2" step="0.1" value="0.5">
                         </span>
                     </div>
@@ -393,8 +394,8 @@ class FloatingPalette {
                 <div class="canvas-ai-footer-row">
                     <span class="canvas-ai-context-preview"></span>
                     <div class="canvas-ai-btn-group">
-                        <button class="canvas-ai-debug-btn" style="display: none;">Debug</button>
-                        <button class="canvas-ai-generate-btn">Generate</button>
+                        <button class="canvas-ai-debug-btn" style="display: none;">${t('Debug')}</button>
+                        <button class="canvas-ai-generate-btn">${t('Generate')}</button>
                     </div>
                 </div>
                 <div class="canvas-ai-version-info"></div>
@@ -538,7 +539,7 @@ class FloatingPalette {
         const presets = this.currentMode === 'chat' ? this.chatPresets : this.imagePresets;
 
         // Clear existing options except the default
-        this.presetSelect.innerHTML = '<option value="">Select prompt preset</option>';
+        this.presetSelect.innerHTML = `<option value="">${t('Select prompt preset')}</option>`;
 
         // Add preset options
         presets.forEach(preset => {
@@ -555,8 +556,8 @@ class FloatingPalette {
     private handlePresetAdd(): void {
         new InputModal(
             this.app,
-            'New Preset',
-            'Enter preset name',
+            t('New Preset'),
+            t('Enter preset name'),
             '',
             (name) => {
                 const newPreset: PromptPreset = {
@@ -588,7 +589,7 @@ class FloatingPalette {
     private handlePresetDelete(): void {
         const selectedId = this.presetSelect?.value;
         if (!selectedId) {
-            new Notice('Please select a preset to delete');
+            new Notice(t('Please select preset delete'));
             return;
         }
 
@@ -598,7 +599,7 @@ class FloatingPalette {
 
         new ConfirmModal(
             this.app,
-            `Are you sure you want to delete "${preset.name}"?`,
+            t('Delete Preset Confirm', { name: preset.name }),
             () => {
                 if (this.currentMode === 'chat') {
                     this.chatPresets = this.chatPresets.filter(p => p.id !== selectedId);
@@ -619,7 +620,7 @@ class FloatingPalette {
     private handlePresetSave(): void {
         const selectedId = this.presetSelect?.value;
         if (!selectedId) {
-            new Notice('Please select a preset to save');
+            new Notice(t('Please select preset save'));
             return;
         }
 
@@ -635,7 +636,8 @@ class FloatingPalette {
             this.onPresetChange?.(this.imagePresets, 'image');
         }
 
-        new Notice(`Preset "${preset.name}" saved`);
+
+        new Notice(t('Preset saved', { name: preset.name }));
     }
 
     /**
@@ -644,7 +646,7 @@ class FloatingPalette {
     private handlePresetRename(): void {
         const selectedId = this.presetSelect?.value;
         if (!selectedId) {
-            new Notice('Please select a preset to rename');
+            new Notice(t('Please select preset rename'));
             return;
         }
 
@@ -654,8 +656,8 @@ class FloatingPalette {
 
         new InputModal(
             this.app,
-            'Rename Preset',
-            'Enter new name',
+            t('Rename Preset'),
+            t('Enter new name'),
             preset.name,
             (newName) => {
                 preset.name = newName;
@@ -703,9 +705,9 @@ class FloatingPalette {
      */
     private updatePlaceholder(): void {
         if (this.currentMode === 'chat') {
-            this.promptInput.placeholder = 'Enter instructions or ask a question...';
+            this.promptInput.placeholder = t('Enter instructions');
         } else {
-            this.promptInput.placeholder = 'Describe the image, or leave empty to use selected text...';
+            this.promptInput.placeholder = t('Describe the image');
         }
     }
 
@@ -719,10 +721,10 @@ class FloatingPalette {
                 preview.textContent = '';
             } else {
                 const parts: string[] = [];
-                if (imageCount > 0) parts.push(`${imageCount} Image`);
-                if (textCount > 0) parts.push(`${textCount} Text`);
-                if (groupCount > 0) parts.push(`${groupCount} Group`);
-                preview.textContent = `🔗 ${nodeCount} Nodes Selected (${parts.join(', ')})`;
+                if (imageCount > 0) parts.push(`${imageCount} ${t('Images')}`);
+                if (textCount > 0) parts.push(`${textCount} ${t('Text')}`);
+                if (groupCount > 0) parts.push(`${groupCount} ${t('Groups')}`);
+                preview.textContent = `🔗 ${nodeCount} ${t('Nodes Selected')} (${parts.join(', ')})`;
             }
         }
     }
@@ -751,10 +753,10 @@ class FloatingPalette {
         if (!generateBtn) return;
 
         if (this.pendingTaskCount === 0) {
-            generateBtn.textContent = 'Generate';
+            generateBtn.textContent = t('Generate');
             generateBtn.removeClass('generating');
         } else {
-            generateBtn.textContent = `Generating ${this.pendingTaskCount} Task(s)`;
+            generateBtn.textContent = `${t('Generating')} ${this.pendingTaskCount} ${t('Tasks')}`;
             generateBtn.addClass('generating');
         }
         // Button always stays enabled for multi-task support
@@ -1917,14 +1919,14 @@ class CanvasAISettingTab extends PluginSettingTab {
         containerEl.empty();
         containerEl.addClass('canvas-ai-settings');
 
-        containerEl.createEl('h2', { text: 'Canvas AI Settings' });
+        containerEl.createEl('h2', { text: t('SettingTitle') });
 
         // ========== API Provider Selection ==========
-        containerEl.createEl('h3', { text: 'API Configuration' });
+        containerEl.createEl('h3', { text: t('API Configuration') });
 
         new Setting(containerEl)
-            .setName('API Provider')
-            .setDesc('Select API Provider')
+            .setName(t('API Provider'))
+            .setDesc(t('Select API Provider'))
             .addDropdown(dropdown => dropdown
                 .addOption('openrouter', 'OpenRouter')
                 .addOption('yunwu', 'Yunwu')
@@ -1948,8 +1950,8 @@ class CanvasAISettingTab extends PluginSettingTab {
         if (!isYunwu) { // OpenRouter
             // API Key with Test Button
             const apiKeySetting = new Setting(containerEl)
-                .setName('OpenRouter API Key')
-                .setDesc('Enter your OpenRouter API Key (Get at: openrouter.ai/keys)')
+                .setName(t('OpenRouter API Key'))
+                .setDesc(t('Enter your OpenRouter API Key'))
                 .addText(text => text
                     .setPlaceholder('sk-or-v1-...')
                     .setValue(this.plugin.settings.openRouterApiKey)
@@ -1961,8 +1963,8 @@ class CanvasAISettingTab extends PluginSettingTab {
             this.addTestButton(apiKeySetting.controlEl, containerEl);
 
             new Setting(containerEl)
-                .setName('API Base URL')
-                .setDesc('OpenRouter API Base URL')
+                .setName(t('API Base URL'))
+                .setDesc(t('API Base URL'))
                 .addText(text => text
                     .setPlaceholder('https://openrouter.ai/api/v1/chat/completions')
                     .setValue(this.plugin.settings.openRouterBaseUrl)
@@ -1972,8 +1974,8 @@ class CanvasAISettingTab extends PluginSettingTab {
                     }));
         } else { // Yunwu
             const yunwuKeySetting = new Setting(containerEl)
-                .setName('Yunwu API Key')
-                .setDesc('Enter your Yunwu API Key')
+                .setName(t('Yunwu API Key'))
+                .setDesc(t('Enter your Yunwu API Key'))
                 .addText(text => text
                     .setPlaceholder('sk-...')
                     .setValue(this.plugin.settings.yunwuApiKey)
@@ -1985,8 +1987,8 @@ class CanvasAISettingTab extends PluginSettingTab {
             this.addTestButton(yunwuKeySetting.controlEl, containerEl);
 
             new Setting(containerEl)
-                .setName('Yunwu Base URL')
-                .setDesc('Yunwu API Base URL')
+                .setName(t('Yunwu Base URL'))
+                .setDesc(t('Yunwu Base URL'))
                 .addText(text => text
                     .setPlaceholder('https://yunwu.ai')
                     .setValue(this.plugin.settings.yunwuBaseUrl)
@@ -1997,7 +1999,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         }
 
         // ========== 模型配置区域 ==========
-        containerEl.createEl('h3', { text: 'Model Configuration' });
+        containerEl.createEl('h3', { text: t('Model Configuration') });
 
         // Fetch models if not already fetched (Non-blocking)
         const apiKey = isYunwu ? this.plugin.settings.yunwuApiKey : this.plugin.settings.openRouterApiKey;
@@ -2006,19 +2008,24 @@ class CanvasAISettingTab extends PluginSettingTab {
         }
 
         // Refresh button
-        let statusText = 'Click refresh to get available models';
+        let statusText = t('Click refresh');
         if (this.isFetching) {
-            statusText = '⏳ Fetching model list...';
+            statusText = t('Fetching...');
         } else if (this.modelsFetched) {
-            statusText = `Loaded ${this.modelCache.length} models (Text: ${this.getTextModels().length}, Image: ${this.getImageModels().length}) from ${isYunwu ? 'Yunwu' : 'OpenRouter'}`;
+            statusText = t('Loaded models', {
+                count: this.modelCache.length,
+                textCount: this.getTextModels().length,
+                imageCount: this.getImageModels().length,
+                source: isYunwu ? 'Yunwu' : 'OpenRouter'
+            });
         }
 
         const refreshSetting = new Setting(containerEl)
-            .setName('Model List')
+            .setName(t('Model List'))
             .setDesc(statusText);
 
         const refreshBtn = refreshSetting.controlEl.createEl('button', {
-            text: this.isFetching ? 'Refreshing...' : 'Refresh Model List',
+            text: this.isFetching ? t('Refreshing...') : t('Refresh Model List'),
             cls: 'canvas-ai-refresh-btn'
         });
 
@@ -2034,8 +2041,8 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         // ========== Text Model Setting ==========
         this.renderModelSetting(containerEl, {
-            name: 'Text Generation Model',
-            desc: 'Text generation model for Chat mode',
+            name: t('Text Generation Model'),
+            desc: t('Text Generation Model'), // Reusing key as desc
             modelKey: isYunwu ? 'yunwuTextModel' : 'openRouterTextModel',
             customKey: isYunwu ? 'yunwuUseCustomTextModel' : 'openRouterUseCustomTextModel',
             placeholder: isYunwu ? 'gemini-2.0-flash' : 'google/gemini-2.0-flash-001',
@@ -2044,8 +2051,8 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         // ========== Image Model Setting ==========
         this.renderModelSetting(containerEl, {
-            name: 'Image Generation Model',
-            desc: 'Image generation model for Image mode',
+            name: t('Image Generation Model'),
+            desc: t('Image Generation Model'),
             modelKey: isYunwu ? 'yunwuImageModel' : 'openRouterImageModel',
             customKey: isYunwu ? 'yunwuUseCustomImageModel' : 'openRouterUseCustomImageModel',
             placeholder: isYunwu ? 'gemini-3-pro-image-preview' : 'google/gemini-2.0-flash-001',
@@ -2053,11 +2060,11 @@ class CanvasAISettingTab extends PluginSettingTab {
         });
 
         // 图片优化区域
-        containerEl.createEl('h3', { text: 'Image Optimization' });
+        containerEl.createEl('h3', { text: t('Image Optimization') });
 
         new Setting(containerEl)
-            .setName('Image Compression Quality')
-            .setDesc('WebP compression quality (0-100). Lower values mean smaller files but lower quality. Default 80.')
+            .setName(t('Image Compression Quality'))
+            .setDesc(t('Image Compression Quality'))
             .addSlider(slider => slider
                 .setLimits(1, 100, 1)
                 .setValue(this.plugin.settings.imageCompressionQuality)
@@ -2068,8 +2075,8 @@ class CanvasAISettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName('Image Max Size')
-            .setDesc('WebP image max size (long edge). Default 2048.')
+            .setName(t('Image Max Size'))
+            .setDesc(t('Image Max Size'))
             .addText(text => text
                 .setPlaceholder('2048')
                 .setValue(String(this.plugin.settings.imageMaxSize))
@@ -2083,11 +2090,11 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .inputEl.addClass('canvas-ai-small-input'));
 
         // ========== Prompt Settings ==========
-        containerEl.createEl('h3', { text: 'Prompt Settings' });
+        containerEl.createEl('h3', { text: t('Prompt Settings') });
 
         new Setting(containerEl)
-            .setName('Image System Prompt')
-            .setDesc('System prompt used for image generation')
+            .setName(t('Image System Prompt'))
+            .setDesc(t('Image System Prompt'))
             .addTextArea(text => text
                 .setPlaceholder('You are an expert creator...')
                 .setValue(this.plugin.settings.imageSystemPrompt)
@@ -2104,11 +2111,11 @@ class CanvasAISettingTab extends PluginSettingTab {
         }
 
         // ========== Developer Options ==========
-        containerEl.createEl('h3', { text: 'Developer Options' });
+        containerEl.createEl('h3', { text: t('Developer Options') });
 
         new Setting(containerEl)
-            .setName('Debug Mode')
-            .setDesc('Enable to show Debug button in palette for outputting debug info')
+            .setName(t('Debug Mode'))
+            .setDesc(t('Debug Mode'))
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.debugMode)
                 .onChange(async (value) => {
@@ -2117,13 +2124,13 @@ class CanvasAISettingTab extends PluginSettingTab {
                 }));
 
         // ========== About Section ==========
-        containerEl.createEl('h3', { text: 'About' });
+        containerEl.createEl('h3', { text: t('About') });
         containerEl.createEl('p', {
-            text: 'Canvas AI plugin allows you to chat, generate text, and generate images with AI in Obsidian Canvas.'
+            text: t('Plugin Description')
         });
         containerEl.createEl('p', {
             cls: 'setting-item-description',
-            text: 'Data storage location: .obsidian/plugins/obsidian-canvas-ai/data.json'
+            text: t('Data Storage')
         });
     }
 
@@ -2132,7 +2139,7 @@ class CanvasAISettingTab extends PluginSettingTab {
      */
     private addTestButton(parentEl: HTMLElement, resultContainer: HTMLElement) {
         const testBtn = parentEl.createEl('button', {
-            text: 'Test Connection',
+            text: t('Test Connection'),
             cls: 'canvas-ai-test-btn'
         });
 
@@ -2140,7 +2147,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         testResultEl.style.display = 'none';
 
         testBtn.addEventListener('click', async () => {
-            testBtn.textContent = 'Testing...';
+            testBtn.textContent = t('Testing...');
             testBtn.disabled = true;
             testResultEl.style.display = 'none';
 
@@ -2151,27 +2158,27 @@ class CanvasAISettingTab extends PluginSettingTab {
                 }
                 const response = await apiManager.chatCompletion('Say "Connection successful!" in one line.');
 
-                testBtn.textContent = '✓ Success';
+                testBtn.textContent = t('Success');
                 testBtn.addClass('success');
-                testResultEl.textContent = `✓ Connection successful: ${response.substring(0, 50)}...`;
+                testResultEl.textContent = `✓ ${t('Connection successful')}: ${response.substring(0, 50)}...`;
                 testResultEl.removeClass('error');
                 testResultEl.addClass('success');
                 testResultEl.style.display = 'block';
 
                 setTimeout(() => {
-                    testBtn.textContent = 'Test Connection';
+                    testBtn.textContent = t('Test Connection');
                     testBtn.removeClass('success');
                 }, 3000);
             } catch (error: any) {
-                testBtn.textContent = '✗ Failed';
+                testBtn.textContent = t('Failed');
                 testBtn.addClass('error');
-                testResultEl.textContent = `✗ Connection failed: ${error.message}`;
+                testResultEl.textContent = `✗ ${t('Connection failed')}: ${error.message}`;
                 testResultEl.removeClass('success');
                 testResultEl.addClass('error');
                 testResultEl.style.display = 'block';
 
                 setTimeout(() => {
-                    testBtn.textContent = 'Test Connection';
+                    testBtn.textContent = t('Test Connection');
                     testBtn.removeClass('error');
                 }, 3000);
             } finally {
@@ -2215,7 +2222,7 @@ class CanvasAISettingTab extends PluginSettingTab {
 
             if (!hasModels && !useCustom) {
                 modelSetting.descEl.createEl('div', {
-                    text: ' (No models available, please refresh or enter manually)',
+                    text: t('No models available'),
                     cls: 'canvas-ai-model-hint',
                     attr: { style: 'color: var(--text-muted); font-size: 0.8em;' }
                 });
@@ -2246,8 +2253,8 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         // 2. Manual Input Toggle (Next Line)
         new Setting(containerEl)
-            .setName('Manually Enter Model Name')
-            .setDesc(isManualMode ? 'Disable to select from list' : 'Enable to manually enter model ID')
+            .setName(t('Manually Enter Model Name'))
+            .setDesc(isManualMode ? t('Disable Manual Model') : t('Enable Manual Model'))
             .addToggle(toggle => toggle
                 .setValue(useCustom || false)
                 .onChange(async (value) => {
