@@ -1,6 +1,6 @@
 {
     "name": "obsidian-canvas-ai",
-    "version": "1.0.0",
+    "version": "0.8.0",
     "description": "Obsidian Canvas AI Plugin - 在 Canvas 视图中集成 Gemini AI",
     "main": "main.js",
     "scripts": {
