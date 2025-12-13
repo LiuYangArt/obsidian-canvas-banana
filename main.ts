@@ -1,7 +1,7 @@
 import { App, ItemView, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, TFile } from 'obsidian';
 import type { Canvas, CanvasNode, CanvasCoords } from './types';
-import { CanvasConverter, ConvertedNode } from './CanvasConverter';
-import { ApiManager } from './ApiManager';
+import { CanvasConverter, ConvertedNode } from './canvas-converter';
+import { ApiManager } from './api-manager';
 
 // ========== 插件设置接口 ==========
 export interface CanvasAISettings {
