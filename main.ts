@@ -953,7 +953,7 @@ export default class CanvasAIPlugin extends Plugin {
                     this.lastSelectedIds.clear();
                     this.lastSelectionSize = 0;
                     this.hideTimer = null;
-                }, 200); // 200ms 缓冲期
+                }, 50); // 200ms 缓冲期
             }
             return;
         }
