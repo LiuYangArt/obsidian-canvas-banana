@@ -4,6 +4,9 @@ Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增�
 
 该插件的核心理念是"节点感知"——它能理解你选中的白板节点内容（文本、卡片、图片），并以此为上下文协助你的创作。
 
+<br><img width="479" height="584" alt="image" src="https://github.com/user-attachments/assets/4da94a5d-595e-4f05-9ceb-2c511345f854" />
+
+
 ## 🌟 核心功能
 
 *   **🤖 上下文感知对话 (Chat)**
