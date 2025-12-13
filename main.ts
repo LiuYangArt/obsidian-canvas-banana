@@ -1385,13 +1385,29 @@ export default class CanvasAIPlugin extends Plugin {
             }
         });
 
-        // 监听键盘事件，用于捕获 Delete/Backspace/Escape
+        // 监听 Escape 键 - 使用捕获阶段确保先于 Obsidian 处理
+        const escapeHandler = (evt: KeyboardEvent) => {
+            if (evt.key === 'Escape') {
+                // Escape 直接关闭面板（如果面板可见）
+                if (this.floatingPalette?.visible) {
+                    this.floatingPalette.hide();
+                    evt.preventDefault();
+                    evt.stopPropagation();
+                    evt.stopImmediatePropagation();
+                }
+            }
+        };
+        document.addEventListener('keydown', escapeHandler, true); // capture: true
+        this.register(() => document.removeEventListener('keydown', escapeHandler, true));
+
+        // 监听键盘事件，用于捕获 Delete/Backspace
         this.registerDomEvent(document, 'keydown', (evt: KeyboardEvent) => {
-            if (evt.key === 'Delete' || evt.key === 'Backspace' || evt.key === 'Escape') {
+            if (evt.key === 'Delete' || evt.key === 'Backspace') {
                 this.lastInteractionWasDeleteOrEsc = true;
                 // 重置鼠标状态
                 this.lastClickWasBackground = false;
-            } else {
+            } else if (evt.key !== 'Escape') {
+                // 不重置 Escape 相关状态，因为它已经在上面的 handler 处理了
                 this.lastInteractionWasDeleteOrEsc = false;
             }
         });
