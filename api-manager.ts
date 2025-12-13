@@ -407,7 +407,7 @@ export class ApiManager {
         resolution?: string
     ): Promise<string> {
         // Build parts array in Gemini native format
-        const parts: Array<{ text?: string; inline_data?: { mime_type: string; data: string } }> = [];
+        const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
 
         // System context
         parts.push({ text: 'You are an expert creator. Use the following references.' });
@@ -419,10 +419,10 @@ export class ApiManager {
             // Add role label before image
             parts.push({ text: `\n[Ref: ${img.role}]` });
 
-            // Add image as inline_data (Gemini native format)
+            // Add image as inlineData (Gemini native format)
             parts.push({
-                inline_data: {
-                    mime_type: mime,
+                inlineData: {
+                    mimeType: mime,
                     data: img.base64
                 }
             });
@@ -443,7 +443,7 @@ export class ApiManager {
                 parts: parts
             }],
             generationConfig: {
-                responseModalities: ['IMAGE']  // Only request image output
+                responseModalities: ['image']  // Only request image output
             }
         };
 
@@ -510,10 +510,10 @@ export class ApiManager {
 
         // Find image part
         for (const part of parts) {
-            // Check for inline_data (base64)
-            if (part.inline_data) {
-                const mimeType = part.inline_data.mime_type || 'image/png';
-                const base64Data = part.inline_data.data;
+            // Check for inlineData (base64)
+            if (part.inlineData) {
+                const mimeType = part.inlineData.mimeType || 'image/png';
+                const base64Data = part.inlineData.data;
                 console.log('Canvas AI: Yunwu returned base64 image, mimeType:', mimeType);
                 return `data:${mimeType};base64,${base64Data}`;
             }

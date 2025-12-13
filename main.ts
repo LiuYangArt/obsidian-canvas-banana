@@ -616,15 +616,28 @@ export default class CanvasAIPlugin extends Plugin {
         // Convert base64 to buffer
         const buffer = this.base64ToArrayBuffer(base64);
 
-        // Sanitize prompt for filename
-        const safePrompt = prompt.replace(/[\\/:*?"<>|]/g, "").slice(0, 30).trim();
-        const timestamp = new Date().toISOString().replace(/[:.]/g, "-");
-        const filename = `AI_Image_${safePrompt}_${timestamp}${extension}`;
+        // Generate simple timestamp-based filename (YYYYMMDDHHMMSS format)
+        const now = new Date();
+        const timestamp = now.getFullYear().toString() +
+            String(now.getMonth() + 1).padStart(2, '0') +
+            String(now.getDate()).padStart(2, '0') +
+            String(now.getHours()).padStart(2, '0') +
+            String(now.getMinutes()).padStart(2, '0') +
+            String(now.getSeconds()).padStart(2, '0');
+        const filename = `ai_image_${timestamp}${extension}`;
 
         // Check/Create "Canvas Images" folder in root
         const folderName = "Canvas Images";
-        if (!this.app.vault.getAbstractFileByPath(folderName)) {
-            await this.app.vault.createFolder(folderName);
+        const existingFolder = this.app.vault.getAbstractFileByPath(folderName);
+        if (!existingFolder) {
+            try {
+                await this.app.vault.createFolder(folderName);
+            } catch (e: any) {
+                if (!this.app.vault.getAbstractFileByPath(folderName)) {
+                    console.error('Canvas AI: Failed to create folder:', e);
+                    throw new Error(`Failed to create Canvas Images folder: ${e.message}`);
+                }
+            }
         }
 
         const filePath = `${folderName}/${filename}`;
