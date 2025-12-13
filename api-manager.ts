@@ -103,10 +103,26 @@ export class ApiManager {
     }
 
     /**
-     * Get image generation model
+     * Get image generation model (Pro - high quality)
      */
-    private getImageModel(): string {
-        return this.settings.imageModel || 'google/gemini-2.5-flash-image-preview';
+    private getImageModelPro(): string {
+        return this.settings.imageModelPro || 'google/gemini-3-pro-image-preview';
+    }
+
+    /**
+     * Get image generation model (Flash - fast)
+     */
+    private getImageModelFlash(): string {
+        return this.settings.imageModelFlash || 'google/gemini-2.5-flash-image';
+    }
+
+    /**
+     * Get image model by type
+     * Extensibility: This abstraction allows easy addition of new providers
+     * by adding provider-specific model resolution in the future.
+     */
+    getImageModelByType(modelType: 'pro' | 'flash'): string {
+        return modelType === 'pro' ? this.getImageModelPro() : this.getImageModelFlash();
     }
 
     /**
@@ -207,7 +223,7 @@ export class ApiManager {
         });
 
         const requestBody: OpenRouterRequest = {
-            model: this.getImageModel(),
+            model: this.getImageModelFlash(), // Default to Flash for legacy generateImage
             messages: messages,
             modalities: ['image', 'text']
         };
@@ -255,16 +271,18 @@ export class ApiManager {
      * @param instruction The main instruction/prompt
      * @param imagesWithRoles Array of images with their semantic roles
      * @param contextText Additional context text
-     * @param aspectRatio Optional aspect ratio
-     * @param imageSize Optional image size
+     * @param aspectRatio Optional aspect ratio (supports extended ratios)
+     * @param resolution Optional resolution (1K, 2K, 4K)
+     * @param modelType Optional model type ('pro' or 'flash', defaults to 'flash')
      * @returns Base64 data URL of the generated image
      */
     async generateImageWithRoles(
         instruction: string,
         imagesWithRoles: { base64: string, mimeType: string, role: string }[],
         contextText?: string,
-        aspectRatio?: '1:1' | '16:9' | '4:3' | '9:16',
-        imageSize?: string
+        aspectRatio?: string,
+        resolution?: string,
+        modelType?: 'pro' | 'flash'
     ): Promise<string> {
         if (!this.isConfigured()) {
             throw new Error('OpenRouter API Key not configured. Please set it in plugin settings.');
@@ -315,18 +333,18 @@ export class ApiManager {
         }];
 
         const requestBody: OpenRouterRequest = {
-            model: this.getImageModel(),
+            model: this.getImageModelByType(modelType || 'flash'),
             messages,
             modalities: ['image', 'text']
         };
 
-        if (aspectRatio || imageSize) {
+        if (aspectRatio || resolution) {
             requestBody.image_config = {};
             if (aspectRatio) {
-                requestBody.image_config.aspect_ratio = aspectRatio;
+                requestBody.image_config.aspect_ratio = aspectRatio as any;
             }
-            if (imageSize) {
-                requestBody.image_config.image_size = imageSize;
+            if (resolution) {
+                requestBody.image_config.image_size = resolution;
             }
         }
 

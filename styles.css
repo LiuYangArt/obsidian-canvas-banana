@@ -96,6 +96,53 @@
     padding: 12px;
 }
 
+/* ========== Image Generation Options ========== */
+.canvas-ai-image-options {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 10px;
+    background: var(--background-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.canvas-ai-option-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+}
+
+.canvas-ai-option-row label {
+    font-size: 12px;
+    color: var(--text-muted);
+    min-width: 70px;
+    font-weight: 500;
+}
+
+.canvas-ai-option-row select {
+    flex: 1;
+    max-width: 140px;
+    padding: 4px 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 6px;
+    background: var(--background-primary);
+    color: var(--text-normal);
+    font-size: 12px;
+    cursor: pointer;
+}
+
+.canvas-ai-option-row select:focus {
+    outline: none;
+    border-color: var(--interactive-accent);
+}
+
+.canvas-ai-option-row select:hover {
+    border-color: var(--text-muted);
+}
+
 .canvas-ai-prompt-input {
     width: 100%;
     min-height: 80px;

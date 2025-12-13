@@ -9,22 +9,34 @@ export interface CanvasAISettings {
     openRouterApiKey: string;
     openRouterBaseUrl: string;
     textModel: string;
-    imageModel: string;
+    // Image models - separate for Pro (quality) and Flash (speed)
+    imageModelPro: string;
+    imageModelFlash: string;
     useCustomTextModel: boolean;   // true = manual input, false = dropdown
-    useCustomImageModel: boolean;  // true = manual input, false = dropdown
+    useCustomImageModelPro: boolean;  // true = manual input, false = dropdown
+    useCustomImageModelFlash: boolean;
     imageCompressionQuality: number;  // WebP compression quality (0-100)
     imageMaxSize: number;  // Max width/height for WebP output
+    // Image generation defaults (palette state)
+    defaultImageModelType: 'pro' | 'flash';
+    defaultAspectRatio: string;
+    defaultResolution: string;
 }
 
 const DEFAULT_SETTINGS: CanvasAISettings = {
     openRouterApiKey: '',
     openRouterBaseUrl: 'https://openrouter.ai/api/v1/chat/completions',
     textModel: 'google/gemini-2.5-flash',
-    imageModel: 'google/gemini-2.5-flash-preview:thinking',
+    imageModelPro: 'google/gemini-3-pro-image-preview',
+    imageModelFlash: 'google/gemini-2.5-flash-image',
     useCustomTextModel: false,
-    useCustomImageModel: false,
+    useCustomImageModelPro: false,
+    useCustomImageModelFlash: false,
     imageCompressionQuality: 80,  // Default 80% quality
-    imageMaxSize: 2048  // Default max size
+    imageMaxSize: 2048,  // Default max size
+    defaultImageModelType: 'flash',
+    defaultAspectRatio: '1:1',
+    defaultResolution: '1K'
 };
 
 
@@ -46,6 +58,17 @@ class FloatingPalette {
     private onGenerate: ((prompt: string, mode: PaletteMode) => Promise<void>) | null = null;
     private apiManager: ApiManager;
     private isGenerating: boolean = false;
+
+    // Image generation options
+    private imageModelType: 'pro' | 'flash' = 'flash';
+    private imageAspectRatio: string = '1:1';
+    private imageResolution: string = '1K';
+
+    // DOM references for image options
+    private imageOptionsEl: HTMLElement | null = null;
+    private modelSelect: HTMLSelectElement | null = null;
+    private ratioSelect: HTMLSelectElement | null = null;
+    private resolutionSelect: HTMLSelectElement | null = null;
 
     constructor(apiManager: ApiManager, onDebugCallback?: () => void) {
         this.apiManager = apiManager;
@@ -82,6 +105,36 @@ class FloatingPalette {
                 <button class="canvas-ai-close-btn">×</button>
             </div>
             <div class="canvas-ai-palette-body">
+                <div class="canvas-ai-image-options" style="display: none;">
+                    <div class="canvas-ai-option-row">
+                        <label>Model</label>
+                        <select class="canvas-ai-model-select dropdown">
+                            <option value="flash">Flash (Fast)</option>
+                            <option value="pro">Pro (Quality)</option>
+                        </select>
+                    </div>
+                    <div class="canvas-ai-option-row">
+                        <label>Ratio</label>
+                        <select class="canvas-ai-ratio-select dropdown">
+                            <option value="1:1">1:1</option>
+                            <option value="2:3">2:3</option>
+                            <option value="3:2">3:2</option>
+                            <option value="3:4">3:4</option>
+                            <option value="4:3">4:3</option>
+                            <option value="4:5">4:5</option>
+                            <option value="5:4">5:4</option>
+                            <option value="9:16">9:16</option>
+                            <option value="16:9">16:9</option>
+                            <option value="21:9">21:9</option>
+                        </select>
+                    </div>
+                    <div class="canvas-ai-option-row">
+                        <label>Resolution</label>
+                        <select class="canvas-ai-resolution-select dropdown">
+                            <option value="1K">1K</option>
+                        </select>
+                    </div>
+                </div>
                 <textarea 
                     class="canvas-ai-prompt-input" 
                     placeholder="Ask a question about selected notes..."
@@ -97,6 +150,28 @@ class FloatingPalette {
             </div>
         `;
 
+        // Get image options DOM references
+        this.imageOptionsEl = container.querySelector('.canvas-ai-image-options');
+        this.modelSelect = container.querySelector('.canvas-ai-model-select');
+        this.ratioSelect = container.querySelector('.canvas-ai-ratio-select');
+        this.resolutionSelect = container.querySelector('.canvas-ai-resolution-select');
+
+        // Bind model select change - update resolution options
+        this.modelSelect?.addEventListener('change', () => {
+            this.imageModelType = this.modelSelect!.value as 'pro' | 'flash';
+            this.updateResolutionOptions();
+        });
+
+        // Bind ratio select change
+        this.ratioSelect?.addEventListener('change', () => {
+            this.imageAspectRatio = this.ratioSelect!.value;
+        });
+
+        // Bind resolution select change
+        this.resolutionSelect?.addEventListener('change', () => {
+            this.imageResolution = this.resolutionSelect!.value;
+        });
+
         // 绑定 Tab 切换事件
         const tabs = container.querySelectorAll('.canvas-ai-tab');
         tabs.forEach(tab => {
@@ -105,6 +180,7 @@ class FloatingPalette {
                 tab.addClass('active');
                 this.currentMode = tab.getAttribute('data-mode') as PaletteMode;
                 this.updatePlaceholder();
+                this.updateImageOptionsVisibility();
             });
         });
 
@@ -126,6 +202,51 @@ class FloatingPalette {
         generateBtn?.addEventListener('click', () => this.handleGenerate());
 
         return container;
+    }
+
+    /**
+     * Update resolution dropdown options based on model type
+     * Flash only supports 1K, Pro supports 1K/2K/4K
+     */
+    private updateResolutionOptions(): void {
+        if (!this.resolutionSelect) return;
+
+        this.resolutionSelect.innerHTML = '';
+
+        if (this.imageModelType === 'pro') {
+            // Pro model supports 1K, 2K, 4K
+            const options = ['1K', '2K', '4K'];
+            for (const opt of options) {
+                const optEl = document.createElement('option');
+                optEl.value = opt;
+                optEl.text = opt;
+                this.resolutionSelect.appendChild(optEl);
+            }
+            // Restore previous selection if valid, otherwise default to 1K
+            if (['1K', '2K', '4K'].includes(this.imageResolution)) {
+                this.resolutionSelect.value = this.imageResolution;
+            } else {
+                this.resolutionSelect.value = '1K';
+                this.imageResolution = '1K';
+            }
+        } else {
+            // Flash model only supports 1K
+            const optEl = document.createElement('option');
+            optEl.value = '1K';
+            optEl.text = '1K';
+            this.resolutionSelect.appendChild(optEl);
+            this.resolutionSelect.value = '1K';
+            this.imageResolution = '1K';
+        }
+    }
+
+    /**
+     * Show/hide image options based on current mode
+     */
+    private updateImageOptionsVisibility(): void {
+        if (this.imageOptionsEl) {
+            this.imageOptionsEl.style.display = this.currentMode === 'image' ? 'flex' : 'none';
+        }
     }
 
     /**
@@ -213,6 +334,18 @@ class FloatingPalette {
      */
     clearPrompt(): void {
         this.promptInput.value = '';
+    }
+
+    /**
+     * Get current image generation options
+     * Used by plugin to pass selected options to API
+     */
+    getImageOptions(): { modelType: 'pro' | 'flash', aspectRatio: string, resolution: string } {
+        return {
+            modelType: this.imageModelType,
+            aspectRatio: this.imageAspectRatio,
+            resolution: this.imageResolution
+        };
     }
 
     /**
@@ -428,16 +561,20 @@ export default class CanvasAIPlugin extends Plugin {
 
             } else {
                 // Image Mode - use new generateImageWithRoles
+                // Get user-selected image options from palette
+                const imageOptions = this.floatingPalette!.getImageOptions();
                 console.log('Canvas AI: Sending image request with roles');
                 console.log('Canvas AI: Instruction:', intent.instruction);
                 console.log('Canvas AI: Images with roles:', intent.images.map(i => i.role));
+                console.log('Canvas AI: Image options:', imageOptions);
 
                 const base64Image = await this.apiManager!.generateImageWithRoles(
                     intent.instruction,
                     intent.images,
                     intent.contextText,
-                    '1:1',
-                    '1K'
+                    imageOptions.aspectRatio,
+                    imageOptions.resolution,
+                    imageOptions.modelType
                 );
 
                 // Update Ghost Node to show saving status
@@ -930,7 +1067,7 @@ export default class CanvasAIPlugin extends Plugin {
             // 模拟 Payload 结构
             console.group('📦 Simulated API Payload Structure');
             const payloadPreview = {
-                model: this.settings.imageModel,
+                model: this.settings.imageModelFlash + ' (or Pro: ' + this.settings.imageModelPro + ')',
                 modalities: ['image', 'text'],
                 content_structure: [
                     { type: 'text', text: 'You are an expert creator...' },
@@ -1210,13 +1347,23 @@ class CanvasAISettingTab extends PluginSettingTab {
             getModels: () => this.getTextModels()
         });
 
-        // ========== Image Model Setting ==========
+        // ========== Image Model (Pro) Setting ==========
         this.renderModelSetting(containerEl, {
-            name: 'Image Generation Model',
-            desc: '用于 Image 模式的图像生成模型',
-            modelKey: 'imageModel',
-            customKey: 'useCustomImageModel',
-            placeholder: 'google/gemini-2.5-flash-preview:thinking',
+            name: 'Image Model (Pro)',
+            desc: '高质量图像生成模型 - 支持 1K/2K/4K 分辨率',
+            modelKey: 'imageModelPro',
+            customKey: 'useCustomImageModelPro',
+            placeholder: 'google/gemini-3-pro-image-preview',
+            getModels: () => this.getImageModels()
+        });
+
+        // ========== Image Model (Flash) Setting ==========
+        this.renderModelSetting(containerEl, {
+            name: 'Image Model (Flash)',
+            desc: '快速图像生成模型 - 仅支持 1K 分辨率',
+            modelKey: 'imageModelFlash',
+            customKey: 'useCustomImageModelFlash',
+            placeholder: 'google/gemini-2.5-flash-image',
             getModels: () => this.getImageModels()
         });
 
@@ -1266,8 +1413,8 @@ class CanvasAISettingTab extends PluginSettingTab {
     private renderModelSetting(containerEl: HTMLElement, options: {
         name: string;
         desc: string;
-        modelKey: 'textModel' | 'imageModel';
-        customKey: 'useCustomTextModel' | 'useCustomImageModel';
+        modelKey: 'textModel' | 'imageModelPro' | 'imageModelFlash';
+        customKey: 'useCustomTextModel' | 'useCustomImageModelPro' | 'useCustomImageModelFlash';
         placeholder: string;
         getModels: () => OpenRouterModel[];
     }): void {
