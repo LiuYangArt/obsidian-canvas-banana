@@ -1025,8 +1025,8 @@ export default class CanvasAIPlugin extends Plugin {
         const aiButton = document.createElement('button');
         aiButton.id = AI_SPARKLES_BUTTON_ID;
         aiButton.classList.add('clickable-icon');
-        setIcon(aiButton, 'sparkles');
-        setTooltip(aiButton, 'AI Sparkles', { placement: 'top' });
+        setIcon(aiButton, 'banana');
+        setTooltip(aiButton, 'CanvasBanana', { placement: 'top' });
 
         aiButton.addEventListener('click', (e) => {
             e.stopPropagation();
