@@ -101,6 +101,7 @@ class FloatingPalette {
     private ratioSelect: HTMLSelectElement | null = null;
     private resolutionSelect: HTMLSelectElement | null = null;
     private debugBtnEl: HTMLButtonElement | null = null;
+    private versionInfoEl: HTMLElement | null = null;
 
     constructor(apiManager: ApiManager, onDebugCallback?: () => void) {
         this.apiManager = apiManager;
@@ -139,6 +140,15 @@ class FloatingPalette {
     setDebugMode(enabled: boolean): void {
         if (this.debugBtnEl) {
             this.debugBtnEl.style.display = enabled ? 'block' : 'none';
+        }
+    }
+
+    /**
+     * Set version info text dynamically
+     */
+    setVersion(version: string): void {
+        if (this.versionInfoEl) {
+            this.versionInfoEl.textContent = `🍌CanvasBanana by LiuYang v${version}`;
         }
     }
 
@@ -204,9 +214,12 @@ class FloatingPalette {
                         <button class="canvas-ai-generate-btn">Generate</button>
                     </div>
                 </div>
-                <div class="canvas-ai-version-info">🍌CanvasBanana by LiuYang v1.0</div>
+                <div class="canvas-ai-version-info"></div>
             </div>
         `;
+
+        // Get version info element
+        this.versionInfoEl = container.querySelector('.canvas-ai-version-info');
 
         // Get image options DOM references
         this.imageOptionsEl = container.querySelector('.canvas-ai-image-options');
@@ -555,6 +568,9 @@ export default class CanvasAIPlugin extends Plugin {
 
         // Initialize debug mode from settings
         this.floatingPalette.setDebugMode(this.settings.debugMode);
+
+        // Set version from manifest
+        this.floatingPalette.setVersion(this.manifest.version);
     }
 
     /**
