@@ -4,7 +4,7 @@ import { CanvasConverter, ConvertedNode } from './canvas-converter';
 import { ApiManager } from './api-manager';
 import { IntentResolver, ResolvedIntent } from './intent-resolver';
 
-// ========== 插件设置接口 ==========
+// ========== Plugin Settings Interfaces ==========
 export type ApiProvider = 'openrouter' | 'yunwu';
 
 export interface CanvasAISettings {
@@ -89,7 +89,7 @@ export interface PromptPreset {
     prompt: string;  // Prompt content
 }
 
-// ========== 悬浮面板模式 ==========
+// ========== Floating Palette Mode ==========
 type PaletteMode = 'chat' | 'image';
 
 // AI Button ID constant for popup menu
@@ -196,7 +196,7 @@ class ConfirmModal extends Modal {
     }
 }
 
-// ========== 悬浮面板组件 ==========
+// ========== Floating Palette Component ==========
 class FloatingPalette {
     private containerEl: HTMLElement;
     private currentMode: PaletteMode = 'chat';
@@ -908,7 +908,7 @@ class FloatingPalette {
     }
 }
 
-// ========== 插件主类 ==========
+// ========== Plugin Main Class ==========
 export default class CanvasAIPlugin extends Plugin {
     settings: CanvasAISettings;
 
@@ -919,7 +919,7 @@ export default class CanvasAIPlugin extends Plugin {
     private apiManager: ApiManager | null = null;
 
     async onload() {
-        console.log('Canvas AI: 插件加载中...');
+        console.log('Canvas AI: Plugin loading...');
 
         await this.loadSettings();
 
@@ -953,16 +953,16 @@ export default class CanvasAIPlugin extends Plugin {
         // 注册 Canvas 选中状态监听
         this.registerCanvasSelectionListener();
 
-        console.log('Canvas AI: 插件加载完成');
+        console.log('Canvas AI: Plugin loaded');
     }
 
     onunload() {
-        console.log('Canvas AI: 插件卸载中...');
+        console.log('Canvas AI: Plugin unloading...');
 
         // 清理 DOM 组件
         this.floatingPalette?.destroy();
 
-        console.log('Canvas AI: 插件已卸载');
+        console.log('Canvas AI: Plugin unloaded');
     }
 
     /**
@@ -1796,7 +1796,7 @@ export default class CanvasAIPlugin extends Plugin {
     }
 }
 
-// ========== 设置页面 ==========
+// ========== Settings Tab ==========
 
 // Model info structure from OpenRouter API
 interface OpenRouterModel {
@@ -1869,7 +1869,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         } catch (error: any) {
             console.error('Canvas AI Settings: Failed to fetch models:', error.message);
             // Keep existing cache or empty
-            new Notice(`无法获取模型列表: ${error.message}`);
+            new Notice(`Failed to fetch model list: ${error.message}`);
         } finally {
             this.isFetching = false;
             // Update UI after fetch completes (success or error)
@@ -1917,14 +1917,14 @@ class CanvasAISettingTab extends PluginSettingTab {
         containerEl.empty();
         containerEl.addClass('canvas-ai-settings');
 
-        containerEl.createEl('h2', { text: 'Canvas AI 设置' });
+        containerEl.createEl('h2', { text: 'Canvas AI Settings' });
 
         // ========== API Provider Selection ==========
-        containerEl.createEl('h3', { text: 'API 配置' });
+        containerEl.createEl('h3', { text: 'API Configuration' });
 
         new Setting(containerEl)
             .setName('API Provider')
-            .setDesc('选择 API 服务提供商')
+            .setDesc('Select API Provider')
             .addDropdown(dropdown => dropdown
                 .addOption('openrouter', 'OpenRouter')
                 .addOption('yunwu', 'Yunwu')
@@ -1949,7 +1949,7 @@ class CanvasAISettingTab extends PluginSettingTab {
             // API Key with Test Button
             const apiKeySetting = new Setting(containerEl)
                 .setName('OpenRouter API Key')
-                .setDesc('输入你的 OpenRouter API 密钥 (获取: openrouter.ai/keys)')
+                .setDesc('Enter your OpenRouter API Key (Get at: openrouter.ai/keys)')
                 .addText(text => text
                     .setPlaceholder('sk-or-v1-...')
                     .setValue(this.plugin.settings.openRouterApiKey)
@@ -1962,7 +1962,7 @@ class CanvasAISettingTab extends PluginSettingTab {
 
             new Setting(containerEl)
                 .setName('API Base URL')
-                .setDesc('OpenRouter API 端点地址')
+                .setDesc('OpenRouter API Base URL')
                 .addText(text => text
                     .setPlaceholder('https://openrouter.ai/api/v1/chat/completions')
                     .setValue(this.plugin.settings.openRouterBaseUrl)
@@ -1973,7 +1973,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         } else { // Yunwu
             const yunwuKeySetting = new Setting(containerEl)
                 .setName('Yunwu API Key')
-                .setDesc('输入你的 Yunwu API 密钥')
+                .setDesc('Enter your Yunwu API Key')
                 .addText(text => text
                     .setPlaceholder('sk-...')
                     .setValue(this.plugin.settings.yunwuApiKey)
@@ -1986,7 +1986,7 @@ class CanvasAISettingTab extends PluginSettingTab {
 
             new Setting(containerEl)
                 .setName('Yunwu Base URL')
-                .setDesc('Yunwu API 端点地址')
+                .setDesc('Yunwu API Base URL')
                 .addText(text => text
                     .setPlaceholder('https://yunwu.ai')
                     .setValue(this.plugin.settings.yunwuBaseUrl)
@@ -1997,7 +1997,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         }
 
         // ========== 模型配置区域 ==========
-        containerEl.createEl('h3', { text: '模型配置' });
+        containerEl.createEl('h3', { text: 'Model Configuration' });
 
         // Fetch models if not already fetched (Non-blocking)
         const apiKey = isYunwu ? this.plugin.settings.yunwuApiKey : this.plugin.settings.openRouterApiKey;
@@ -2006,26 +2006,26 @@ class CanvasAISettingTab extends PluginSettingTab {
         }
 
         // Refresh button
-        let statusText = '点击刷新按钮获取可用模型列表';
+        let statusText = 'Click refresh to get available models';
         if (this.isFetching) {
-            statusText = '⏳ 正在获取模型列表...';
+            statusText = '⏳ Fetching model list...';
         } else if (this.modelsFetched) {
-            statusText = `已加载 ${this.modelCache.length} 个模型 (文本: ${this.getTextModels().length}, 图像: ${this.getImageModels().length}) 来自 ${isYunwu ? 'Yunwu' : 'OpenRouter'}`;
+            statusText = `Loaded ${this.modelCache.length} models (Text: ${this.getTextModels().length}, Image: ${this.getImageModels().length}) from ${isYunwu ? 'Yunwu' : 'OpenRouter'}`;
         }
 
         const refreshSetting = new Setting(containerEl)
-            .setName('模型列表')
+            .setName('Model List')
             .setDesc(statusText);
 
         const refreshBtn = refreshSetting.controlEl.createEl('button', {
-            text: this.isFetching ? '刷新中...' : '刷新模型列表',
+            text: this.isFetching ? 'Refreshing...' : 'Refresh Model List',
             cls: 'canvas-ai-refresh-btn'
         });
 
         refreshBtn.disabled = this.isFetching;
 
         refreshBtn.addEventListener('click', async () => {
-            refreshBtn.textContent = '获取中...';
+            refreshBtn.textContent = 'Fetching...';
             refreshBtn.disabled = true;
             this.modelsFetched = false; // Force refresh
             this.fetchModels(); // Fire and forget
@@ -2035,7 +2035,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         // ========== Text Model Setting ==========
         this.renderModelSetting(containerEl, {
             name: 'Text Generation Model',
-            desc: '用于 Chat 模式的文本生成模型',
+            desc: 'Text generation model for Chat mode',
             modelKey: isYunwu ? 'yunwuTextModel' : 'openRouterTextModel',
             customKey: isYunwu ? 'yunwuUseCustomTextModel' : 'openRouterUseCustomTextModel',
             placeholder: isYunwu ? 'gemini-2.0-flash' : 'google/gemini-2.0-flash-001',
@@ -2045,7 +2045,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         // ========== Image Model Setting ==========
         this.renderModelSetting(containerEl, {
             name: 'Image Generation Model',
-            desc: '用于 Image 模式的图像生成模型',
+            desc: 'Image generation model for Image mode',
             modelKey: isYunwu ? 'yunwuImageModel' : 'openRouterImageModel',
             customKey: isYunwu ? 'yunwuUseCustomImageModel' : 'openRouterUseCustomImageModel',
             placeholder: isYunwu ? 'gemini-3-pro-image-preview' : 'google/gemini-2.0-flash-001',
@@ -2053,11 +2053,11 @@ class CanvasAISettingTab extends PluginSettingTab {
         });
 
         // 图片优化区域
-        containerEl.createEl('h3', { text: '图片优化' });
+        containerEl.createEl('h3', { text: 'Image Optimization' });
 
         new Setting(containerEl)
             .setName('Image Compression Quality')
-            .setDesc('WebP 压缩质量 (0-100)，值越低文件越小但质量也越低，默认 80')
+            .setDesc('WebP compression quality (0-100). Lower values mean smaller files but lower quality. Default 80.')
             .addSlider(slider => slider
                 .setLimits(1, 100, 1)
                 .setValue(this.plugin.settings.imageCompressionQuality)
@@ -2069,7 +2069,7 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Image Max Size')
-            .setDesc('WebP 图片最大尺寸 (长边)，默认 2048')
+            .setDesc('WebP image max size (long edge). Default 2048.')
             .addText(text => text
                 .setPlaceholder('2048')
                 .setValue(String(this.plugin.settings.imageMaxSize))
@@ -2087,7 +2087,7 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Image System Prompt')
-            .setDesc('图像生成时使用的系统提示词')
+            .setDesc('System prompt used for image generation')
             .addTextArea(text => text
                 .setPlaceholder('You are an expert creator...')
                 .setValue(this.plugin.settings.imageSystemPrompt)
@@ -2108,7 +2108,7 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         new Setting(containerEl)
             .setName('Debug Mode')
-            .setDesc('开启后在面板中显示 Debug 按钮，用于输出调试信息')
+            .setDesc('Enable to show Debug button in palette for outputting debug info')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.debugMode)
                 .onChange(async (value) => {
@@ -2119,11 +2119,11 @@ class CanvasAISettingTab extends PluginSettingTab {
         // ========== About Section ==========
         containerEl.createEl('h3', { text: 'About' });
         containerEl.createEl('p', {
-            text: 'Canvas AI 插件允许你在 Obsidian Canvas 中使用 AI 进行对话、文本生成和图像生成。'
+            text: 'Canvas AI plugin allows you to chat, generate text, and generate images with AI in Obsidian Canvas.'
         });
         containerEl.createEl('p', {
             cls: 'setting-item-description',
-            text: '数据存储位置: .obsidian/plugins/obsidian-canvas-ai/data.json'
+            text: 'Data storage location: .obsidian/plugins/obsidian-canvas-ai/data.json'
         });
     }
 
@@ -2132,7 +2132,7 @@ class CanvasAISettingTab extends PluginSettingTab {
      */
     private addTestButton(parentEl: HTMLElement, resultContainer: HTMLElement) {
         const testBtn = parentEl.createEl('button', {
-            text: '测试连接',
+            text: 'Test Connection',
             cls: 'canvas-ai-test-btn'
         });
 
@@ -2140,38 +2140,38 @@ class CanvasAISettingTab extends PluginSettingTab {
         testResultEl.style.display = 'none';
 
         testBtn.addEventListener('click', async () => {
-            testBtn.textContent = '测试中...';
+            testBtn.textContent = 'Testing...';
             testBtn.disabled = true;
             testResultEl.style.display = 'none';
 
             try {
                 const apiManager = new ApiManager(this.plugin.settings);
                 if (!apiManager.isConfigured()) {
-                    throw new Error('请先填写 API Key');
+                    throw new Error('Please enter API Key first');
                 }
                 const response = await apiManager.chatCompletion('Say "Connection successful!" in one line.');
 
-                testBtn.textContent = '✓ 成功';
+                testBtn.textContent = '✓ Success';
                 testBtn.addClass('success');
-                testResultEl.textContent = `✓ 连接成功: ${response.substring(0, 50)}...`;
+                testResultEl.textContent = `✓ Connection successful: ${response.substring(0, 50)}...`;
                 testResultEl.removeClass('error');
                 testResultEl.addClass('success');
                 testResultEl.style.display = 'block';
 
                 setTimeout(() => {
-                    testBtn.textContent = '测试连接';
+                    testBtn.textContent = 'Test Connection';
                     testBtn.removeClass('success');
                 }, 3000);
             } catch (error: any) {
-                testBtn.textContent = '✗ 失败';
+                testBtn.textContent = '✗ Failed';
                 testBtn.addClass('error');
-                testResultEl.textContent = `✗ 连接失败: ${error.message}`;
+                testResultEl.textContent = `✗ Connection failed: ${error.message}`;
                 testResultEl.removeClass('success');
                 testResultEl.addClass('error');
                 testResultEl.style.display = 'block';
 
                 setTimeout(() => {
-                    testBtn.textContent = '测试连接';
+                    testBtn.textContent = 'Test Connection';
                     testBtn.removeClass('error');
                 }, 3000);
             } finally {
@@ -2215,7 +2215,7 @@ class CanvasAISettingTab extends PluginSettingTab {
 
             if (!hasModels && !useCustom) {
                 modelSetting.descEl.createEl('div', {
-                    text: ' (无可用模型列表，请先刷新或手动输入)',
+                    text: ' (No models available, please refresh or enter manually)',
                     cls: 'canvas-ai-model-hint',
                     attr: { style: 'color: var(--text-muted); font-size: 0.8em;' }
                 });
@@ -2228,7 +2228,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 // Add current value first if not in list (to preserve custom values)
                 const modelIds = models.map(m => m.id);
                 if (currentValue && !modelIds.includes(currentValue)) {
-                    dropdown.addOption(currentValue, `${currentValue} (当前)`);
+                    dropdown.addOption(currentValue, `${currentValue} (Current)`);
                 }
 
                 // Add all models from API
@@ -2246,8 +2246,8 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         // 2. Manual Input Toggle (Next Line)
         new Setting(containerEl)
-            .setName('手动输入模型名称')
-            .setDesc(isManualMode ? '关闭以从列表选择' : '开启以手动输入模型 ID')
+            .setName('Manually Enter Model Name')
+            .setDesc(isManualMode ? 'Disable to select from list' : 'Enable to manually enter model ID')
             .addToggle(toggle => toggle
                 .setValue(useCustom || false)
                 .onChange(async (value) => {
