@@ -79,8 +79,9 @@ class FloatingPalette {
     private onClose: (() => void) | null = null;
     private onDebug: (() => void) | null = null;
     private onGenerate: ((prompt: string, mode: PaletteMode) => Promise<void>) | null = null;
+    private onSettingsChange: ((key: 'aspectRatio' | 'resolution', value: string) => void) | null = null;
     private apiManager: ApiManager;
-    private isGenerating: boolean = false;
+    private pendingTaskCount: number = 0;
     // Image generation options (no model selection - always use Pro)
     private imageAspectRatio: string = '1:1';
     private imageResolution: string = '1K';
@@ -102,6 +103,23 @@ class FloatingPalette {
      */
     setOnGenerate(callback: (prompt: string, mode: PaletteMode) => Promise<void>): void {
         this.onGenerate = callback;
+    }
+
+    /**
+     * Set the settings change callback for persisting image options
+     */
+    setOnSettingsChange(callback: (key: 'aspectRatio' | 'resolution', value: string) => void): void {
+        this.onSettingsChange = callback;
+    }
+
+    /**
+     * Initialize image options from saved settings
+     */
+    initImageOptions(aspectRatio: string, resolution: string): void {
+        this.imageAspectRatio = aspectRatio;
+        this.imageResolution = resolution;
+        if (this.ratioSelect) this.ratioSelect.value = aspectRatio;
+        if (this.resolutionSelect) this.resolutionSelect.value = resolution;
     }
 
     /**
@@ -175,11 +193,13 @@ class FloatingPalette {
         // Bind ratio select change
         this.ratioSelect?.addEventListener('change', () => {
             this.imageAspectRatio = this.ratioSelect!.value;
+            this.onSettingsChange?.('aspectRatio', this.imageAspectRatio);
         });
 
         // Bind resolution select change
         this.resolutionSelect?.addEventListener('change', () => {
             this.imageResolution = this.resolutionSelect!.value;
+            this.onSettingsChange?.('resolution', this.imageResolution);
         });
 
         // 绑定 Tab 切换事件
@@ -252,6 +272,38 @@ class FloatingPalette {
     }
 
     /**
+     * Increment pending task count and update button
+     */
+    incrementTaskCount(): void {
+        this.pendingTaskCount++;
+        this.updateGenerateButtonState();
+    }
+
+    /**
+     * Decrement pending task count and update button
+     */
+    decrementTaskCount(): void {
+        this.pendingTaskCount = Math.max(0, this.pendingTaskCount - 1);
+        this.updateGenerateButtonState();
+    }
+
+    /**
+     * Update generate button text based on pending task count
+     */
+    private updateGenerateButtonState(): void {
+        const generateBtn = this.containerEl.querySelector('.canvas-ai-generate-btn') as HTMLButtonElement;
+        if (!generateBtn) return;
+
+        if (this.pendingTaskCount === 0) {
+            generateBtn.textContent = 'Generate';
+        } else {
+            generateBtn.textContent = `Generating ${this.pendingTaskCount} Task(s)`;
+        }
+        // Button always stays enabled for multi-task support
+        generateBtn.disabled = false;
+    }
+
+    /**
      * 处理生成按钮点击
      */
     private async handleGenerate(): Promise<void> {
@@ -261,11 +313,7 @@ class FloatingPalette {
         console.log('Prompt:', prompt || '(empty - will use fallback)');
 
         // Note: Empty prompt is now allowed - IntentResolver will handle fallback
-
-        if (this.isGenerating) {
-            console.log('Canvas AI: Already generating, please wait...');
-            return;
-        }
+        // No longer blocking - multiple tasks can run concurrently
 
         // Check if API is configured
         if (!this.apiManager.isConfigured()) {
@@ -275,24 +323,21 @@ class FloatingPalette {
 
         // Call the onGenerate callback (which will create Ghost Node and handle API call)
         if (this.onGenerate) {
-            this.isGenerating = true;
-            const generateBtn = this.containerEl.querySelector('.canvas-ai-generate-btn') as HTMLButtonElement;
-            if (generateBtn) {
-                generateBtn.textContent = 'Generating...';
-                generateBtn.disabled = true;
-            }
+            // Capture current state before hiding palette
+            const currentPrompt = prompt;
+            const currentMode = this.currentMode;
 
-            try {
-                // Hide palette and let plugin handle the rest
-                this.hide();
-                await this.onGenerate(prompt, this.currentMode);
-            } finally {
-                this.isGenerating = false;
-                if (generateBtn) {
-                    generateBtn.textContent = 'Generate';
-                    generateBtn.disabled = false;
-                }
-            }
+            // Increment task count immediately
+            this.incrementTaskCount();
+
+            // Hide palette
+            this.hide();
+
+            // Fire-and-forget: don't await, let task run in background
+            this.onGenerate(currentPrompt, currentMode)
+                .finally(() => {
+                    this.decrementTaskCount();
+                });
         }
     }
 
@@ -468,6 +513,22 @@ export default class CanvasAIPlugin extends Plugin {
         this.floatingPalette.setOnGenerate(async (prompt: string, mode: PaletteMode) => {
             await this.handleGeneration(prompt, mode);
         });
+
+        // Set up settings change callback for persisting image options
+        this.floatingPalette.setOnSettingsChange((key, value) => {
+            if (key === 'aspectRatio') {
+                this.settings.defaultAspectRatio = value;
+            } else if (key === 'resolution') {
+                this.settings.defaultResolution = value;
+            }
+            this.saveSettings();
+        });
+
+        // Initialize palette with saved settings
+        this.floatingPalette.initImageOptions(
+            this.settings.defaultAspectRatio,
+            this.settings.defaultResolution
+        );
     }
 
     /**
