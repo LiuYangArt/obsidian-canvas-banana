@@ -1249,7 +1249,7 @@ export default class CanvasAIPlugin extends Plugin {
         const node = canvas.createTextNode({
             pos: { x, y, width: 400, height: 100 },
             size: { x, y, width: 400, height: 100 },
-            text: '✨ AI Generating...',
+            text: '🍌 AI Generating...',
             focus: false,
             save: true
         });

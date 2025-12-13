@@ -459,18 +459,18 @@
     border-radius: 8px;
     background: linear-gradient(90deg,
             transparent,
-            rgba(102, 126, 234, 0.3),
+            rgba(102, 126, 234, 0.5),
             transparent);
-    animation: canvas-ai-shimmer 1.5s infinite;
+    animation: canvas-ai-shimmer 2s infinite;
 }
 
 @keyframes canvas-ai-shimmer {
     0% {
-        transform: translateX(-100%);
+        transform: translateX(-13%);
     }
 
     100% {
-        transform: translateX(100%);
+        transform: translateX(13%);
     }
 }
 
