@@ -204,13 +204,13 @@ document.body.appendChild() 挂载 React Root。
 
 测试 (Checklist)：
 
-[ ] 切换到 "Generate Image" 模式。
+[x] 切换到 "Generate Image" 模式。
 
-[ ] 输入 "A cute cat"。
+[x] 输入 "A cute cat"。
 
-[ ] 稍等片刻，Canvas 上出现了一张新的猫猫图片节点。
+[x] 稍等片刻，Canvas 上出现了一张新的猫猫图片节点。
 
-[ ] 检查 Vault 文件夹，确认图片文件真实存在。
+[x] 检查 Vault 文件夹，确认图片文件真实存在。
 
 阶段 6：完善与发布 (Polish)
 
