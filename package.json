@@ -6,7 +6,8 @@
     "scripts": {
         "version-sync": "node version-bump.mjs",
         "dev": "npm run version-sync && node esbuild.config.mjs",
-        "build": "npm run version-sync && tsc -noEmit -skipLibCheck && node esbuild.config.mjs production"
+        "build": "npm run version-sync && tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+        "version": "npm run version-sync && git add manifest.json versions.json"
     },
     "keywords": [
         "obsidian",
