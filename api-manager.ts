@@ -200,7 +200,7 @@ export class ApiManager {
             return this.chatCompletionGeminiNative(prompt, systemPrompt, temperature);
         }
 
-        // OpenRouter uses OpenAI-compatible format
+        // OpenRouter and GPTGod use OpenAI-compatible format
         const messages: OpenRouterMessage[] = [];
 
         if (systemPrompt) {
@@ -221,17 +221,18 @@ export class ApiManager {
             temperature: temperature
         };
 
-        console.log('Canvas AI: Sending chat request to OpenRouter...');
+        const providerName = provider === 'gptgod' ? 'GPTGod' : 'OpenRouter';
+        console.log(`Canvas AI: Sending chat request to ${providerName}...`);
         console.log('Request body:', JSON.stringify(requestBody, null, 2));
 
         const response = await this.sendRequest(requestBody);
 
         if (response.error) {
-            throw new Error(`OpenRouter API Error: ${response.error.message}`);
+            throw new Error(`${providerName} API Error: ${response.error.message}`);
         }
 
         if (!response.choices || response.choices.length === 0) {
-            throw new Error('OpenRouter returned no choices');
+            throw new Error(`${providerName} returned no choices`);
         }
 
         const content = response.choices[0].message.content;

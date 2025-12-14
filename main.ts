@@ -1084,7 +1084,7 @@ export default class CanvasAIPlugin extends Plugin {
     private lastSelectionSize: number = 0;
     private lastSelectedIds: Set<string> = new Set();
     private hideTimer: number | null = null;
-    private apiManager: ApiManager | null = null;
+    public apiManager: ApiManager | null = null;
     // Track active ghost nodes to prevent race conditions during concurrent image generations
     private activeGhostNodeIds: Set<string> = new Set();
 
@@ -2725,6 +2725,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         const provider = this.plugin.settings.apiProvider;
         const isYunwu = provider === 'yunwu';
         const isGemini = provider === 'gemini';
+        const isGptGod = provider === 'gptgod';
 
         // Gemini uses hardcoded model list (no API endpoint)
         if (isGemini) {
@@ -2737,7 +2738,9 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         const apiKey = isYunwu
             ? this.plugin.settings.yunwuApiKey
-            : this.plugin.settings.openRouterApiKey;
+            : isGptGod
+                ? this.plugin.settings.gptGodApiKey
+                : this.plugin.settings.openRouterApiKey;
 
         if (!apiKey) {
             console.log('Canvas AI Settings: No API key, skipping model fetch');
@@ -2752,6 +2755,9 @@ class CanvasAISettingTab extends PluginSettingTab {
             if (isYunwu) {
                 // Yunwu uses same OpenAI-compatible models endpoint
                 endpoint = `${this.plugin.settings.yunwuBaseUrl || 'https://yunwu.ai'}/v1/models`;
+                headers = { 'Authorization': `Bearer ${apiKey}` };
+            } else if (isGptGod) {
+                endpoint = `${this.plugin.settings.gptGodBaseUrl || 'https://api.gptgod.online'}/v1/models`;
                 headers = { 'Authorization': `Bearer ${apiKey}` };
             } else {
                 endpoint = 'https://openrouter.ai/api/v1/models';
@@ -2805,6 +2811,8 @@ class CanvasAISettingTab extends PluginSettingTab {
             { id: 'gemini-2.5-pro-preview-05-06', name: 'Gemini 2.5 Pro Preview 05-06', outputModalities: ['text'] },
             // Gemini 3 series (Image generation)
             { id: 'gemini-3-pro-image-preview', name: 'Gemini 3 Pro Image Preview', outputModalities: ['image'] },
+            // GPTGod default
+            { id: 'gpt-4-gizmo-g-2fkFE8rbu', name: 'GPT-4 Gizmo', outputModalities: ['text'] },
             // Legacy naming (for backward compatibility)
             { id: 'gemini-pro-latest-thinking-*', name: 'Gemini Pro Latest (Thinking)', outputModalities: ['text'] },
             { id: 'gemini-flash-latest-nothinking', name: 'Gemini Flash Latest (No Thinking)', outputModalities: ['text'] },
@@ -2910,12 +2918,14 @@ class CanvasAISettingTab extends PluginSettingTab {
         const provider = this.plugin.settings.apiProvider;
         const isYunwu = provider === 'yunwu';
         const isGemini = provider === 'gemini';
+        const isGptGod = provider === 'gptgod';
 
         let filtered = this.modelCache.filter(m => {
             const idLower = m.id.toLowerCase();
 
-            // For OpenRouter/Yunwu, must support text output; for Gemini, skip this check
-            if (!isYunwu && !isGemini && !m.outputModalities.includes('text')) return false;
+            // For OpenRouter/Yunwu/GPTGod, must support text output; for Gemini, skip this check (hardcoded)
+            // Note: GPTGod might not return modalities, so we treat it like Yunwu (relaxed check)
+            if (!isYunwu && !isGemini && !isGptGod && !m.outputModalities.includes('text')) return false;
 
             // Exclude non-text models by keywords
             if (CanvasAISettingTab.TEXT_MODEL_EXCLUDE_KEYWORDS.some(kw => idLower.includes(kw))) {
@@ -2945,12 +2955,13 @@ class CanvasAISettingTab extends PluginSettingTab {
         const provider = this.plugin.settings.apiProvider;
         const isYunwu = provider === 'yunwu';
         const isGemini = provider === 'gemini';
+        const isGptGod = provider === 'gptgod';
 
         let filtered = this.modelCache.filter(m => {
             const idLower = m.id.toLowerCase();
 
-            // For OpenRouter/Yunwu, must support image output; for Gemini, skip this check
-            if (!isYunwu && !isGemini && !m.outputModalities.includes('image')) return false;
+            // For OpenRouter/Yunwu/GPTGod, must support image output; for Gemini, skip this check
+            if (!isYunwu && !isGemini && !isGptGod && !m.outputModalities.includes('image')) return false;
 
             // Must contain both 'gemini' AND 'image' (case-insensitive)
             if (!idLower.includes('gemini') || !idLower.includes('image')) {
@@ -3090,7 +3101,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                     .onChange(async (value) => {
                         this.plugin.settings.gptGodBaseUrl = value;
                         await this.plugin.saveSettings();
-                        this.plugin.apiManager.updateSettings(this.plugin.settings);
+                        this.plugin.apiManager?.updateSettings(this.plugin.settings);
                     }));
         }
 
