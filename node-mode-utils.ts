@@ -131,6 +131,92 @@ export function validateCanvasData(data: any): CanvasData {
     return data as CanvasData;
 }
 
+// ========== Sanitization (Post-processing) ==========
+
+/**
+ * Sanitize Canvas data by removing invalid/empty nodes and edges
+ * This is a defensive post-processing step to clean up LLM output
+ * 
+ * @param data Canvas data to sanitize
+ * @param removeOrphanNodes If true, remove nodes without any edge connections (default: true)
+ * @returns Sanitized canvas data with counts of removed items
+ */
+export function sanitizeCanvasData(
+    data: CanvasData,
+    removeOrphanNodes: boolean = true
+): { data: CanvasData; stats: { removedEmptyNodes: number; removedOrphanNodes: number; removedInvalidEdges: number } } {
+    const stats = {
+        removedEmptyNodes: 0,
+        removedOrphanNodes: 0,
+        removedInvalidEdges: 0
+    };
+
+    // Step 1: Filter out empty text nodes (nodes with no or whitespace-only text)
+    const nodesAfterEmptyFilter = data.nodes.filter(node => {
+        if (node.type === 'text') {
+            const hasContent = node.text && node.text.trim().length > 0;
+            if (!hasContent) {
+                stats.removedEmptyNodes++;
+                console.warn(`Canvas AI Sanitize: Removed empty text node "${node.id}"`);
+                return false;
+            }
+        }
+        // Keep non-text nodes (group, link) and text nodes with content
+        return true;
+    });
+
+    // Step 2: Build set of valid node IDs after empty node removal
+    const validNodeIds = new Set(nodesAfterEmptyFilter.map(n => n.id));
+
+    // Step 3: Filter out edges that reference non-existent nodes
+    const validEdges = data.edges.filter(edge => {
+        const fromExists = validNodeIds.has(edge.fromNode);
+        const toExists = validNodeIds.has(edge.toNode);
+        if (!fromExists || !toExists) {
+            stats.removedInvalidEdges++;
+            console.warn(`Canvas AI Sanitize: Removed invalid edge "${edge.id}" (fromNode: ${edge.fromNode} exists: ${fromExists}, toNode: ${edge.toNode} exists: ${toExists})`);
+            return false;
+        }
+        return true;
+    });
+
+    // Step 4: Optionally filter out orphan nodes (nodes without any edge connections)
+    let finalNodes = nodesAfterEmptyFilter;
+    if (removeOrphanNodes && validEdges.length > 0) {
+        // Build set of nodes that are connected by at least one edge
+        const connectedNodeIds = new Set<string>();
+        for (const edge of validEdges) {
+            connectedNodeIds.add(edge.fromNode);
+            connectedNodeIds.add(edge.toNode);
+        }
+
+        finalNodes = nodesAfterEmptyFilter.filter(node => {
+            // Keep group nodes even if orphaned (they may contain other nodes conceptually)
+            if (node.type === 'group') {
+                return true;
+            }
+            const isConnected = connectedNodeIds.has(node.id);
+            if (!isConnected) {
+                stats.removedOrphanNodes++;
+                console.warn(`Canvas AI Sanitize: Removed orphan node "${node.id}" (text: "${node.text?.substring(0, 30)}...")`);
+                return false;
+            }
+            return true;
+        });
+    } else if (removeOrphanNodes && validEdges.length === 0 && nodesAfterEmptyFilter.length > 1) {
+        // Special case: if no edges at all but multiple nodes, keep all (might be intentional list)
+        console.warn('Canvas AI Sanitize: No edges present, keeping all nodes as potential intentional structure');
+    }
+
+    return {
+        data: {
+            nodes: finalNodes,
+            edges: validEdges
+        },
+        stats
+    };
+}
+
 // ========== Coordinate Remapping ==========
 
 /**

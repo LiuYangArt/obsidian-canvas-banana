@@ -3,7 +3,7 @@ import type { Canvas, CanvasNode, CanvasCoords } from './types';
 import { CanvasConverter, ConvertedNode } from './canvas-converter';
 import { ApiManager } from './api-manager';
 import { IntentResolver, ResolvedIntent } from './intent-resolver';
-import { extractCanvasJSON, remapCoordinates, regenerateIds, optimizeLayout, CanvasData } from './node-mode-utils';
+import { extractCanvasJSON, remapCoordinates, regenerateIds, optimizeLayout, sanitizeCanvasData, CanvasData } from './node-mode-utils';
 import { t } from './lang/helpers';
 
 // ========== Plugin Settings Interfaces ==========
@@ -99,7 +99,7 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
     nodePresets: [],
     defaultNodeTemperature: 0.5,
 
-    enableGoogleSearch: false  // Disabled by default
+    enableGoogleSearch: true  // Enabled by default
 };
 
 
@@ -1378,6 +1378,13 @@ ${intent.instruction}
                     // Extract and parse JSON from response
                     let canvasData = extractCanvasJSON(response);
 
+                    // Sanitize: remove empty nodes, orphan nodes, and invalid edges
+                    const sanitizeResult = sanitizeCanvasData(canvasData, true);
+                    canvasData = sanitizeResult.data;
+                    if (sanitizeResult.stats.removedEmptyNodes > 0 || sanitizeResult.stats.removedOrphanNodes > 0 || sanitizeResult.stats.removedInvalidEdges > 0) {
+                        console.log(`Canvas AI: Sanitized - removed ${sanitizeResult.stats.removedEmptyNodes} empty nodes, ${sanitizeResult.stats.removedOrphanNodes} orphan nodes, ${sanitizeResult.stats.removedInvalidEdges} invalid edges`);
+                    }
+
                     // Regenerate IDs to avoid collision with existing canvas elements
                     canvasData = regenerateIds(canvasData);
 
@@ -1470,7 +1477,12 @@ ${intent.instruction}
 * 流程图从左到右或从上到下布局
 * 避免节点重叠
 
-### 5. 输出格式
+### 5. 质量约束（严格遵守）
+* **禁止空节点**：每个 text 类型节点的 text 字段必须有实际内容，不允许空字符串或仅包含空格
+* **连通性要求**：所有节点必须通过 edges 连接成一个整体，不允许出现孤立的、没有任何连线的节点
+* **先规划后输出**：生成 JSON 前，先在内部确认每个节点都有明确的文本内容和至少一条连接
+
+### 6. 输出格式
 Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UUIDv4.`;
     }
 
@@ -2505,6 +2517,17 @@ class CanvasAISettingTab extends PluginSettingTab {
                 })
                 .inputEl.addClass('canvas-ai-small-input'));
 
+        // Enable Google Search
+        new Setting(containerEl)
+            .setName(t('Enable Google Search (Experimental)'))
+            .setDesc(t('Allow Gemini to search the web. Requires API provider support.'))
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableGoogleSearch)
+                .onChange(async (value) => {
+                    this.plugin.settings.enableGoogleSearch = value;
+                    await this.plugin.saveSettings();
+                }));
+
         // ========== Prompt Settings ==========
         containerEl.createEl('h3', { text: t('Prompt Settings') });
 
@@ -2599,20 +2622,9 @@ class CanvasAISettingTab extends PluginSettingTab {
                     this.display();
                 }));
 
-        // Experimental features - only shown in Debug Mode
-        if (this.plugin.settings.debugMode) {
-            new Setting(containerEl)
-                .setName(t('Enable Google Search (Experimental)'))
-                .setDesc(t('Allow Gemini to search the web. Requires API provider support.'))
-                .addToggle(toggle => toggle
-                    .setValue(this.plugin.settings.enableGoogleSearch)
-                    .onChange(async (value) => {
-                        this.plugin.settings.enableGoogleSearch = value;
-                        await this.plugin.saveSettings();
-                    }));
-        }
 
     }
+
 
     /**
      * Helper to add test button
