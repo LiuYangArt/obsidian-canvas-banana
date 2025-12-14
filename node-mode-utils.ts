@@ -144,12 +144,33 @@ export function validateCanvasData(data: any): CanvasData {
 export function sanitizeCanvasData(
     data: CanvasData,
     removeOrphanNodes: boolean = true
-): { data: CanvasData; stats: { removedEmptyNodes: number; removedOrphanNodes: number; removedInvalidEdges: number } } {
+): { data: CanvasData; stats: { removedEmptyNodes: number; removedOrphanNodes: number; removedInvalidEdges: number; fixedMalformedGroups: number } } {
     const stats = {
         removedEmptyNodes: 0,
         removedOrphanNodes: 0,
-        removedInvalidEdges: 0
+        removedInvalidEdges: 0,
+        fixedMalformedGroups: 0
     };
+
+    // Step 0.5: Convert all group nodes to text nodes
+    // Group nodes are unreliable in dynamic generation (coordinate-based containment issues)
+    // We convert them to text nodes and use edges for hierarchy instead
+    for (const node of data.nodes) {
+        if (node.type === 'group') {
+            // Convert group to text node
+            node.type = 'text';
+            // Use label as text if available, otherwise use text property
+            if (node.label && !node.text) {
+                node.text = node.label;
+            }
+            // If still no text, use a placeholder
+            if (!node.text) {
+                node.text = '[Group]';
+            }
+            stats.fixedMalformedGroups++;
+            console.warn(`Canvas AI Sanitize: Converted group "${node.id}" -> text node (content: "${(node.text || node.label || '').substring(0, 30)}")`);
+        }
+    }
 
     // Step 1: Filter out empty text nodes (nodes with no or whitespace-only text)
     const nodesAfterEmptyFilter = data.nodes.filter(node => {

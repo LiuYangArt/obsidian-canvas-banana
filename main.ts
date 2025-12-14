@@ -1334,9 +1334,9 @@ export default class CanvasAIPlugin extends Plugin {
 ${intent.contextText}
 [/SOURCE_CONTENT]
 
-[TASK]
+[USER_INSTRUCTION]
 ${intent.instruction}
-[/TASK]`;
+[/USER_INSTRUCTION]`;
                 }
 
                 // Build media list for multimodal request (images + PDFs) - same pattern as chat mode
@@ -1390,8 +1390,8 @@ ${intent.instruction}
                     // Sanitize: remove empty nodes, orphan nodes, and invalid edges
                     const sanitizeResult = sanitizeCanvasData(canvasData, true);
                     canvasData = sanitizeResult.data;
-                    if (sanitizeResult.stats.removedEmptyNodes > 0 || sanitizeResult.stats.removedOrphanNodes > 0 || sanitizeResult.stats.removedInvalidEdges > 0) {
-                        console.log(`Canvas AI: Sanitized - removed ${sanitizeResult.stats.removedEmptyNodes} empty nodes, ${sanitizeResult.stats.removedOrphanNodes} orphan nodes, ${sanitizeResult.stats.removedInvalidEdges} invalid edges`);
+                    if (sanitizeResult.stats.removedEmptyNodes > 0 || sanitizeResult.stats.removedOrphanNodes > 0 || sanitizeResult.stats.removedInvalidEdges > 0 || sanitizeResult.stats.fixedMalformedGroups > 0) {
+                        console.log(`Canvas AI: Sanitized - removed ${sanitizeResult.stats.removedEmptyNodes} empty nodes, ${sanitizeResult.stats.removedOrphanNodes} orphan nodes, ${sanitizeResult.stats.removedInvalidEdges} invalid edges, fixed ${sanitizeResult.stats.fixedMalformedGroups} malformed groups`);
                     }
 
                     // Regenerate IDs to avoid collision with existing canvas elements
@@ -1440,7 +1440,11 @@ ${intent.instruction}
 用户可能提供以下类型的输入：
 1. **图片内容**：如果消息中包含图片，请仔细分析图片内容（如流程图、思维导图、界面截图、架构图等），将其中的信息提取并转换为Canvas节点结构
 2. **文本内容**：「SOURCE_CONTENT」标签内的文本是需要处理的源内容
-3. **操作指令**：「TASK」标签内是操作命令（如"总结"、"生成流程图"等），这是告诉你如何处理内容的指令，**不应该出现在生成的节点文本中**
+3. **用户指令**：「USER_INSTRUCTION」标签内是用户的操作命令（如"总结"、"生成流程图"等）
+
+### ⚠️ 关键规则：用户指令不是内容
+「USER_INSTRUCTION」是告诉你**如何处理**内容的元指令，**绝对不能**出现在生成的任何节点的 text 字段中。
+例如：如果用户指令是"总结这些内容"，你生成的节点应该只包含总结后的结果，而不是"总结这些内容"这几个字。
 
 ### 图片处理指南
 如果用户提供了图片：
@@ -1449,49 +1453,64 @@ ${intent.instruction}
 - 将图片中的信息转换为对应的nodes和edges
 - 尽可能保持原图的布局逻辑（从上到下、从左到右等）
 
-### 示例
-如果用户提供了一张包含"开始→处理→结束"的流程图图片，[TASK]是"转换为Canvas"，你应该：
-- 创建3个text节点分别包含"开始"、"处理"、"结束"
-- 创建2条edge连接这些节点
-- **不要**生成包含"转换为Canvas"文字的节点
-
 ## JSON 结构规则
 
 ### 1. 结构总览
 * 输出必须是一个有效的 JSON 对象
 * JSON 对象必须包含两个顶级键：nodes (数组) 和 edges (数组)
 
-### 2. 节点 (Nodes) 规则
+### 2. 节点类型
+**只使用 type: "text"**（不要使用 group 或 link 类型）
+
 每个节点必须包含：
 * id: (字符串) 唯一标识符，使用 UUIDv4 格式
-* x: (数字) X 坐标
-* y: (数字) Y 坐标  
-* width: (数字) 宽度，建议 200-400
-* height: (数字) 高度，建议 100-200
-* type: "text" | "group" | "link"
-* text: (字符串) 节点的文本内容
-* color: (可选) "1"-"6" 或颜色名称
+* type: "text"
+* x, y: (数字) 坐标
+* width, height: (数字) 尺寸，建议 200-400 x 80-200
+* text: (字符串) 节点的文本内容（必填，不能为空）
+* color: (可选) "1"-"6"
 
-### 3. 连接线 (Edges) 规则
+### 3. 层级关系表示（重要）
+如果需要表示分类或层级关系（如"类别"包含多个"子项"），请使用以下模式：
+- 创建一个"标题节点"作为分类名称
+- 创建多个"内容节点"作为子项
+- 使用**edges从标题节点连向各个内容节点**来表示从属关系
+
+示例 - 表示"核心要素"包含三个子项：
+\`\`\`json
+{
+  "nodes": [
+    {"id":"title-1","type":"text","x":200,"y":0,"width":200,"height":60,"text":"核心要素","color":"5"},
+    {"id":"item-1","type":"text","x":0,"y":150,"width":250,"height":80,"text":"子项A的内容"},
+    {"id":"item-2","type":"text","x":280,"y":150,"width":250,"height":80,"text":"子项B的内容"},
+    {"id":"item-3","type":"text","x":560,"y":150,"width":250,"height":80,"text":"子项C的内容"}
+  ],
+  "edges": [
+    {"id":"e1","fromNode":"title-1","toNode":"item-1","fromSide":"bottom","toSide":"top"},
+    {"id":"e2","fromNode":"title-1","toNode":"item-2","fromSide":"bottom","toSide":"top"},
+    {"id":"e3","fromNode":"title-1","toNode":"item-3","fromSide":"bottom","toSide":"top"}
+  ]
+}
+\`\`\`
+
+### 4. 连接线 (Edges) 规则
 每条边必须包含：
 * id: 唯一标识符
-* fromNode: 源节点 ID
-* toNode: 目标节点 ID
-* fromSide: "top" | "right" | "bottom" | "left"
-* toSide: "top" | "right" | "bottom" | "left"
+* fromNode, toNode: 源/目标节点 ID
+* fromSide, toSide: "top" | "right" | "bottom" | "left"
 * toEnd: (可选) "arrow"
 
-### 4. 布局建议
-* 节点间距保持 50-100 像素
-* 流程图从左到右或从上到下布局
-* 避免节点重叠
+### 5. 布局建议
+* 标题节点在顶部，内容节点在下方
+* 从左到右或从上到下布局
+* 节点间距保持 50-100 像素，避免重叠
 
-### 5. 质量约束（严格遵守）
-* **禁止空节点**：每个 text 类型节点的 text 字段必须有实际内容，不允许空字符串或仅包含空格
-* **连通性要求**：所有节点必须通过 edges 连接成一个整体，不允许出现孤立的、没有任何连线的节点
-* **先规划后输出**：生成 JSON 前，先在内部确认每个节点都有明确的文本内容和至少一条连接
+### 6. 质量约束（严格遵守）
+* **禁止空节点**：text 字段必须有实际内容
+* **连通性要求**：所有节点通过 edges 连接，不允许孤立节点
+* **禁止 group 类型**：只使用 text 类型节点
 
-### 6. 输出格式
+### 7. 输出格式
 Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UUIDv4.`;
     }
 
