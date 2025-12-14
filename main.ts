@@ -233,7 +233,7 @@ class FloatingPalette {
     private isVisible: boolean = false;
     private currentParent: HTMLElement | null = null;
     private onClose: (() => void) | null = null;
-    private onDebug: (() => void) | null = null;
+    private onDebug: ((mode: PaletteMode) => void) | null = null;
     private onGenerate: ((prompt: string, mode: PaletteMode) => Promise<void>) | null = null;
     private onSettingsChange: ((key: 'aspectRatio' | 'resolution' | 'chatTemperature' | 'nodeTemperature', value: string | number) => void) | null = null;
     private apiManager: ApiManager;
@@ -270,7 +270,7 @@ class FloatingPalette {
     private app: App;
     private scope: Scope;
 
-    constructor(app: App, apiManager: ApiManager, onDebugCallback?: () => void) {
+    constructor(app: App, apiManager: ApiManager, onDebugCallback?: (mode: PaletteMode) => void) {
         this.app = app;
         this.apiManager = apiManager;
         this.onDebug = onDebugCallback || null;
@@ -571,7 +571,7 @@ class FloatingPalette {
         // 绑定 Debug 按钮
         this.debugBtnEl = container.querySelector('.canvas-ai-debug-btn') as HTMLButtonElement;
         this.debugBtnEl?.addEventListener('click', () => {
-            this.onDebug?.();
+            this.onDebug?.(this.currentMode);
         });
 
         // 绑定生成按钮
@@ -1114,8 +1114,8 @@ export default class CanvasAIPlugin extends Plugin {
         // Initialize API Manager
         this.apiManager = new ApiManager(this.settings);
 
-        this.floatingPalette = new FloatingPalette(this.app, this.apiManager, () => {
-            this.debugSelectedNodes();
+        this.floatingPalette = new FloatingPalette(this.app, this.apiManager, (mode) => {
+            this.debugSelectedNodes(mode);
         });
 
         // Set up generate callback for Ghost Node creation
@@ -2047,7 +2047,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
      * 调试：打印选中节点的详细信息
      * 用于步骤 2.1 和 2.2 的测试验证
      */
-    private async debugSelectedNodes(): Promise<void> {
+    private async debugSelectedNodes(mode: PaletteMode): Promise<void> {
         const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
 
         if (!canvasView || canvasView.getViewType() !== 'canvas') {
@@ -2068,6 +2068,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         }
 
         console.group('🔍 Canvas AI Debug: Selected Nodes');
+        console.log('Current Mode:', mode);
 
         // 步骤 2.1：打印每个节点的原始信息
         console.group('📋 Raw Node Data');
@@ -2109,31 +2110,34 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         console.groupEnd();
 
         // ========== 新增：IntentResolver 解析输出 ==========
-        console.group('🎨 IntentResolver Output (Image Mode Simulation)');
+        console.group(`🎨 IntentResolver Output (${mode} Mode Simulation)`);
         try {
+            // Get prompt from palette (might be empty)
+            const prompt = this.floatingPalette?.getPrompt() || '';
+
             const intent = await IntentResolver.resolve(
                 this.app,
                 canvas,
                 selection,
-                '',  // 模拟空输入，测试回退策略
-                'image',
+                prompt,
+                mode,
                 this.settings
             );
 
             console.log('✅ canGenerate:', intent.canGenerate);
 
-            console.group('📷 Images with Roles');
-            intent.images.forEach((img, idx) => {
-                console.log(`[${idx + 1}] Role: "${img.role}", MimeType: ${img.mimeType}, Base64 Length: ${img.base64.length}`);
-            });
-            if (intent.images.length === 0) {
+            if (intent.images.length > 0) {
+                console.group('📷 Images with Roles');
+                intent.images.forEach((img, idx) => {
+                    console.log(`[${idx + 1}] Role: "${img.role}", MimeType: ${img.mimeType}, Base64 Length: ${img.base64.length}`);
+                });
+                console.groupEnd();
+            } else {
                 console.log('(No images in selection)');
             }
-            console.groupEnd();
 
-            console.group('📝 Instruction (Fallback Result)');
+            console.group('📝 Instruction');
             console.log('Final Instruction:', intent.instruction);
-            console.log('Instruction Length:', intent.instruction.length);
             console.groupEnd();
 
             console.group('📄 Context Text');
@@ -2152,19 +2156,55 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
 
             // 模拟 Payload 结构
             console.group('📦 Simulated API Payload Structure');
-            const payloadPreview = {
-                model: this.settings.imageModel,
-                modalities: ['image', 'text'],
-                content_structure: [
-                    { type: 'text', text: 'You are an expert creator...' },
-                    ...intent.images.map(img => [
-                        { type: 'text', text: `[Ref: ${img.role}]` },
-                        { type: 'image_url', base64_length: img.base64.length }
-                    ]).flat(),
-                    intent.contextText ? { type: 'text', text: '[Context]...' } : null,
-                    { type: 'text', text: `INSTRUCTION: ${intent.instruction.substring(0, 100)}${intent.instruction.length > 100 ? '...' : ''}` }
-                ].filter(Boolean)
-            };
+
+            let payloadPreview: any;
+
+            if (mode === 'chat') {
+                const systemPrompt = this.settings.chatSystemPrompt || 'You are a helpful AI assistant...';
+                payloadPreview = {
+                    model: this.settings.apiProvider === 'openrouter' ? this.settings.openRouterTextModel : (this.settings.apiProvider === 'yunwu' ? this.settings.yunwuTextModel : this.settings.geminiTextModel),
+                    mode: 'chat',
+                    systemPrompt: systemPrompt,
+                    modalities: ['text'],
+                    content_structure: [
+                        { type: 'text', text: intent.instruction },
+                        ...(intent.contextText ? [{ type: 'text', text: `[Context] ...` }] : []),
+                        ...intent.images.map(img => ({ type: 'image_url', base64_length: img.base64.length }))
+                    ]
+                };
+            } else if (mode === 'node') {
+                const systemPrompt = this.settings.nodeSystemPrompt || 'Default Node Prompt...';
+                payloadPreview = {
+                    model: this.settings.apiProvider === 'openrouter' ? this.settings.openRouterTextModel : (this.settings.apiProvider === 'yunwu' ? this.settings.yunwuTextModel : this.settings.geminiTextModel),
+                    mode: 'node',
+                    systemPrompt: systemPrompt,
+                    modalities: ['text'],
+                    content_structure: [
+                        { type: 'text', text: '[SOURCE_CONTENT]...' },
+                        { type: 'text', text: '[TASK] ' + intent.instruction },
+                        ...intent.images.map(img => ({ type: 'image_url', base64_length: img.base64.length }))
+                    ]
+                };
+            } else {
+                // Image Mode
+                const systemPrompt = this.settings.imageSystemPrompt || 'Role: A Professional Image Creator...';
+                payloadPreview = {
+                    model: this.settings.apiProvider === 'openrouter' ? this.settings.openRouterImageModel : (this.settings.apiProvider === 'yunwu' ? this.settings.yunwuImageModel : this.settings.geminiImageModel),
+                    mode: 'image',
+                    systemPrompt: systemPrompt, // Show what system prompt will be used
+                    modalities: ['image', 'text'],
+                    content_structure: [
+                        // REMOVED duplicate system prompt injection here
+                        ...intent.images.map(img => [
+                            { type: 'text', text: `[Ref: ${img.role}]` },
+                            { type: 'image_url', base64_length: img.base64.length }
+                        ]).flat(),
+                        intent.contextText ? { type: 'text', text: '[Context]...' } : null,
+                        { type: 'text', text: `INSTRUCTION: ${intent.instruction.substring(0, 100)}${intent.instruction.length > 100 ? '...' : ''}` }
+                    ].filter(Boolean)
+                };
+            }
+
             console.log(JSON.stringify(payloadPreview, null, 2));
             console.groupEnd();
 
