@@ -224,3 +224,134 @@ export function regenerateIds(data: CanvasData): CanvasData {
 
     return data;
 }
+
+// ========== Layout Optimization ==========
+
+/**
+ * Estimate node dimensions based on text content
+ * Uses character count and line breaks to estimate appropriate size
+ */
+function estimateNodeSize(text: string | undefined): { width: number; height: number } {
+    if (!text) {
+        return { width: 200, height: 100 };
+    }
+
+    // Configuration
+    const charWidth = 12;  // Approximate pixels per character
+    const lineHeight = 24; // Approximate pixels per line
+    const padding = 40;    // Padding for borders/margins
+    const minWidth = 200;
+    const maxWidth = 500;
+    const minHeight = 80;
+    const maxHeight = 400;
+
+    // Calculate based on content
+    const lines = text.split('\n');
+    const maxLineLength = Math.max(...lines.map(l => l.length), 10);
+
+    // Estimate width based on longest line
+    let estimatedWidth = maxLineLength * charWidth + padding;
+    estimatedWidth = Math.max(minWidth, Math.min(maxWidth, estimatedWidth));
+
+    // Estimate height based on line count and text wrapping
+    const avgCharsPerLine = Math.floor((estimatedWidth - padding) / charWidth);
+    let totalLines = 0;
+    for (const line of lines) {
+        totalLines += Math.ceil(Math.max(line.length, 1) / avgCharsPerLine);
+    }
+
+    let estimatedHeight = totalLines * lineHeight + padding;
+    estimatedHeight = Math.max(minHeight, Math.min(maxHeight, estimatedHeight));
+
+    return { width: estimatedWidth, height: estimatedHeight };
+}
+
+/**
+ * Check if two nodes overlap
+ */
+function nodesOverlap(
+    a: { x: number; y: number; width: number; height: number },
+    b: { x: number; y: number; width: number; height: number },
+    gap: number = 30
+): boolean {
+    return !(
+        a.x + a.width + gap < b.x ||
+        b.x + b.width + gap < a.x ||
+        a.y + a.height + gap < b.y ||
+        b.y + b.height + gap < a.y
+    );
+}
+
+/**
+ * Optimize layout by adjusting node sizes based on text content
+ * and spreading nodes apart to avoid overlap
+ * 
+ * @param data Canvas data to optimize
+ * @returns Optimized canvas data
+ */
+export function optimizeLayout(data: CanvasData): CanvasData {
+    if (data.nodes.length === 0) return data;
+
+    const gap = 50; // Minimum gap between nodes
+
+    // Step 1: Adjust node sizes based on text content
+    for (const node of data.nodes) {
+        if (node.type === 'text' && node.text) {
+            const estimated = estimateNodeSize(node.text);
+            // Use estimated size if it's significantly different from LLM suggested size
+            if (estimated.width > node.width * 1.2 || estimated.height > node.height * 1.3) {
+                node.width = estimated.width;
+                node.height = estimated.height;
+            }
+        }
+    }
+
+    // Step 2: Detect and resolve overlaps using simple force-based spreading
+    const maxIterations = 50;
+    for (let iteration = 0; iteration < maxIterations; iteration++) {
+        let hasOverlap = false;
+
+        for (let i = 0; i < data.nodes.length; i++) {
+            for (let j = i + 1; j < data.nodes.length; j++) {
+                const nodeA = data.nodes[i];
+                const nodeB = data.nodes[j];
+
+                if (nodesOverlap(nodeA, nodeB, gap)) {
+                    hasOverlap = true;
+
+                    // Calculate centers
+                    const centerAx = nodeA.x + nodeA.width / 2;
+                    const centerAy = nodeA.y + nodeA.height / 2;
+                    const centerBx = nodeB.x + nodeB.width / 2;
+                    const centerBy = nodeB.y + nodeB.height / 2;
+
+                    // Calculate direction vector from A to B
+                    let dx = centerBx - centerAx;
+                    let dy = centerBy - centerAy;
+
+                    // Handle identical positions
+                    if (dx === 0 && dy === 0) {
+                        dx = 1;
+                        dy = 0;
+                    }
+
+                    // Normalize and scale the push distance
+                    const distance = Math.sqrt(dx * dx + dy * dy);
+                    const pushDistance = gap / 2;
+                    const pushX = (dx / distance) * pushDistance;
+                    const pushY = (dy / distance) * pushDistance;
+
+                    // Push nodes apart (each moves half the distance)
+                    nodeA.x -= pushX;
+                    nodeA.y -= pushY;
+                    nodeB.x += pushX;
+                    nodeB.y += pushY;
+                }
+            }
+        }
+
+        if (!hasOverlap) break;
+    }
+
+    return data;
+}

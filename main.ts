@@ -3,7 +3,7 @@ import type { Canvas, CanvasNode, CanvasCoords } from './types';
 import { CanvasConverter, ConvertedNode } from './canvas-converter';
 import { ApiManager } from './api-manager';
 import { IntentResolver, ResolvedIntent } from './intent-resolver';
-import { extractCanvasJSON, remapCoordinates, regenerateIds, CanvasData } from './node-mode-utils';
+import { extractCanvasJSON, remapCoordinates, regenerateIds, optimizeLayout, CanvasData } from './node-mode-utils';
 import { t } from './lang/helpers';
 
 // ========== Plugin Settings Interfaces ==========
@@ -1316,6 +1316,9 @@ ${intent.instruction}
                         y: ghostNode.y + ghostNode.height / 2
                     };
                     canvasData = remapCoordinates(canvasData, ghostCenter);
+
+                    // Optimize layout: adjust sizes based on text and spread overlapping nodes
+                    canvasData = optimizeLayout(canvasData);
 
                     // Replace ghost node with generated structure by modifying canvas file directly
                     await this.replaceGhostWithCanvasData(canvas, ghostNode, canvasData);
