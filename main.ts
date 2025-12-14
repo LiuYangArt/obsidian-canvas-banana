@@ -58,6 +58,9 @@ export interface CanvasAISettings {
     nodePresets: PromptPreset[];
     // Node mode temperature
     defaultNodeTemperature: number;
+
+    // Experimental features (Debug Mode only)
+    enableGoogleSearch: boolean;  // Enable Google Search grounding
 }
 
 const DEFAULT_SETTINGS: CanvasAISettings = {
@@ -94,7 +97,9 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
     chatPresets: [],
     imagePresets: [],
     nodePresets: [],
-    defaultNodeTemperature: 0.5
+    defaultNodeTemperature: 0.5,
+
+    enableGoogleSearch: false  // Disabled by default
 };
 
 
@@ -1236,13 +1241,38 @@ export default class CanvasAIPlugin extends Plugin {
                 const chatOptions = this.floatingPalette!.getChatOptions();
 
                 console.log('Canvas AI: Sending chat request with context');
-                if (intent.images.length > 0) {
-                    // Convert to simple format for multimodalChat
-                    const simpleImages = intent.images.map(img => ({
+
+                // Build media list for multimodal request (images + PDFs)
+                const mediaList: { base64: string, mimeType: string, type: 'image' | 'pdf' }[] = [];
+
+                // Add images
+                for (const img of intent.images) {
+                    mediaList.push({
                         base64: img.base64,
-                        mimeType: img.mimeType
-                    }));
-                    response = await this.apiManager!.multimodalChat(intent.instruction, simpleImages, systemPrompt, chatOptions.temperature);
+                        mimeType: img.mimeType,
+                        type: 'image'
+                    });
+                }
+
+                // Add PDFs from nodes
+                for (const node of intent.nodes) {
+                    if (node.isPdf && node.pdfBase64) {
+                        mediaList.push({
+                            base64: node.pdfBase64,
+                            mimeType: 'application/pdf',
+                            type: 'pdf'
+                        });
+                    }
+                }
+
+                if (mediaList.length > 0) {
+                    response = await this.apiManager!.multimodalChat(
+                        intent.instruction,
+                        mediaList,
+                        systemPrompt,
+                        chatOptions.temperature,
+                        this.settings.enableGoogleSearch
+                    );
                 } else {
                     response = await this.apiManager!.chatCompletion(intent.instruction, systemPrompt, chatOptions.temperature);
                 }
@@ -1299,18 +1329,37 @@ ${intent.instruction}
 [/TASK]`;
                 }
 
-                // Use multimodalChat if images are present (same pattern as chat mode)
-                if (intent.images.length > 0) {
-                    const simpleImages = intent.images.map(img => ({
+                // Build media list for multimodal request (images + PDFs) - same pattern as chat mode
+                const mediaList: { base64: string, mimeType: string, type: 'image' | 'pdf' }[] = [];
+
+                // Add images
+                for (const img of intent.images) {
+                    mediaList.push({
                         base64: img.base64,
-                        mimeType: img.mimeType
-                    }));
-                    console.log('Canvas AI: Sending node request with', simpleImages.length, 'images');
+                        mimeType: img.mimeType,
+                        type: 'image'
+                    });
+                }
+
+                // Add PDFs from nodes
+                for (const node of intent.nodes) {
+                    if (node.isPdf && node.pdfBase64) {
+                        mediaList.push({
+                            base64: node.pdfBase64,
+                            mimeType: 'application/pdf',
+                            type: 'pdf'
+                        });
+                    }
+                }
+
+                if (mediaList.length > 0) {
+                    console.log('Canvas AI: Sending node request with', mediaList.length, 'media items');
                     response = await this.apiManager!.multimodalChat(
                         fullInstruction,
-                        simpleImages,
+                        mediaList,
                         nodeSystemPrompt,
-                        nodeOptions.temperature
+                        nodeOptions.temperature,
+                        this.settings.enableGoogleSearch
                     );
                 } else {
                     response = await this.apiManager!.chatCompletion(
@@ -2546,8 +2595,22 @@ class CanvasAISettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                     // Sync debug button visibility in floating palette
                     this.plugin.floatingPalette?.setDebugMode(value);
+                    // Re-render settings to show/hide experimental options
+                    this.display();
                 }));
 
+        // Experimental features - only shown in Debug Mode
+        if (this.plugin.settings.debugMode) {
+            new Setting(containerEl)
+                .setName(t('Enable Google Search (Experimental)'))
+                .setDesc(t('Allow Gemini to search the web. Requires API provider support.'))
+                .addToggle(toggle => toggle
+                    .setValue(this.plugin.settings.enableGoogleSearch)
+                    .onChange(async (value) => {
+                        this.plugin.settings.enableGoogleSearch = value;
+                        await this.plugin.saveSettings();
+                    }));
+        }
 
     }
 

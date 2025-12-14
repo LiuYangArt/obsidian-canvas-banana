@@ -34,6 +34,7 @@ export interface OpenRouterRequest {
     image_config?: OpenRouterImageConfig;
     reasoning?: { enabled: boolean };
     temperature?: number;
+    tools?: Array<{ google_search?: {} }>;
 }
 
 export interface OpenRouterChoice {
@@ -571,17 +572,20 @@ export class ApiManager {
     }
 
     /**
-     * Send multimodal chat request with images
+     * Send multimodal chat request with images and/or PDFs
      * @param prompt User's prompt text
-     * @param imageList Array of { base64, mimeType }
+     * @param mediaList Array of { base64, mimeType, type }
      * @param systemPrompt Optional system prompt
+     * @param temperature Temperature for generation
+     * @param enableGoogleSearch Enable Google Search grounding (experimental)
      * @returns The assistant's response text
      */
     async multimodalChat(
         prompt: string,
-        imageList: { base64: string, mimeType: string }[],
+        mediaList: { base64: string, mimeType: string, type: 'image' | 'pdf' }[],
         systemPrompt?: string,
-        temperature: number = 0.5
+        temperature: number = 0.5,
+        enableGoogleSearch: boolean = false
     ): Promise<string> {
         if (!this.isConfigured()) {
             throw new Error('OpenRouter API Key not configured. Please set it in plugin settings.');
@@ -604,11 +608,13 @@ export class ApiManager {
             }
         ];
 
-        // Add images
-        for (const img of imageList) {
-            const mime = img.mimeType || 'image/png';
-            const url = `data:${mime};base64,${img.base64}`;
+        // Add images and PDFs
+        for (const media of mediaList) {
+            const mime = media.mimeType || 'image/png';
+            const url = `data:${mime};base64,${media.base64}`;
 
+            // Note: Both images and PDFs are sent as data URLs
+            // The API should handle application/pdf MIME type appropriately
             contentParts.push({
                 type: 'image_url',
                 image_url: {
@@ -628,7 +634,13 @@ export class ApiManager {
             temperature: temperature
         };
 
-        console.log('Canvas AI: Sending multimodal chat request to OpenRouter...');
+        // Add Google Search tool if enabled (experimental)
+        if (enableGoogleSearch) {
+            requestBody.tools = [{ google_search: {} }];
+            console.log('Canvas AI: Google Search grounding enabled');
+        }
+
+        console.log('Canvas AI: Sending multimodal chat request...');
 
         const response = await this.sendRequest(requestBody);
 

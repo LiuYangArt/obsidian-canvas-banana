@@ -33,6 +33,8 @@ export default {
     'System prompt for image generation mode': 'System prompt for image generation mode',
     'Developer Options': 'Developer Options',
     'Debug Mode': 'Debug Mode',
+    'Enable Google Search (Experimental)': 'Enable Google Search (Experimental)',
+    'Allow Gemini to search the web. Requires API provider support.': 'Allow Gemini to search the web. Requires API provider support.',
     'About': 'About',
     'Plugin Description': 'Canvas AI plugin allows you to chat, generate text, and generate images with AI in Obsidian Canvas.',
     'Data Storage': 'Data storage location: .obsidian/plugins/obsidian-canvas-ai/data.json',

@@ -19,10 +19,12 @@ export interface ConvertedNode {
     type: 'text' | 'file' | 'link' | 'group';
     content: string;       // 文本内容或文件引用 ![[filename]]
     isImage: boolean;      // 是否为图片节点
+    isPdf?: boolean;       // 是否为 PDF 文件
     filePath?: string;     // 文件路径（如果是文件节点）
     fileContent?: string;  // 文件实际内容（仅限 .md 文件）
     base64?: string;       // 图片Base64数据（仅限图片文件）
-    mimeType?: string;     // 图片MIME类型
+    pdfBase64?: string;    // PDF Base64数据（仅限 PDF 文件）
+    mimeType?: string;     // MIME类型
     isGroupMember?: boolean; // 是否是通过 group 展开添加的
 }
 
@@ -46,8 +48,9 @@ export interface ConversionResult {
     mermaid: string;
 }
 
-// ========== 图片文件扩展名 ==========
+// ========== 文件扩展名常量 ==========
 const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp', 'ico'];
+const PDF_EXTENSION = 'pdf';
 
 /**
  * CanvasConverter 工具类
@@ -93,21 +96,28 @@ export class CanvasConverter {
         if (node.file) {
             const ext = node.file.extension?.toLowerCase() || '';
             const isImage = IMAGE_EXTENSIONS.includes(ext);
+            const isPdf = ext === PDF_EXTENSION;
             const fileName = node.file.name || node.file.path;
 
             // Basic MIME detection
-            let mimeType = 'image/png';
-            if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
-            else if (ext === 'gif') mimeType = 'image/gif';
-            else if (ext === 'webp') mimeType = 'image/webp';
-            else if (ext === 'svg') mimeType = 'image/svg+xml';
+            let mimeType: string | undefined = undefined;
+            if (isImage) {
+                mimeType = 'image/png';
+                if (ext === 'jpg' || ext === 'jpeg') mimeType = 'image/jpeg';
+                else if (ext === 'gif') mimeType = 'image/gif';
+                else if (ext === 'webp') mimeType = 'image/webp';
+                else if (ext === 'svg') mimeType = 'image/svg+xml';
+            } else if (isPdf) {
+                mimeType = 'application/pdf';
+            }
 
             return {
                 id,
                 type: 'file',
                 content: isImage ? `![[${fileName}]]` : `[[${fileName}]]`,
                 isImage,
-                mimeType: isImage ? mimeType : undefined,
+                isPdf,
+                mimeType,
                 filePath: node.file.path,
             };
         }
@@ -348,6 +358,29 @@ export class CanvasConverter {
     }
 
     /**
+     * 读取 PDF 文件内容并转换为 Base64
+     * @param app Obsidian App 实例
+     * @param nodes 转换后的节点数组
+     */
+    static async readPdfFileContents(app: App, nodes: ConvertedNode[]): Promise<void> {
+        for (const node of nodes) {
+            if (node.type === 'file' && node.filePath && node.isPdf) {
+                try {
+                    const file = app.vault.getAbstractFileByPath(node.filePath);
+                    if (file && file instanceof TFile) {
+                        const buffer = await app.vault.readBinary(file);
+                        node.pdfBase64 = this.arrayBufferToBase64(buffer);
+                        node.mimeType = 'application/pdf';
+                        console.log(`CanvasConverter: Read PDF ${node.filePath}, base64 length: ${node.pdfBase64.length}`);
+                    }
+                } catch (error) {
+                    console.warn(`CanvasConverter: Failed to read PDF file ${node.filePath}`, error);
+                }
+            }
+        }
+    }
+
+    /**
      * 读取图片文件内容并转换为压缩的 WebP Base64
      * @param app Obsidian App 实例
      * @param nodes 转换后的节点数组
@@ -491,6 +524,9 @@ export class CanvasConverter {
 
         // 读取 .md 文件内容
         await this.readMdFileContents(app, nodes);
+
+        // 读取 PDF 文件内容
+        await this.readPdfFileContents(app, nodes);
 
         // 读取图片文件内容（压缩为 WebP，并限制尺寸）
         await this.readImageFileContents(app, nodes, compressionQuality, maxSize);

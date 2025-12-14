@@ -46,6 +46,7 @@ export interface PreprocessResult {
  * 完整的意图解析结果
  */
 export interface ResolvedIntent {
+    nodes: ConvertedNode[];   // 所有有效节点（含 PDF）
     images: ImageWithRole[];
     instruction: string;
     contextText: string;
@@ -70,9 +71,9 @@ export class IntentResolver {
     ): Promise<ResolvedIntent> {
         const warnings: string[] = [];
 
-        // Step 0: 预处理 - 展开 Group、过滤非图片
+        // Step 0: 预处理 - 展开 Group、根据模式过滤节点
         const preprocessed = await this.preprocess(
-            app, canvas, selection, settings.imageCompressionQuality, settings.imageMaxSize
+            app, canvas, selection, settings.imageCompressionQuality, settings.imageMaxSize, mode
         );
         warnings.push(...preprocessed.warnings);
 
@@ -121,6 +122,7 @@ export class IntentResolver {
         });
 
         return {
+            nodes: preprocessed.effectiveNodes,
             images,
             instruction,
             contextText,
@@ -132,15 +134,16 @@ export class IntentResolver {
     /**
      * Step 0: 选区预处理
      * - 展开 Group 节点
-     * - 过滤非图片文件
-     * - 读取图片内容
+     * - 根据模式过滤节点（Image 模式跳过 PDF/Link/.md，Chat/Node 模式保留）
+     * - 读取文件内容
      */
     static async preprocess(
         app: App,
         canvas: Canvas,
         selection: Set<CanvasNode>,
         compressionQuality: number,
-        maxSize: number
+        maxSize: number,
+        mode: 'chat' | 'image' | 'node'
     ): Promise<PreprocessResult> {
         const warnings: string[] = [];
         const skippedFiles: string[] = [];
@@ -157,26 +160,50 @@ export class IntentResolver {
                 const ext = node.filePath.split('.').pop()?.toLowerCase() || '';
 
                 if (node.isImage) {
-                    // 是图片文件
+                    // 图片文件：所有模式都包含
                     effectiveNodes.push(node);
+                } else if (node.isPdf) {
+                    // PDF 文件：Chat/Node 模式包含，Image 模式跳过
+                    if (mode === 'image') {
+                        skippedFiles.push(node.filePath);
+                    } else {
+                        effectiveNodes.push(node);
+                    }
+                } else if (ext === 'md') {
+                    // .md 文件：Chat/Node 模式包含，Image 模式跳过
+                    if (mode === 'image') {
+                        skippedFiles.push(node.filePath);
+                    } else {
+                        effectiveNodes.push(node);
+                    }
                 } else if (!SUPPORTED_IMAGE_EXTENSIONS.includes(ext)) {
-                    // 非图片文件，跳过
+                    // 其他非图片文件：跳过
                     skippedFiles.push(node.filePath);
                 } else {
                     effectiveNodes.push(node);
                 }
+            } else if (node.type === 'link') {
+                // Link 节点：Chat/Node 模式包含，Image 模式跳过
+                if (mode === 'image') {
+                    skippedFiles.push(`[Link] ${node.content}`);
+                } else {
+                    effectiveNodes.push(node);
+                }
             } else {
-                // 文本节点、链接节点等
+                // 文本节点、Group 节点等
                 effectiveNodes.push(node);
             }
         }
 
         if (skippedFiles.length > 0) {
-            warnings.push(`Skipped ${skippedFiles.length} non-image file(s): ${skippedFiles.map(f => f.split('/').pop()).join(', ')}`);
+            warnings.push(`Skipped ${skippedFiles.length} file(s) in ${mode} mode: ${skippedFiles.map(f => f.split('/').pop()).join(', ')}`);
         }
 
         // 读取 .md 文件内容
         await CanvasConverter.readMdFileContents(app, effectiveNodes);
+
+        // 读取 PDF 文件内容
+        await CanvasConverter.readPdfFileContents(app, effectiveNodes);
 
         // 读取图片内容
         await CanvasConverter.readImageFileContents(app, effectiveNodes, compressionQuality, maxSize);
@@ -335,8 +362,13 @@ export class IntentResolver {
             if (node.type === 'text' && node.content) {
                 parts.push(`[Text Node]\n${node.content}`);
             } else if (node.type === 'file' && node.fileContent) {
+                // .md 文件：内容已读取到 fileContent
                 const filename = node.filePath?.split('/').pop() || 'file';
                 parts.push(`[File: ${filename}]\n${node.fileContent}`);
+            } else if (node.type === 'file' && node.isPdf && node.pdfBase64) {
+                // PDF 文件：标记为附件（实际内容通过 multimodal API 发送）
+                const filename = node.filePath?.split('/').pop() || 'file.pdf';
+                parts.push(`[PDF: ${filename}] (Content provided as inline PDF attachment)`);
             } else if (node.type === 'link' && node.content) {
                 parts.push(`[Link: ${node.content}]`);
             }

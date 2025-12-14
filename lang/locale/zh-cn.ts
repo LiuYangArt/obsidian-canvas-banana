@@ -33,6 +33,8 @@ export default {
     'System prompt for image generation mode': '图像生成模式的系统提示词',
     'Developer Options': '开发者选项',
     'Debug Mode': '调试模式',
+    'Enable Google Search (Experimental)': '启用 Google 联网搜索（实验性）',
+    'Allow Gemini to search the web. Requires API provider support.': '允许 Gemini 联网搜索。需要 API 提供商支持。',
     'About': '关于',
     'Plugin Description': 'Canvas Banana 插件允许你在 Obsidian 白板中与 AI 对话、生成文本和图像。',
     'Data Storage': '数据存储位置: .obsidian/plugins/obsidian-canvas-ai/data.json',
