@@ -6,7 +6,7 @@ on:
       - "*"
 
 env:
-  PLUGIN_NAME: obsidian-canvas-banana
+  PLUGIN_NAME: canvas-banana
 
 jobs:
   build:

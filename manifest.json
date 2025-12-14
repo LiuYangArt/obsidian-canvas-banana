@@ -1,9 +1,9 @@
 {
-    "id": "obsidian-canvas-banana",
+    "id": "canvas-banana",
     "name": "Canvas Banana",
     "version": "0.9.3",
     "minAppVersion": "1.8.0",
-    "description": "Obsidian Canvas AI Plugin - use Gemini AI in Canvas view, support text / image / node generation",
+    "description": "Canvas AI Plugin - use Gemini AI in Canvas view, support text / image / node generation.",
     "author": "LiuYang",
     "isDesktopOnly": false
 }
