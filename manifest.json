@@ -1,7 +1,7 @@
 {
     "id": "obsidian-canvas-ai",
     "name": "Canvas Banana",
-    "version": "0.8.0",
+    "version": "0.9.0",
     "minAppVersion": "1.0.0",
     "description": "Integrate Gemini AI in Obsidian Canvas, supporting AI text generation, and image generation within the Canvas view.",
     "author": "LiuYang",

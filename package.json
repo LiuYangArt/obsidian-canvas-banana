@@ -1,6 +1,6 @@
 {
     "name": "obsidian-canvas-ai",
-    "version": "0.8.0",
+    "version": "0.9.0",
     "description": "Obsidian Canvas AI Plugin - 在 Canvas 视图中集成 Gemini AI",
     "main": "main.js",
     "scripts": {
@@ -15,7 +15,7 @@
         "gemini"
     ],
     "author": "LiuYang",
-    "license": "MIT",
+    "license": "GPL-3.0",
     "devDependencies": {
         "@types/node": "^16.11.6",
         "@typescript-eslint/eslint-plugin": "5.29.0",

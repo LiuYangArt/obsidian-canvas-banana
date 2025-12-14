@@ -347,6 +347,21 @@
     color: #1a1a1a;
 }
 
+/* Disabled state - grayed out */
+.canvas-ai-generate-btn.disabled,
+.canvas-ai-generate-btn:disabled {
+    background: var(--background-modifier-border);
+    color: var(--text-faint);
+    cursor: not-allowed;
+    opacity: 0.6;
+}
+
+.canvas-ai-generate-btn.disabled:hover,
+.canvas-ai-generate-btn:disabled:hover {
+    filter: none;
+    transform: none;
+}
+
 /* ========== 按钮组 ========== */
 .canvas-ai-btn-group {
     display: flex;

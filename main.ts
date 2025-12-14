@@ -225,6 +225,8 @@ class FloatingPalette {
     private onSettingsChange: ((key: 'aspectRatio' | 'resolution' | 'chatTemperature' | 'nodeTemperature', value: string | number) => void) | null = null;
     private apiManager: ApiManager;
     private pendingTaskCount: number = 0;
+    // Track text node count for generate button state
+    private currentTextCount: number = 0;
     // Image generation options (no model selection - always use Pro)
     private imageAspectRatio: string = '1:1';
     private imageResolution: string = '1K';
@@ -276,6 +278,11 @@ class FloatingPalette {
 
         this.promptInput.addEventListener('blur', () => {
             this.app.keymap.popScope(this.scope);
+        });
+
+        // Update generate button state when prompt changes
+        this.promptInput.addEventListener('input', () => {
+            this.updateGenerateButtonState();
         });
     }
 
@@ -798,6 +805,10 @@ class FloatingPalette {
      * 更新上下文预览信息
      */
     updateContextPreview(nodeCount: number, imageCount: number, textCount: number, groupCount: number = 0): void {
+        // Track text count for generate button state
+        this.currentTextCount = textCount;
+        this.updateGenerateButtonState();
+
         const preview = this.containerEl.querySelector('.canvas-ai-context-preview');
         if (preview) {
             if (nodeCount === 0) {
@@ -829,7 +840,8 @@ class FloatingPalette {
     }
 
     /**
-     * Update generate button text based on pending task count
+     * Update generate button text and disabled state
+     * Disabled when: no text nodes selected AND no prompt entered (fool-proof design)
      */
     private updateGenerateButtonState(): void {
         const generateBtn = this.containerEl.querySelector('.canvas-ai-generate-btn') as HTMLButtonElement;
@@ -842,8 +854,18 @@ class FloatingPalette {
             generateBtn.textContent = `${t('Generating')} ${this.pendingTaskCount} ${t('Tasks')}`;
             generateBtn.addClass('generating');
         }
-        // Button always stays enabled for multi-task support
-        generateBtn.disabled = false;
+
+        // Fool-proof: disable when no text content and no prompt
+        const hasPrompt = this.promptInput.value.trim().length > 0;
+        const hasTextContent = this.currentTextCount > 0;
+        const shouldDisable = !hasPrompt && !hasTextContent && this.pendingTaskCount === 0;
+
+        generateBtn.disabled = shouldDisable;
+        if (shouldDisable) {
+            generateBtn.addClass('disabled');
+        } else {
+            generateBtn.removeClass('disabled');
+        }
     }
 
     /**
