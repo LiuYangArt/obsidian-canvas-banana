@@ -1,6 +1,6 @@
 {
     "name": "canvas-banana",
-    "version": "0.9.7",
+    "version": "0.9.8",
     "description": "Canvas AI Plugin - use Gemini AI in Canvas view, support text / image / node generation.",
     "main": "main.js",
     "scripts": {
