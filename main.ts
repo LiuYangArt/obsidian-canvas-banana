@@ -1319,7 +1319,7 @@ export default class CanvasAIPlugin extends Plugin {
                 );
 
                 // Update Ghost Node to show saving status
-                this.updateGhostNode(ghostNode, '💾 Saving image...', false);
+                this.updateGhostNode(ghostNode, '💾 Saving image...', false, true);
 
                 // Save to Vault
                 const savedFile = await this.saveImageToVault(base64Image, intent.instruction);
@@ -1760,10 +1760,12 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
      * Update ghost node with response
      * Dynamically resize node height based on content length
      */
-    private updateGhostNode(node: CanvasNode, content: string, isError: boolean): void {
+    private updateGhostNode(node: CanvasNode, content: string, isError: boolean, keepTracking: boolean = false): void {
         // When updating ghost node to final state, remove from tracking
         // (it's no longer a "ghost" that needs to be replaced)
-        this.activeGhostNodeIds.delete(node.id);
+        if (!keepTracking) {
+            this.activeGhostNodeIds.delete(node.id);
+        }
 
         // Remove ghost styling
         if (node.nodeEl) {
