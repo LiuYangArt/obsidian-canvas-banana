@@ -2698,11 +2698,24 @@ class CanvasAISettingTab extends PluginSettingTab {
 
     /**
      * Fetch models from API (OpenRouter or Yunwu based on provider)
+     * For Gemini, use hardcoded model list
      */
     private async fetchModels(): Promise<void> {
         if (this.isFetching) return;
 
-        const isYunwu = this.plugin.settings.apiProvider === 'yunwu';
+        const provider = this.plugin.settings.apiProvider;
+        const isYunwu = provider === 'yunwu';
+        const isGemini = provider === 'gemini';
+
+        // Gemini uses hardcoded model list (no API endpoint)
+        if (isGemini) {
+            this.modelCache = this.getGeminiHardcodedModels();
+            this.modelsFetched = true;
+            console.log(`Canvas AI Settings: Loaded ${this.modelCache.length} hardcoded Gemini models`);
+            this.display();
+            return;
+        }
+
         const apiKey = isYunwu
             ? this.plugin.settings.yunwuApiKey
             : this.plugin.settings.openRouterApiKey;
@@ -2757,39 +2770,180 @@ class CanvasAISettingTab extends PluginSettingTab {
         }
     }
 
+    /**
+     * Get hardcoded Gemini models list
+     * Gemini doesn't have a public models API, so we maintain a curated list
+     */
+    private getGeminiHardcodedModels(): OpenRouterModel[] {
+        return [
+            // Gemini 2.5 series
+            { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', outputModalities: ['text'] },
+            { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', outputModalities: ['text'] },
+            { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', outputModalities: ['text'] },
+            { id: 'gemini-2.5-flash-lite-preview-09-2025', name: 'Gemini 2.5 Flash Lite Preview 09-2025', outputModalities: ['text'] },
+            { id: 'gemini-2.5-flash-lite-preview-06-17-nothinking', name: 'Gemini 2.5 Flash Lite Preview 06-17 (No Thinking)', outputModalities: ['text'] },
+            { id: 'gemini-2.5-pro-preview-06-05', name: 'Gemini 2.5 Pro Preview 06-05', outputModalities: ['text'] },
+            { id: 'gemini-2.5-pro-preview-05-06', name: 'Gemini 2.5 Pro Preview 05-06', outputModalities: ['text'] },
+            // Gemini 3 series (Image generation)
+            { id: 'gemini-3-pro-image-preview', name: 'Gemini 3 Pro Image Preview', outputModalities: ['image'] },
+            // Legacy naming (for backward compatibility)
+            { id: 'gemini-pro-latest-thinking-*', name: 'Gemini Pro Latest (Thinking)', outputModalities: ['text'] },
+            { id: 'gemini-flash-latest-nothinking', name: 'Gemini Flash Latest (No Thinking)', outputModalities: ['text'] },
+        ];
+    }
+
     // Model keyword filters
     private static TEXT_MODEL_KEYWORDS = ['gpt', 'gemini'];
     private static IMAGE_MODEL_KEYWORDS = ['gemini', 'banana'];
+    // Exclude keywords for text models (audio, tts, image, vision, etc.)
+    private static TEXT_MODEL_EXCLUDE_KEYWORDS = ['audio', 'tts', 'image', 'vision', 'whisper', 'dall-e', 'midjourney'];
+
+    /**
+     * Check if model version meets minimum requirements
+     * GPT: >= 4.0, Gemini: >= 2.5
+     */
+    private meetsMinimumVersion(modelId: string): boolean {
+        const idLower = modelId.toLowerCase();
+
+        // GPT version check: must be >= 4.0
+        if (idLower.includes('gpt')) {
+            // Extract version number (e.g., gpt-4.5, gpt-4, gpt-5)
+            const gptMatch = idLower.match(/gpt-(\d+)(?:\.(\d+))?/);
+            if (gptMatch) {
+                const major = parseInt(gptMatch[1]);
+                return major >= 4;
+            }
+            // If no version found, exclude (likely gpt-3.5 or older)
+            return false;
+        }
+
+        // Gemini version check: must be >= 2.5
+        if (idLower.includes('gemini')) {
+            // Extract version number (e.g., gemini-2.5, gemini-3)
+            const geminiMatch = idLower.match(/gemini-(\d+)(?:\.(\d+))?/);
+            if (geminiMatch) {
+                const major = parseInt(geminiMatch[1]);
+                const minor = geminiMatch[2] ? parseInt(geminiMatch[2]) : 0;
+                return major > 2 || (major === 2 && minor >= 5);
+            }
+            // Legacy naming without version (e.g., gemini-pro-latest) - include them
+            return true;
+        }
+
+        // For other models, include by default
+        return true;
+    }
+
+    /**
+     * Sort models by provider and version
+     * Order: Gemini models first, then GPT models, then others
+     * Within each group, sort by version (newest first)
+     */
+    private sortModels(models: OpenRouterModel[]): OpenRouterModel[] {
+        return models.sort((a, b) => {
+            const aLower = a.id.toLowerCase();
+            const bLower = b.id.toLowerCase();
+
+            const aIsGemini = aLower.includes('gemini');
+            const bIsGemini = bLower.includes('gemini');
+            const aIsGPT = aLower.includes('gpt');
+            const bIsGPT = bLower.includes('gpt');
+
+            // Group by provider: Gemini > GPT > Others
+            if (aIsGemini && !bIsGemini) return -1;
+            if (!aIsGemini && bIsGemini) return 1;
+            if (aIsGPT && !bIsGPT && !bIsGemini) return -1;
+            if (!aIsGPT && bIsGPT && !aIsGemini) return 1;
+
+            // Within same provider, sort by version (descending)
+            // Extract version numbers for comparison
+            const extractVersion = (id: string): number[] => {
+                const match = id.match(/(\d+)(?:\.(\d+))?(?:\.(\d+))?/);
+                if (!match) return [0, 0, 0];
+                return [
+                    parseInt(match[1] || '0'),
+                    parseInt(match[2] || '0'),
+                    parseInt(match[3] || '0')
+                ];
+            };
+
+            const aVersion = extractVersion(aLower);
+            const bVersion = extractVersion(bLower);
+
+            for (let i = 0; i < 3; i++) {
+                if (aVersion[i] !== bVersion[i]) {
+                    return bVersion[i] - aVersion[i]; // Descending order
+                }
+            }
+
+            // If versions are equal, sort alphabetically
+            return a.id.localeCompare(b.id);
+        });
+    }
 
     /**
      * Get models that support text output, filtered by keywords
      * For Yunwu: only filter by keywords (no outputModalities check)
+     * Excludes non-text models (audio, tts, image, etc.)
+     * Filters out old versions (GPT < 4.0, Gemini < 2.5)
      */
     private getTextModels(): OpenRouterModel[] {
-        const isYunwu = this.plugin.settings.apiProvider === 'yunwu';
-        return this.modelCache.filter(m => {
-            // For OpenRouter, must support text output; for Yunwu, skip this check
-            if (!isYunwu && !m.outputModalities.includes('text')) return false;
-            // Filter by keywords (case-insensitive)
+        const provider = this.plugin.settings.apiProvider;
+        const isYunwu = provider === 'yunwu';
+        const isGemini = provider === 'gemini';
+
+        let filtered = this.modelCache.filter(m => {
             const idLower = m.id.toLowerCase();
-            return CanvasAISettingTab.TEXT_MODEL_KEYWORDS.some(kw => idLower.includes(kw));
+
+            // For OpenRouter/Yunwu, must support text output; for Gemini, skip this check
+            if (!isYunwu && !isGemini && !m.outputModalities.includes('text')) return false;
+
+            // Exclude non-text models by keywords
+            if (CanvasAISettingTab.TEXT_MODEL_EXCLUDE_KEYWORDS.some(kw => idLower.includes(kw))) {
+                return false;
+            }
+
+            // Filter by keywords (case-insensitive)
+            if (!CanvasAISettingTab.TEXT_MODEL_KEYWORDS.some(kw => idLower.includes(kw))) {
+                return false;
+            }
+
+            // Version filtering
+            return this.meetsMinimumVersion(m.id);
         });
+
+        // Sort models
+        return this.sortModels(filtered);
     }
 
     /**
      * Get models that support image output, filtered by keywords
      * For Yunwu: only filter by keywords (no outputModalities check)
      * Must contain BOTH 'gemini' AND 'image' in the model ID
+     * Filters out old versions (Gemini < 2.5)
      */
     private getImageModels(): OpenRouterModel[] {
-        const isYunwu = this.plugin.settings.apiProvider === 'yunwu';
-        return this.modelCache.filter(m => {
-            // For OpenRouter, must support image output; for Yunwu, skip this check
-            if (!isYunwu && !m.outputModalities.includes('image')) return false;
-            // Must contain both 'gemini' AND 'image' (case-insensitive)
+        const provider = this.plugin.settings.apiProvider;
+        const isYunwu = provider === 'yunwu';
+        const isGemini = provider === 'gemini';
+
+        let filtered = this.modelCache.filter(m => {
             const idLower = m.id.toLowerCase();
-            return idLower.includes('gemini') && idLower.includes('image');
+
+            // For OpenRouter/Yunwu, must support image output; for Gemini, skip this check
+            if (!isYunwu && !isGemini && !m.outputModalities.includes('image')) return false;
+
+            // Must contain both 'gemini' AND 'image' (case-insensitive)
+            if (!idLower.includes('gemini') || !idLower.includes('image')) {
+                return false;
+            }
+
+            // Version filtering
+            return this.meetsMinimumVersion(m.id);
         });
+
+        // Sort models
+        return this.sortModels(filtered);
     }
 
     async display(): Promise<void> {
@@ -2897,34 +3051,36 @@ class CanvasAISettingTab extends PluginSettingTab {
         containerEl.createEl('h3', { text: t('Model Configuration') });
 
         // Fetch models if not already fetched (Non-blocking)
-        // Gemini doesn't have a models list API, so we skip fetching for it
+        // For Gemini, use hardcoded list; for OpenRouter/Yunwu, fetch from API
         const apiKey = isGemini
             ? this.plugin.settings.geminiApiKey
             : isYunwu
                 ? this.plugin.settings.yunwuApiKey
                 : this.plugin.settings.openRouterApiKey;
-        if (!this.modelsFetched && apiKey && !this.isFetching && !isGemini) {
+        if (!this.modelsFetched && apiKey && !this.isFetching) {
             this.fetchModels();
         }
 
-        // Refresh button - hide for Gemini since it doesn't have models API
+        // Refresh button - show status for all providers
+        let statusText = t('Click refresh');
+        if (this.isFetching) {
+            statusText = t('Fetching...');
+        } else if (this.modelsFetched) {
+            const source = isGemini ? 'Gemini (Hardcoded)' : isYunwu ? 'Yunwu' : 'OpenRouter';
+            statusText = t('Loaded models', {
+                count: this.modelCache.length,
+                textCount: this.getTextModels().length,
+                imageCount: this.getImageModels().length,
+                source: source
+            });
+        }
+
+        const refreshSetting = new Setting(containerEl)
+            .setName(t('Model List'))
+            .setDesc(statusText);
+
+        // Only show refresh button for OpenRouter/Yunwu (not Gemini)
         if (!isGemini) {
-            let statusText = t('Click refresh');
-            if (this.isFetching) {
-                statusText = t('Fetching...');
-            } else if (this.modelsFetched) {
-                statusText = t('Loaded models', {
-                    count: this.modelCache.length,
-                    textCount: this.getTextModels().length,
-                    imageCount: this.getImageModels().length,
-                    source: isYunwu ? 'Yunwu' : 'OpenRouter'
-                });
-            }
-
-            const refreshSetting = new Setting(containerEl)
-                .setName(t('Model List'))
-                .setDesc(statusText);
-
             const refreshBtn = refreshSetting.controlEl.createEl('button', {
                 text: this.isFetching ? t('Refreshing...') : t('Refresh Model List'),
                 cls: 'canvas-ai-refresh-btn'
