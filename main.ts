@@ -2003,13 +2003,25 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
 
     /**
      * 统计节点类型数量
+     * 会展开 group 节点，统计其内部的子节点
      */
     private countNodeTypes(selection: Set<CanvasNode>): { imageCount: number; textCount: number; groupCount: number } {
         let imageCount = 0;
         let textCount = 0;
         let groupCount = 0;
 
-        selection.forEach(node => {
+        // Get canvas for expanding groups
+        const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
+        const canvas = canvasView?.getViewType() === 'canvas'
+            ? (canvasView as any).canvas as Canvas | undefined
+            : undefined;
+
+        // Expand group nodes to include their children
+        const expandedSelection = canvas
+            ? CanvasConverter.expandGroupNodes(canvas, selection)
+            : selection;
+
+        expandedSelection.forEach(node => {
             if ((node as any).label !== undefined) {
                 // Group 节点（有 label 属性）
                 groupCount++;
