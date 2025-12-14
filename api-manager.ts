@@ -280,13 +280,15 @@ export class ApiManager {
                 throw new Error('Gemini returned no parts in response');
             }
 
-            // Find text part
-            const textPart = parts.find((p: any) => p.text);
+            // Find text part (filter out thinking parts for thinking models)
+            // Thinking models return parts with { thought: true } for internal reasoning
+            const outputParts = parts.filter((p: any) => p.text && !p.thought);
+            const textPart = outputParts.length > 0 ? outputParts[outputParts.length - 1] : parts.find((p: any) => p.text);
             if (!textPart?.text) {
                 throw new Error('Gemini returned no text in response');
             }
 
-            console.log(`Canvas AI: [${provider}] Received response:`, textPart.text.substring(0, 100));
+            console.log(`Canvas AI: [${provider}] Received response (filtered thinking):`, textPart.text.substring(0, 100));
             return textPart.text;
         } catch (error: any) {
             if (error.status) {
@@ -626,8 +628,11 @@ export class ApiManager {
             throw new Error('Gemini returned no parts in response');
         }
 
-        // Find image part
+        // Find image part (skip thinking parts)
         for (const part of parts) {
+            // Skip thinking parts
+            if (part.thought) continue;
+
             // Check for inlineData (base64)
             if (part.inlineData) {
                 const mimeType = part.inlineData.mimeType || 'image/png';
@@ -645,7 +650,9 @@ export class ApiManager {
         }
 
         // No image found, check for text content (may contain error or refusal)
-        const textPart = parts.find((p: any) => p.text);
+        // Filter out thinking parts when getting error message
+        const outputParts = parts.filter((p: any) => p.text && !p.thought);
+        const textPart = outputParts.length > 0 ? outputParts[outputParts.length - 1] : parts.find((p: any) => p.text);
         const textContent = textPart?.text || 'No image returned';
         console.log('Canvas AI: No image in Gemini response, text:', textContent);
         throw new Error(`Image generation failed: ${textContent}`);
@@ -854,13 +861,15 @@ export class ApiManager {
                 throw new Error('Gemini returned no parts in response');
             }
 
-            // Find text part
-            const textPart = responseParts.find((p: any) => p.text);
+            // Find text part (filter out thinking parts for thinking models)
+            // Thinking models return parts with { thought: true } for internal reasoning
+            const outputParts = responseParts.filter((p: any) => p.text && !p.thought);
+            const textPart = outputParts.length > 0 ? outputParts[outputParts.length - 1] : responseParts.find((p: any) => p.text);
             if (!textPart?.text) {
                 throw new Error('Gemini returned no text in response');
             }
 
-            console.log(`Canvas AI: [${provider}] Received multimodal response`);
+            console.log(`Canvas AI: [${provider}] Received multimodal response (filtered thinking)`);
             return textPart.text;
         } catch (error: any) {
             if (error.status) {
