@@ -105,7 +105,7 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
 
     gptGodApiKey: '',
     gptGodBaseUrl: 'https://api.gptgod.online',
-    gptGodTextModel: 'gpt-4-gizmo-g-2fkFE8rbu',
+    gptGodTextModel: 'gemini-2.5-flash',
     gptGodImageModel: 'gemini-3-pro-image-preview',
     gptGodUseCustomTextModel: false,
     gptGodUseCustomImageModel: false,
@@ -3162,7 +3162,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         // Get model keys based on provider
         const textModelKey = isGemini ? 'geminiTextModel' : isYunwu ? 'yunwuTextModel' : isGptGod ? 'gptGodTextModel' : 'openRouterTextModel';
         const textCustomKey = isGemini ? 'geminiUseCustomTextModel' : isYunwu ? 'yunwuUseCustomTextModel' : isGptGod ? 'gptGodUseCustomTextModel' : 'openRouterUseCustomTextModel';
-        const textPlaceholder = isGemini ? 'gemini-2.5-flash' : isYunwu ? 'gemini-2.5-flash' : isGptGod ? 'gpt-4-gizmo-g-2fkFE8rbu' : 'google/gemini-2.5-flash';
+        const textPlaceholder = isGemini ? 'gemini-2.5-flash' : isYunwu ? 'gemini-2.5-flash' : isGptGod ? 'gemini-2.5-flash' : 'google/gemini-2.5-flash';
 
         this.renderModelSetting(containerEl, {
             name: t('Text Generation Model'),

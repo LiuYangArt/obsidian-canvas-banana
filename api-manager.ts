@@ -1073,25 +1073,43 @@ export class ApiManager {
         // we'll cast result to any to parse flexibly.
         const responseStub = await this.sendRequest(requestBody, timeoutMs);
 
-        return this.parseGptGodResponse(responseStub);
+        return await this.parseGptGodResponse(responseStub);
     }
 
     /**
      * Parse GPTGod response to extract image
      * Ported/Adapted from provided example logic
+     * Converts HTTP URLs to data URLs for Canvas compatibility
      */
-    private parseGptGodResponse(response: any): string {
+    private async parseGptGodResponse(response: any): Promise<string> {
         try {
             const images: string[] = [];
 
+            // Helper to convert URL to data URL if needed
+            const ensureDataUrl = async (url: string): Promise<string> => {
+                if (url.startsWith('data:')) {
+                    return url; // Already a data URL
+                }
+                if (url.startsWith('http://') || url.startsWith('https://')) {
+                    console.log('Canvas AI: [GPTGod] Fetching image from URL:', url);
+                    return await this.fetchImageAsDataUrl(url);
+                }
+                // If it looks like base64 without prefix, wrap it
+                if (url.match(/^[A-Za-z0-9+/=]+$/)) {
+                    console.log('Canvas AI: [GPTGod] Wrapping raw base64 as PNG');
+                    return `data:image/png;base64,${url}`;
+                }
+                return url;
+            };
+
             // 1. Check direct 'images' array (legacy/specific)
             if (Array.isArray(response.images) && response.images.length > 0) {
-                return response.images[0];
+                return await ensureDataUrl(response.images[0]);
             }
 
             // 2. Check single 'image' field
             if (response.image && typeof response.image === 'string') {
-                return response.image;
+                return await ensureDataUrl(response.image);
             }
 
             // 3. Check choices/messages
@@ -1106,7 +1124,7 @@ export class ApiManager {
                     // OpenAI content array
                     for (const part of content) {
                         if (part?.type === 'image_url' && part?.image_url?.url) {
-                            return part.image_url.url;
+                            return await ensureDataUrl(part.image_url.url);
                         }
                         if (part?.type === 'text') {
                             contentText += (part.text || '') + '\n';
@@ -1118,13 +1136,19 @@ export class ApiManager {
                 if (contentText) {
                     // Markdown image: ![...](url)
                     const mdMatch = /!\[.*?\]\((https?:\/\/[^\)]+)\)/.exec(contentText);
-                    if (mdMatch) return mdMatch[1];
+                    if (mdMatch) {
+                        console.log('Canvas AI: [GPTGod] Found markdown image URL:', mdMatch[1]);
+                        return await ensureDataUrl(mdMatch[1]);
+                    }
 
                     // Plain URL (http...)
                     // Match url ending in image ext
                     const urlRegex = /(https?:\/\/[^\s"')<>]+\.(?:png|jpg|jpeg|webp|gif|bmp))/i;
                     const urlMatch = urlRegex.exec(contentText);
-                    if (urlMatch) return urlMatch[1];
+                    if (urlMatch) {
+                        console.log('Canvas AI: [GPTGod] Found plain image URL:', urlMatch[1]);
+                        return await ensureDataUrl(urlMatch[1]);
+                    }
 
                     // Check for Data URL
                     const dataRegex = /(data:image\/[^;]+;base64,[^\s"')<>]+)/i;
@@ -1134,23 +1158,31 @@ export class ApiManager {
                     // Raw URL if entire content is URL
                     if (contentText.trim().startsWith('http')) {
                         const trimmed = contentText.trim().split(/\s/)[0];
-                        if (trimmed.match(/^https?:\/\//)) return trimmed;
+                        if (trimmed.match(/^https?:\/\//)) {
+                            console.log('Canvas AI: [GPTGod] Found raw URL:', trimmed);
+                            return await ensureDataUrl(trimmed);
+                        }
                     }
                 }
 
                 // Check message.image_url / message.images custom fields
-                if (firstChoice.message?.image_url) return firstChoice.message.image_url;
+                if (firstChoice.message?.image_url) {
+                    return await ensureDataUrl(firstChoice.message.image_url);
+                }
                 if (Array.isArray(firstChoice.message?.images) && firstChoice.message.images.length > 0) {
-                    return firstChoice.message.images[0];
+                    return await ensureDataUrl(firstChoice.message.images[0]);
                 }
             }
 
             // 4. Check Root level data/result
             if (response.data) {
                 if (Array.isArray(response.data) && response.data.length > 0) {
-                    return response.data[0]?.url || response.data[0];
+                    const url = response.data[0]?.url || response.data[0];
+                    return await ensureDataUrl(url);
                 }
-                if (response.data.url) return response.data.url;
+                if (response.data.url) {
+                    return await ensureDataUrl(response.data.url);
+                }
             }
 
             // Failure
