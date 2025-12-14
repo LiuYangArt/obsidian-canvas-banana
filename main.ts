@@ -284,7 +284,6 @@ class FloatingPalette {
         // Register Ctrl+Enter in this scope to trigger generate
         // This intercepts Obsidian's keymap system when prompt input is focused
         this.scope.register(['Ctrl'], 'Enter', (evt: KeyboardEvent) => {
-            console.log('Canvas AI: Ctrl+Enter intercepted via Scope');
             evt.preventDefault();
             this.handleGenerate();
             return false; // Prevent default Obsidian behavior
@@ -591,22 +590,9 @@ class FloatingPalette {
         const promptInput = container.querySelector('.canvas-ai-prompt-input');
         if (promptInput) {
             const stopPropagation = (e: Event) => e.stopPropagation();
-            // Handle Ctrl+Enter to trigger generate
-            // Use capture phase to intercept before Obsidian's global hotkeys
-            promptInput.addEventListener('keydown', (e) => {
-                const keyEvent = e as KeyboardEvent;
-                if (keyEvent.ctrlKey && keyEvent.key === 'Enter') {
-                    // Stop event from reaching Obsidian's global hotkey handler
-                    e.preventDefault();
-                    e.stopPropagation();
-                    e.stopImmediatePropagation();
-                    console.log('Canvas AI: Ctrl+Enter detected, triggering generate');
-                    this.handleGenerate();
-                    return;
-                }
-                // For other keys, just stop propagation to Canvas
-                e.stopPropagation();
-            }, { capture: true });
+            // Prevent keyboard events from bubbling to Canvas when textarea is focused
+            // Note: Ctrl+Enter is handled by the Scope API registered in constructor
+            promptInput.addEventListener('keydown', stopPropagation, { capture: true });
             promptInput.addEventListener('keyup', stopPropagation);
             promptInput.addEventListener('keypress', stopPropagation);
         }
