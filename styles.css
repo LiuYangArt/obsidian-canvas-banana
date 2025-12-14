@@ -209,7 +209,7 @@
     flex: 1;
     min-width: 60px;
     max-width: 100px;
-    padding: 2px 8px;
+    padding: 2px;
     border: 1px solid var(--background-modifier-border);
     border-radius: 6px;
     background: var(--background-primary);
@@ -317,7 +317,8 @@
 
 .canvas-ai-generate-btn {
     width: 100%;
-    padding: 12px;
+    padding-top: 10px;
+    padding-bottom: 12px;
     /* reduced top/bottom padding slightly since it's full width */
     border: none;
     border-radius: 6px;
@@ -529,7 +530,7 @@
     flex: 1;
     min-width: 60px;
     max-width: 100px;
-    padding: 5px 8px;
+    padding: 2px;
     border: 1px solid var(--background-modifier-border);
     border-radius: 6px;
     background: var(--background-primary);
