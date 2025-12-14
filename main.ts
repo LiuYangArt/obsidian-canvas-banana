@@ -2419,12 +2419,52 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
      */
     private createGroupFromSelection(canvas: Canvas): void {
         try {
-            // Canvas internal API for grouping
-            if (typeof (canvas as any).groupSelection === 'function') {
-                (canvas as any).groupSelection();
+            const selection = canvas.selection;
+            if (selection.size === 0) return;
+
+            // Calculate bounding box of selected nodes
+            let minX = Infinity, minY = Infinity;
+            let maxX = -Infinity, maxY = -Infinity;
+
+            selection.forEach((node: CanvasNode) => {
+                minX = Math.min(minX, node.x);
+                minY = Math.min(minY, node.y);
+                maxX = Math.max(maxX, node.x + node.width);
+                maxY = Math.max(maxY, node.y + node.height);
+            });
+
+            // Add padding around the group
+            const padding = 20;
+            const groupX = minX - padding;
+            const groupY = minY - padding;
+            const groupWidth = (maxX - minX) + padding * 2;
+            const groupHeight = (maxY - minY) + padding * 2;
+
+            // Create group node using Canvas internal API
+            if (typeof (canvas as any).createGroupNode === 'function') {
+                const groupNode = (canvas as any).createGroupNode({
+                    pos: { x: groupX, y: groupY },
+                    size: { width: groupWidth, height: groupHeight },
+                    label: '',
+                    save: true
+                });
+
+                // Move group to back (lower z-index)
+                if (groupNode && typeof groupNode.moveToBack === 'function') {
+                    groupNode.moveToBack();
+                }
+
+                canvas.requestSave();
                 new Notice(t('Group created'));
             } else {
-                console.warn('Canvas AI: groupSelection API not available');
+                // Fallback: try using menu method
+                if (canvas.menu && typeof (canvas.menu as any).groupNodes === 'function') {
+                    (canvas.menu as any).groupNodes();
+                    new Notice(t('Group created'));
+                } else {
+                    console.warn('Canvas AI: No group creation API available');
+                    new Notice('Group creation not available');
+                }
             }
         } catch (e) {
             console.error('Canvas AI: Failed to create group:', e);

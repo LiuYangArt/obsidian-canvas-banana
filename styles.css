@@ -602,3 +602,10 @@
     outline: none;
     border-color: var(--interactive-accent);
 }
+
+/* ========== Utilities Hotkey Inputs ========== */
+/* Ensure consistent width for all hotkey input fields in Utilities section */
+.canvas-ai-settings .setting-item-control input[type="text"] {
+    min-width: 120px;
+    max-width: 200px;
+}
