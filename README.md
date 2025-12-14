@@ -77,7 +77,8 @@ Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增�
 ### 2. 唤起操作面板
 1.  打开一个 **Canvas (白板)** 文件。
 2.  使用鼠标框选或点击选中一个或多个节点。
-3.  在节点上方自动弹出的原生菜单条中，点击 **香蕉图标 (🍌)**。
+3.  在节点上方自动弹出的原生菜单条中，点击 **香蕉图标 (🍌)**。<br><img width="297" height="60" alt="image" src="https://github.com/user-attachments/assets/ae552ae8-5ec0-404b-be19-a44292eb0fe4" />
+
 4.  **Canvas Banana** 悬浮面板将会出现在选中框的右侧。
 5.  只选中text node， 且prompt中没有内容时，则把text node本身的内容作为prompt。
 
@@ -185,7 +186,7 @@ Before first use:
 ### 2. Activate the Panel
 1.  Open a **Canvas** file.
 2.  Select one or more nodes.
-3.  Click the **Banana Icon (🍌)** in the floating menu above the node.
+3.  Click the **Banana Icon (🍌)** in the floating menu above the node.<br><img width="297" height="60" alt="image" src="https://github.com/user-attachments/assets/ae552ae8-5ec0-404b-be19-a44292eb0fe4" />
 4.  The **Canvas Banana** panel appears.
 5.  *Tip*: If you select a text node with an empty prompt box, the node's content is automatically used as the prompt.
 
