@@ -1249,8 +1249,10 @@ export default class CanvasAIPlugin extends Plugin {
                 // Node Mode - Generate Canvas JSON structure
                 const nodeOptions = this.floatingPalette!.getNodeOptions();
                 console.log('Canvas AI: Sending node structure request');
+                console.log('Canvas AI: Context text length:', intent.contextText.length);
+                console.log('Canvas AI: Images count:', intent.images.length);
 
-                // Build node mode system prompt from obsidian_canvas_json_rules.md
+                // Build node mode system prompt
                 const nodeSystemPrompt = this.getNodeModeSystemPrompt();
 
                 let fullInstruction = intent.instruction;
@@ -1266,11 +1268,26 @@ ${intent.instruction}
 [/TASK]`;
                 }
 
-                response = await this.apiManager!.chatCompletion(
-                    fullInstruction,
-                    nodeSystemPrompt,
-                    nodeOptions.temperature
-                );
+                // Use multimodalChat if images are present (same pattern as chat mode)
+                if (intent.images.length > 0) {
+                    const simpleImages = intent.images.map(img => ({
+                        base64: img.base64,
+                        mimeType: img.mimeType
+                    }));
+                    console.log('Canvas AI: Sending node request with', simpleImages.length, 'images');
+                    response = await this.apiManager!.multimodalChat(
+                        fullInstruction,
+                        simpleImages,
+                        nodeSystemPrompt,
+                        nodeOptions.temperature
+                    );
+                } else {
+                    response = await this.apiManager!.chatCompletion(
+                        fullInstruction,
+                        nodeSystemPrompt,
+                        nodeOptions.temperature
+                    );
+                }
 
                 console.log('Canvas AI: Node structure response received');
                 if (this.settings.debugMode) {
