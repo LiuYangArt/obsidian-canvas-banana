@@ -58,12 +58,6 @@ export interface CanvasAISettings {
     nodePresets: PromptPreset[];
     // Node mode temperature
     defaultNodeTemperature: number;
-
-    // Canvas utilities hotkeys
-    hotkeyCopyImageToClipboard: string;
-    hotkeyCreateGroup: string;
-    hotkeyOpenPalette: string;
-    hotkeyCreateNewNode: string;
 }
 
 const DEFAULT_SETTINGS: CanvasAISettings = {
@@ -100,13 +94,7 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
     chatPresets: [],
     imagePresets: [],
     nodePresets: [],
-    defaultNodeTemperature: 0.5,
-
-    // Canvas utilities hotkeys defaults
-    hotkeyCopyImageToClipboard: 'Alt+C',
-    hotkeyCreateGroup: 'Alt+G',
-    hotkeyOpenPalette: 'Alt+B',
-    hotkeyCreateNewNode: 'Alt+N'
+    defaultNodeTemperature: 0.5
 };
 
 
@@ -2210,7 +2198,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
     // ========== Canvas Utilities ==========
 
     /**
-     * Register Canvas utility keyboard and mouse events
+     * Register Canvas utility commands and events
      * Called in onload after other listeners
      */
     private registerCanvasUtilities(): void {
@@ -2231,48 +2219,69 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             }
         });
 
-        // Keyboard shortcuts for utilities
-        this.registerDomEvent(document, 'keydown', async (evt: KeyboardEvent) => {
-            if (!this.isCanvasViewActive()) return;
-
-            const canvas = this.getActiveCanvas();
-            if (!canvas) return;
-
-            // Copy Image to Clipboard (Alt+C)
-            if (this.matchesHotkey(evt, this.settings.hotkeyCopyImageToClipboard)) {
+        // Register Obsidian commands for hotkey integration
+        this.addCommand({
+            id: 'copy-image-to-clipboard',
+            name: t('Copy Image to Clipboard'),
+            hotkeys: [{ modifiers: ['Alt'], key: 'c' }],
+            checkCallback: (checking: boolean) => {
+                const canvas = this.getActiveCanvas();
                 const imageNode = this.getSelectedImageNode(canvas);
                 if (imageNode?.file) {
-                    evt.preventDefault();
-                    await this.copyImageToClipboard(imageNode.file);
-                } else if (canvas.selection.size > 0) {
-                    new Notice(t('No image selected'));
+                    if (!checking) {
+                        this.copyImageToClipboard(imageNode.file);
+                    }
+                    return true;
                 }
-                return;
+                return false;
             }
+        });
 
-            // Create Group (Alt+G)
-            if (this.matchesHotkey(evt, this.settings.hotkeyCreateGroup)) {
-                if (canvas.selection.size > 0) {
-                    evt.preventDefault();
-                    this.createGroupFromSelection(canvas);
+        this.addCommand({
+            id: 'create-group-from-selection',
+            name: t('Create Group'),
+            hotkeys: [{ modifiers: ['Alt'], key: 'g' }],
+            checkCallback: (checking: boolean) => {
+                const canvas = this.getActiveCanvas();
+                if (canvas && canvas.selection.size > 0) {
+                    if (!checking) {
+                        this.createGroupFromSelection(canvas);
+                    }
+                    return true;
                 }
-                return;
+                return false;
             }
+        });
 
-            // Open AI Palette (Alt+B)
-            if (this.matchesHotkey(evt, this.settings.hotkeyOpenPalette)) {
-                if (canvas.selection.size > 0) {
-                    evt.preventDefault();
-                    this.onSparklesButtonClick();
+        this.addCommand({
+            id: 'open-ai-palette',
+            name: t('Open AI Palette'),
+            hotkeys: [{ modifiers: ['Alt'], key: 'b' }],
+            checkCallback: (checking: boolean) => {
+                const canvas = this.getActiveCanvas();
+                if (canvas && canvas.selection.size > 0) {
+                    if (!checking) {
+                        this.onSparklesButtonClick();
+                    }
+                    return true;
                 }
-                return;
+                return false;
             }
+        });
 
-            // Create New Node (Alt+N)
-            if (this.matchesHotkey(evt, this.settings.hotkeyCreateNewNode)) {
-                evt.preventDefault();
-                this.createNewNodeAtCenter(canvas);
-                return;
+        this.addCommand({
+            id: 'create-new-node',
+            name: t('Create New Node'),
+            hotkeys: [{ modifiers: ['Alt'], key: 'n' }],
+            checkCallback: (checking: boolean) => {
+                const canvas = this.getActiveCanvas();
+                if (canvas) {
+                    if (!checking) {
+                        this.createNewNodeAtCenter(canvas);
+                    }
+                    return true;
+                }
+                return false;
             }
         });
     }
@@ -2297,7 +2306,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
     /**
      * Get the selected image node (only if single image selected)
      */
-    private getSelectedImageNode(canvas: Canvas): CanvasNode | null {
+    private getSelectedImageNode(canvas: Canvas | null): CanvasNode | null {
         if (!canvas || canvas.selection.size !== 1) return null;
         const node = Array.from(canvas.selection)[0];
         if (!node.file) return null;
@@ -2907,53 +2916,6 @@ class CanvasAISettingTab extends PluginSettingTab {
             (textAreaEl as HTMLTextAreaElement).rows = 3;
             (textAreaEl as HTMLTextAreaElement).style.width = '100%';
         }
-
-        // ========== Utilities ==========
-        containerEl.createEl('h3', { text: t('Utilities') });
-
-        new Setting(containerEl)
-            .setName(t('Copy Image to Clipboard'))
-            .setDesc(t('Copy Image to Clipboard Desc'))
-            .addText(text => text
-                .setPlaceholder('Alt+C')
-                .setValue(this.plugin.settings.hotkeyCopyImageToClipboard)
-                .onChange(async (value) => {
-                    this.plugin.settings.hotkeyCopyImageToClipboard = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
-            .setName(t('Create Group'))
-            .setDesc(t('Create Group Desc'))
-            .addText(text => text
-                .setPlaceholder('Alt+G')
-                .setValue(this.plugin.settings.hotkeyCreateGroup)
-                .onChange(async (value) => {
-                    this.plugin.settings.hotkeyCreateGroup = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
-            .setName(t('Open AI Palette'))
-            .setDesc(t('Open AI Palette Desc'))
-            .addText(text => text
-                .setPlaceholder('Alt+B')
-                .setValue(this.plugin.settings.hotkeyOpenPalette)
-                .onChange(async (value) => {
-                    this.plugin.settings.hotkeyOpenPalette = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        new Setting(containerEl)
-            .setName(t('Create New Node'))
-            .setDesc(t('Create New Node Desc'))
-            .addText(text => text
-                .setPlaceholder('Alt+N')
-                .setValue(this.plugin.settings.hotkeyCreateNewNode)
-                .onChange(async (value) => {
-                    this.plugin.settings.hotkeyCreateNewNode = value;
-                    await this.plugin.saveSettings();
-                }));
 
         // ========== Developer Options ==========
         containerEl.createEl('h3', { text: t('Developer Options') });
