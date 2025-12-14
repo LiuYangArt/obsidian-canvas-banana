@@ -35,8 +35,7 @@ export default {
     'System prompt for image generation mode': 'System prompt for image generation mode',
     'Developer Options': 'Developer Options',
     'Debug Mode': 'Debug Mode',
-    'About': 'About',
-    'Plugin Description': 'Canvas AI plugin allows you to chat, generate text, and generate images with AI in Obsidian Canvas.',
+
     'Data Storage': 'Data storage location: .obsidian/plugins/obsidian-canvas-ai/data.json',
     'Test Connection': 'Test Connection',
     'Testing...': 'Testing...',

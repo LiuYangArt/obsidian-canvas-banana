@@ -35,8 +35,7 @@ export default {
     'System prompt for image generation mode': '图像生成模式的系统提示词',
     'Developer Options': '开发者选项',
     'Debug Mode': '调试模式',
-    'About': '关于',
-    'Plugin Description': 'Canvas Banana 插件允许你在 Obsidian 白板中与 AI 对话、生成文本和图像。',
+
     'Data Storage': '数据存储位置: .obsidian/plugins/obsidian-canvas-ai/data.json',
     'Test Connection': '测试连接',
     'Testing...': '正在测试...',

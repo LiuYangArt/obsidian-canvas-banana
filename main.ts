@@ -75,21 +75,21 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
 
     openRouterApiKey: '',
     openRouterBaseUrl: 'https://openrouter.ai/api/v1/chat/completions',
-    openRouterTextModel: 'google/gemini-2.0-flash-001',
-    openRouterImageModel: 'google/gemini-2.0-flash-001', // Placeholder default
+    openRouterTextModel: 'google/gemini-2.5-flash',
+    openRouterImageModel: 'google/gemini-3-pro-image-preview', // Placeholder default
     openRouterUseCustomTextModel: false,
     openRouterUseCustomImageModel: false,
 
     yunwuApiKey: '',
     yunwuBaseUrl: 'https://yunwu.ai',
-    yunwuTextModel: 'gemini-2.0-flash',
+    yunwuTextModel: 'gemini-2.5-flash',
     yunwuImageModel: 'gemini-3-pro-image-preview',
     yunwuUseCustomTextModel: false,
     yunwuUseCustomImageModel: false,
 
     geminiApiKey: '',
     geminiTextModel: 'gemini-2.5-flash',
-    geminiImageModel: 'gemini-2.5-flash-preview-05-20',
+    geminiImageModel: 'gemini-3-pro-image-preview',
     geminiUseCustomTextModel: false,
     geminiUseCustomImageModel: false,
 
@@ -2799,21 +2799,7 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         containerEl.createEl('h2', { text: t('SettingTitle') });
 
-        // ========== Copyright & About ==========
-        const version = this.plugin.manifest.version;
-        // Use standard Setting item structure for consistent look
-        const infoDiv = containerEl.createDiv({ cls: 'setting-item' });
-        infoDiv.style.borderTop = 'none'; // Optional: remove border if it looks weird at top
-        const infoCtrl = infoDiv.createDiv({ cls: 'setting-item-info' });
-        infoCtrl.createDiv({
-            text: `🍌CanvasBanana by LiuYang v${version}`,
-            cls: 'setting-item-name'
-        });
-        containerEl.createEl('p', {
-            text: t('Plugin Description')
-        });
 
-        containerEl.createEl('hr', { cls: 'canvas-ai-setting-separator' });
 
         // ========== API Provider Selection ==========
         containerEl.createEl('h3', { text: t('API Configuration') });
@@ -2822,9 +2808,9 @@ class CanvasAISettingTab extends PluginSettingTab {
             .setName(t('API Provider'))
             .setDesc(t('Select API Provider'))
             .addDropdown(dropdown => dropdown
+                .addOption('gemini', 'Google Gemini')
                 .addOption('openrouter', 'OpenRouter')
                 .addOption('yunwu', 'Yunwu')
-                .addOption('gemini', 'Google Gemini')
                 .setValue(this.plugin.settings.apiProvider)
                 .onChange(async (value) => {
                     this.plugin.settings.apiProvider = value as ApiProvider;
