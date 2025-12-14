@@ -4,7 +4,8 @@ Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增�
 
 该插件的核心理念是"节点感知"——它能理解你选中的白板节点内容（文本、卡片、图片），并以此为上下文协助你的创作。
 
-<br><img width="479" height="584" alt="image" src="https://github.com/user-attachments/assets/4da94a5d-595e-4f05-9ceb-2c511345f854" />
+<br><img width="2200" height="1185" alt="image" src="https://github.com/user-attachments/assets/94bfc72e-6823-42da-8f3a-2c9da7bb77b8" />
+
 
 
 ## 🌟 核心功能
@@ -19,16 +20,17 @@ Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增�
     *   提供丰富的 **纵横比 (Ratio)** 选择：1:1, 16:9, 4:3, 9:16 等。
     *   支持多种 **分辨率 (Resolution)**：1K, 2K, 4K。
     *   支持引用选中节点的文本作为图像生成的 Prompt。
+ 
+*   **🎨 canvas 节点生成 (Node Generation)**
+*   *   让llm以脑图的形式回答你的问题。
 
 *   **⚡ 高效的工作流**
     *   **多任务并发**：支持“发射后不管”，你可以同时发起多个生成任务，无需等待上一个完成。
     *   **提示词预设 (Prompt Presets)**：内置预设管理功能，支持保存、重命名和快速调用常用的提示词。
 
 *   **🌍 多 API 支持**
-    *   **OpenRouter**: 支持接入广泛的模型库。
-    *   **Yunwu (云雾)**: 深度优化的多模态体验。
-    *   支持自定义模型 ID。
-
+    *   目前支持gemini/openrouter/yunwu
+      
 ## ⚠️ 免责声明 (Disclaimer)
 
 使用本插件即代表您同意以下条款：
@@ -70,13 +72,14 @@ Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增�
 3.  填入你的 **API Key**。
 4.  (可选) 选择或自定义你偏好的 Text/Image 模型。
 
-- 获得api [yunwu](https://yunwu.ai/register?aff=VE3i) | [gptgod](https://gptgod.site/#/register?invite_code=5ax35dxlk4bys0j7jnzqypwkc)
+- 获得api [yunwu](https://yunwu.ai/register?aff=VE3i) 
 
 ### 2. 唤起操作面板
 1.  打开一个 **Canvas (白板)** 文件。
 2.  使用鼠标框选或点击选中一个或多个节点。
 3.  在节点上方自动弹出的原生菜单条中，点击 **香蕉图标 (🍌)**。
 4.  **Canvas Banana** 悬浮面板将会出现在选中框的右侧。
+5.  只选中text node， 且prompt中没有内容时，则把text node本身的内容作为prompt。
 
 ### 3. 使用 AI 对话 (Text Mode)
 *   切换到 **Text** 标签页。
