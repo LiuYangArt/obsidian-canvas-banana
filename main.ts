@@ -280,11 +280,15 @@ class FloatingPalette {
         this.apiManager = apiManager;
         this.onDebug = onDebugCallback || null;
         this.scope = new Scope(this.app.scope);
-        this.scope = new Scope(this.app.scope);
-        // We push a scope to tell Obsidian we are in a different context,
-        // but we don't register specific blockers that return false because
-        // that would prevent the default behavior (typing/cursor movement) of the textarea.
-        // Instead, we rely on stopping propagation at the DOM level.
+
+        // Register Ctrl+Enter in this scope to trigger generate
+        // This intercepts Obsidian's keymap system when prompt input is focused
+        this.scope.register(['Ctrl'], 'Enter', (evt: KeyboardEvent) => {
+            console.log('Canvas AI: Ctrl+Enter intercepted via Scope');
+            evt.preventDefault();
+            this.handleGenerate();
+            return false; // Prevent default Obsidian behavior
+        });
 
         this.containerEl = this.createPaletteDOM();
         this.promptInput = this.containerEl.querySelector('.canvas-ai-prompt-input') as HTMLTextAreaElement;
@@ -588,13 +592,21 @@ class FloatingPalette {
         if (promptInput) {
             const stopPropagation = (e: Event) => e.stopPropagation();
             // Handle Ctrl+Enter to trigger generate
-            promptInput.addEventListener('keydown', (e: KeyboardEvent) => {
-                e.stopPropagation();
-                if (e.ctrlKey && e.key === 'Enter') {
+            // Use capture phase to intercept before Obsidian's global hotkeys
+            promptInput.addEventListener('keydown', (e) => {
+                const keyEvent = e as KeyboardEvent;
+                if (keyEvent.ctrlKey && keyEvent.key === 'Enter') {
+                    // Stop event from reaching Obsidian's global hotkey handler
                     e.preventDefault();
+                    e.stopPropagation();
+                    e.stopImmediatePropagation();
+                    console.log('Canvas AI: Ctrl+Enter detected, triggering generate');
                     this.handleGenerate();
+                    return;
                 }
-            });
+                // For other keys, just stop propagation to Canvas
+                e.stopPropagation();
+            }, { capture: true });
             promptInput.addEventListener('keyup', stopPropagation);
             promptInput.addEventListener('keypress', stopPropagation);
         }
