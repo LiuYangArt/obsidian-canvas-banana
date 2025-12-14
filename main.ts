@@ -2945,7 +2945,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         // Get model keys based on provider
         const textModelKey = isGemini ? 'geminiTextModel' : isYunwu ? 'yunwuTextModel' : 'openRouterTextModel';
         const textCustomKey = isGemini ? 'geminiUseCustomTextModel' : isYunwu ? 'yunwuUseCustomTextModel' : 'openRouterUseCustomTextModel';
-        const textPlaceholder = isGemini ? 'gemini-2.5-flash' : isYunwu ? 'gemini-2.0-flash' : 'google/gemini-2.0-flash-001';
+        const textPlaceholder = isGemini ? 'gemini-2.5-flash' : isYunwu ? 'gemini-2.5-flash' : 'google/gemini-2.5-flash';
 
         this.renderModelSetting(containerEl, {
             name: t('Text Generation Model'),
@@ -2959,7 +2959,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         // ========== Image Model Setting ==========
         const imageModelKey = isGemini ? 'geminiImageModel' : isYunwu ? 'yunwuImageModel' : 'openRouterImageModel';
         const imageCustomKey = isGemini ? 'geminiUseCustomImageModel' : isYunwu ? 'yunwuUseCustomImageModel' : 'openRouterUseCustomImageModel';
-        const imagePlaceholder = isGemini ? 'gemini-2.5-flash-preview-05-20' : isYunwu ? 'gemini-3-pro-image-preview' : 'google/gemini-2.0-flash-001';
+        const imagePlaceholder = isGemini ? 'gemini-3-pro-image-preview' : isYunwu ? 'gemini-3-pro-image-preview' : 'google/gemini-3-pro-image-preview';
 
         this.renderModelSetting(containerEl, {
             name: t('Image Generation Model'),
