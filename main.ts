@@ -1255,7 +1255,15 @@ export default class CanvasAIPlugin extends Plugin {
 
                 let fullInstruction = intent.instruction;
                 if (intent.contextText) {
-                    fullInstruction = `Context:\n${intent.contextText}\n\nRequest: ${intent.instruction}`;
+                    // Use clear markers to separate context (content to process) from instruction (command)
+                    // The instruction is a meta-command, should NOT appear in generated node content
+                    fullInstruction = `[SOURCE_CONTENT]
+${intent.contextText}
+[/SOURCE_CONTENT]
+
+[TASK]
+${intent.instruction}
+[/TASK]`;
                 }
 
                 response = await this.apiManager!.chatCompletion(
@@ -1303,23 +1311,30 @@ export default class CanvasAIPlugin extends Plugin {
      * Get Node Mode system prompt for structured JSON output
      */
     private getNodeModeSystemPrompt(): string {
-        return `你是一个专业的 Obsidian Canvas JSON 生成器。你的任务是根据用户的需求，输出符合 Obsidian Canvas 规范的 JSON 数据。
+        return `你是一个专业的 Obsidian Canvas JSON 生成器。你的任务是根据用户提供的内容，将其转换为符合 Obsidian Canvas 规范的 JSON 结构。
 
-请严格遵守以下规则：
+## 重要：输入格式说明
+用户消息包含两部分：
+1. \`[SOURCE_CONTENT]\` 标签内是需要处理的**源内容**，你需要基于这些内容生成节点
+2. \`[TASK]\` 标签内是**操作指令**（如"总结"、"生成流程图"等），这是告诉你如何处理源内容的命令，**不应该出现在生成的节点内容中**
 
-### 1. JSON 结构总览
-* 输出必须是一个有效的 JSON 对象。
-* JSON 对象必须包含两个顶级键：\`nodes\` (数组) 和 \`edges\` (数组)。
+例如：如果用户提供了一段关于登录流程的文本，[TASK]是"总结为流程图"，那么你应该生成表示登录流程的节点，而不是生成一个包含"总结为流程图"文字的节点。
+
+## JSON 结构规则
+
+### 1. 结构总览
+* 输出必须是一个有效的 JSON 对象
+* JSON 对象必须包含两个顶级键：\`nodes\` (数组) 和 \`edges\` (数组)
 
 ### 2. 节点 (Nodes) 规则
-每个节点必须包含以下属性：
+每个节点必须包含：
 * \`id\`: (字符串) 唯一标识符，使用 UUIDv4 格式
 * \`x\`: (数字) X 坐标
-* \`y\`: (数字) Y 坐标
+* \`y\`: (数字) Y 坐标  
 * \`width\`: (数字) 宽度，建议 200-400
 * \`height\`: (数字) 高度，建议 100-200
 * \`type\`: "text" | "group" | "link"
-* \`text\`: (字符串) 文本节点的内容
+* \`text\`: (字符串) 节点的文本内容，应该是源内容的处理结果
 * \`color\`: (可选) "1"-"6" 或颜色名称
 
 ### 3. 连接线 (Edges) 规则
