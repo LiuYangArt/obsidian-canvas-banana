@@ -58,9 +58,6 @@ export interface CanvasAISettings {
     nodePresets: PromptPreset[];
     // Node mode temperature
     defaultNodeTemperature: number;
-
-    // Experimental features (Debug Mode only)
-    enableGoogleSearch: boolean;  // Enable Google Search grounding
 }
 
 const DEFAULT_SETTINGS: CanvasAISettings = {
@@ -97,9 +94,7 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
     chatPresets: [],
     imagePresets: [],
     nodePresets: [],
-    defaultNodeTemperature: 0.5,
-
-    enableGoogleSearch: true  // Enabled by default
+    defaultNodeTemperature: 0.5
 };
 
 
@@ -1270,8 +1265,7 @@ export default class CanvasAIPlugin extends Plugin {
                         intent.instruction,
                         mediaList,
                         systemPrompt,
-                        chatOptions.temperature,
-                        this.settings.enableGoogleSearch
+                        chatOptions.temperature
                     );
                 } else {
                     response = await this.apiManager!.chatCompletion(intent.instruction, systemPrompt, chatOptions.temperature);
@@ -1358,8 +1352,7 @@ ${intent.instruction}
                         fullInstruction,
                         mediaList,
                         nodeSystemPrompt,
-                        nodeOptions.temperature,
-                        this.settings.enableGoogleSearch
+                        nodeOptions.temperature
                     );
                 } else {
                     response = await this.apiManager!.chatCompletion(
@@ -2516,17 +2509,6 @@ class CanvasAISettingTab extends PluginSettingTab {
                     }
                 })
                 .inputEl.addClass('canvas-ai-small-input'));
-
-        // Enable Google Search
-        new Setting(containerEl)
-            .setName(t('Enable Google Search (Experimental)'))
-            .setDesc(t('Allow Gemini to search the web. Requires API provider support.'))
-            .addToggle(toggle => toggle
-                .setValue(this.plugin.settings.enableGoogleSearch)
-                .onChange(async (value) => {
-                    this.plugin.settings.enableGoogleSearch = value;
-                    await this.plugin.saveSettings();
-                }));
 
         // ========== Prompt Settings ==========
         containerEl.createEl('h3', { text: t('Prompt Settings') });
