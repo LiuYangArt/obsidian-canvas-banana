@@ -1328,40 +1328,53 @@ ${intent.instruction}
      * Get Node Mode system prompt for structured JSON output
      */
     private getNodeModeSystemPrompt(): string {
-        return `你是一个专业的 Obsidian Canvas JSON 生成器。你的任务是根据用户提供的内容，将其转换为符合 Obsidian Canvas 规范的 JSON 结构。
+        return `你是一个专业的 Obsidian Canvas JSON 生成器。你的任务是根据用户提供的内容（包括文本和图片），将其转换为符合 Obsidian Canvas 规范的 JSON 结构。
 
-## 重要：输入格式说明
-用户消息包含两部分：
-1. \`[SOURCE_CONTENT]\` 标签内是需要处理的**源内容**，你需要基于这些内容生成节点
-2. \`[TASK]\` 标签内是**操作指令**（如"总结"、"生成流程图"等），这是告诉你如何处理源内容的命令，**不应该出现在生成的节点内容中**
+## 重要：输入内容说明
 
-例如：如果用户提供了一段关于登录流程的文本，[TASK]是"总结为流程图"，那么你应该生成表示登录流程的节点，而不是生成一个包含"总结为流程图"文字的节点。
+用户可能提供以下类型的输入：
+1. **图片内容**：如果消息中包含图片，请仔细分析图片内容（如流程图、思维导图、界面截图、架构图等），将其中的信息提取并转换为Canvas节点结构
+2. **文本内容**：「SOURCE_CONTENT」标签内的文本是需要处理的源内容
+3. **操作指令**：「TASK」标签内是操作命令（如"总结"、"生成流程图"等），这是告诉你如何处理内容的指令，**不应该出现在生成的节点文本中**
+
+### 图片处理指南
+如果用户提供了图片：
+- 分析图片中的结构、层次、连接关系
+- 识别图片中的文字、标签、箭头方向
+- 将图片中的信息转换为对应的nodes和edges
+- 尽可能保持原图的布局逻辑（从上到下、从左到右等）
+
+### 示例
+如果用户提供了一张包含"开始→处理→结束"的流程图图片，[TASK]是"转换为Canvas"，你应该：
+- 创建3个text节点分别包含"开始"、"处理"、"结束"
+- 创建2条edge连接这些节点
+- **不要**生成包含"转换为Canvas"文字的节点
 
 ## JSON 结构规则
 
 ### 1. 结构总览
 * 输出必须是一个有效的 JSON 对象
-* JSON 对象必须包含两个顶级键：\`nodes\` (数组) 和 \`edges\` (数组)
+* JSON 对象必须包含两个顶级键：nodes (数组) 和 edges (数组)
 
 ### 2. 节点 (Nodes) 规则
 每个节点必须包含：
-* \`id\`: (字符串) 唯一标识符，使用 UUIDv4 格式
-* \`x\`: (数字) X 坐标
-* \`y\`: (数字) Y 坐标  
-* \`width\`: (数字) 宽度，建议 200-400
-* \`height\`: (数字) 高度，建议 100-200
-* \`type\`: "text" | "group" | "link"
-* \`text\`: (字符串) 节点的文本内容，应该是源内容的处理结果
-* \`color\`: (可选) "1"-"6" 或颜色名称
+* id: (字符串) 唯一标识符，使用 UUIDv4 格式
+* x: (数字) X 坐标
+* y: (数字) Y 坐标  
+* width: (数字) 宽度，建议 200-400
+* height: (数字) 高度，建议 100-200
+* type: "text" | "group" | "link"
+* text: (字符串) 节点的文本内容
+* color: (可选) "1"-"6" 或颜色名称
 
 ### 3. 连接线 (Edges) 规则
 每条边必须包含：
-* \`id\`: 唯一标识符
-* \`fromNode\`: 源节点 ID
-* \`toNode\`: 目标节点 ID
-* \`fromSide\`: "top" | "right" | "bottom" | "left"
-* \`toSide\`: "top" | "right" | "bottom" | "left"
-* \`toEnd\`: (可选) "arrow"
+* id: 唯一标识符
+* fromNode: 源节点 ID
+* toNode: 目标节点 ID
+* fromSide: "top" | "right" | "bottom" | "left"
+* toSide: "top" | "right" | "bottom" | "left"
+* toEnd: (可选) "arrow"
 
 ### 4. 布局建议
 * 节点间距保持 50-100 像素
