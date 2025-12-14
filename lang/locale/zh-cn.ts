@@ -87,6 +87,21 @@ export default {
     'Images': '张图片',
 
     // Misc
-    'Loaded models': '加载了 {count} 个模型 (文本: {textCount}, 图像: {imageCount}) 来自 {source}'
+    'Loaded models': '加载了 {count} 个模型 (文本: {textCount}, 图像: {imageCount}) 来自 {source}',
+
+    // Utilities
+    'Utilities': '实用工具',
+    'Copy Image to Clipboard': '复制图片到剪贴板',
+    'Copy Image to Clipboard Desc': '复制选中图片节点到剪贴板的快捷键',
+    'Create Group': '创建分组',
+    'Create Group Desc': '将选中节点创建为分组的快捷键',
+    'Open AI Palette': '打开 AI 面板',
+    'Open AI Palette Desc': '打开 AI 浮动面板的快捷键',
+    'Create New Node': '创建新节点',
+    'Create New Node Desc': '在视口中心创建新文本节点的快捷键',
+    'Image copied': '图片已复制到剪贴板',
+    'No image selected': '未选中图片节点',
+    'Group created': '分组已创建',
+    'Node created': '新节点已创建'
 };
 

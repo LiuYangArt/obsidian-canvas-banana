@@ -87,6 +87,21 @@ export default {
     'Images': 'Images',
 
     // Misc
-    'Loaded models': 'Loaded {count} models (Text: {textCount}, Image: {imageCount}) from {source}'
+    'Loaded models': 'Loaded {count} models (Text: {textCount}, Image: {imageCount}) from {source}',
+
+    // Utilities
+    'Utilities': 'Utilities',
+    'Copy Image to Clipboard': 'Copy Image to Clipboard',
+    'Copy Image to Clipboard Desc': 'Hotkey to copy selected image node to clipboard',
+    'Create Group': 'Create Group',
+    'Create Group Desc': 'Hotkey to group selected nodes',
+    'Open AI Palette': 'Open AI Palette',
+    'Open AI Palette Desc': 'Hotkey to open the AI floating palette',
+    'Create New Node': 'Create New Node',
+    'Create New Node Desc': 'Hotkey to create a new text node at viewport center',
+    'Image copied': 'Image copied to clipboard',
+    'No image selected': 'No image node selected',
+    'Group created': 'Group created',
+    'Node created': 'New node created'
 };
 

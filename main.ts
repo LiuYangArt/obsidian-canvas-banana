@@ -58,6 +58,12 @@ export interface CanvasAISettings {
     nodePresets: PromptPreset[];
     // Node mode temperature
     defaultNodeTemperature: number;
+
+    // Canvas utilities hotkeys
+    hotkeyCopyImageToClipboard: string;
+    hotkeyCreateGroup: string;
+    hotkeyOpenPalette: string;
+    hotkeyCreateNewNode: string;
 }
 
 const DEFAULT_SETTINGS: CanvasAISettings = {
@@ -94,7 +100,13 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
     chatPresets: [],
     imagePresets: [],
     nodePresets: [],
-    defaultNodeTemperature: 0.5
+    defaultNodeTemperature: 0.5,
+
+    // Canvas utilities hotkeys defaults
+    hotkeyCopyImageToClipboard: 'Alt+C',
+    hotkeyCreateGroup: 'Alt+G',
+    hotkeyOpenPalette: 'Alt+B',
+    hotkeyCreateNewNode: 'Alt+N'
 };
 
 
@@ -1078,6 +1090,9 @@ export default class CanvasAIPlugin extends Plugin {
 
         // 注册 Canvas 选中状态监听
         this.registerCanvasSelectionListener();
+
+        // Register Canvas utility hotkeys
+        this.registerCanvasUtilities();
 
         console.log('Canvas AI: Plugin loaded');
     }
@@ -2192,6 +2207,272 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         this.lastSelectionSize = 0;
     }
 
+    // ========== Canvas Utilities ==========
+
+    /**
+     * Register Canvas utility keyboard and mouse events
+     * Called in onload after other listeners
+     */
+    private registerCanvasUtilities(): void {
+        // Double-click to open image in new window
+        this.registerDomEvent(document, 'dblclick', async (evt: MouseEvent) => {
+            const target = evt.target as HTMLElement;
+            const nodeEl = target.closest('.canvas-node');
+            if (!nodeEl) return;
+
+            const canvas = this.getActiveCanvas();
+            if (!canvas) return;
+
+            const imageNode = this.getSelectedImageNode(canvas);
+            if (imageNode?.file) {
+                evt.preventDefault();
+                evt.stopPropagation();
+                await this.openImageInNewWindow(imageNode.file);
+            }
+        });
+
+        // Keyboard shortcuts for utilities
+        this.registerDomEvent(document, 'keydown', async (evt: KeyboardEvent) => {
+            if (!this.isCanvasViewActive()) return;
+
+            const canvas = this.getActiveCanvas();
+            if (!canvas) return;
+
+            // Copy Image to Clipboard (Alt+C)
+            if (this.matchesHotkey(evt, this.settings.hotkeyCopyImageToClipboard)) {
+                const imageNode = this.getSelectedImageNode(canvas);
+                if (imageNode?.file) {
+                    evt.preventDefault();
+                    await this.copyImageToClipboard(imageNode.file);
+                } else if (canvas.selection.size > 0) {
+                    new Notice(t('No image selected'));
+                }
+                return;
+            }
+
+            // Create Group (Alt+G)
+            if (this.matchesHotkey(evt, this.settings.hotkeyCreateGroup)) {
+                if (canvas.selection.size > 0) {
+                    evt.preventDefault();
+                    this.createGroupFromSelection(canvas);
+                }
+                return;
+            }
+
+            // Open AI Palette (Alt+B)
+            if (this.matchesHotkey(evt, this.settings.hotkeyOpenPalette)) {
+                if (canvas.selection.size > 0) {
+                    evt.preventDefault();
+                    this.onSparklesButtonClick();
+                }
+                return;
+            }
+
+            // Create New Node (Alt+N)
+            if (this.matchesHotkey(evt, this.settings.hotkeyCreateNewNode)) {
+                evt.preventDefault();
+                this.createNewNodeAtCenter(canvas);
+                return;
+            }
+        });
+    }
+
+    /**
+     * Get the active Canvas instance
+     */
+    private getActiveCanvas(): Canvas | null {
+        const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
+        if (!canvasView || canvasView.getViewType() !== 'canvas') return null;
+        return (canvasView as any).canvas as Canvas | null;
+    }
+
+    /**
+     * Check if current view is Canvas
+     */
+    private isCanvasViewActive(): boolean {
+        const view = this.app.workspace.getActiveViewOfType(ItemView);
+        return view?.getViewType() === 'canvas';
+    }
+
+    /**
+     * Get the selected image node (only if single image selected)
+     */
+    private getSelectedImageNode(canvas: Canvas): CanvasNode | null {
+        if (!canvas || canvas.selection.size !== 1) return null;
+        const node = Array.from(canvas.selection)[0];
+        if (!node.file) return null;
+        const ext = node.file.extension?.toLowerCase();
+        if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'bmp'].includes(ext)) {
+            return node;
+        }
+        return null;
+    }
+
+    /**
+     * Match keyboard event against hotkey string (e.g., "Alt+C")
+     */
+    private matchesHotkey(evt: KeyboardEvent, hotkey: string): boolean {
+        if (!hotkey) return false;
+        const parts = hotkey.toLowerCase().split('+');
+        const key = parts[parts.length - 1];
+        const needCtrl = parts.includes('ctrl');
+        const needShift = parts.includes('shift');
+        const needAlt = parts.includes('alt');
+
+        return evt.key.toLowerCase() === key &&
+            evt.ctrlKey === needCtrl &&
+            evt.shiftKey === needShift &&
+            evt.altKey === needAlt;
+    }
+
+    /**
+     * Open image file in a new popout window
+     */
+    private async openImageInNewWindow(file: TFile): Promise<void> {
+        try {
+            const leaf = this.app.workspace.openPopoutLeaf();
+            await leaf.openFile(file);
+        } catch (e) {
+            console.error('Canvas AI: Failed to open image in new window:', e);
+        }
+    }
+
+    /**
+     * Copy image to clipboard (converts to PNG if needed)
+     */
+    private async copyImageToClipboard(file: TFile): Promise<void> {
+        try {
+            const arrayBuffer = await this.app.vault.readBinary(file);
+            const mimeType = this.getMimeType(file.extension);
+            const blob = new Blob([arrayBuffer], { type: mimeType });
+
+            // Clipboard API only supports PNG, convert if needed
+            let pngBlob: Blob;
+            if (file.extension.toLowerCase() === 'png') {
+                pngBlob = blob;
+            } else {
+                pngBlob = await this.convertToPng(blob);
+            }
+
+            await navigator.clipboard.write([
+                new ClipboardItem({ 'image/png': pngBlob })
+            ]);
+
+            new Notice(t('Image copied'));
+        } catch (error) {
+            console.error('Canvas AI: Failed to copy image:', error);
+            new Notice(t('No image selected'));
+        }
+    }
+
+    /**
+     * Get MIME type from file extension
+     */
+    private getMimeType(ext: string): string {
+        const map: Record<string, string> = {
+            'png': 'image/png',
+            'jpg': 'image/jpeg',
+            'jpeg': 'image/jpeg',
+            'gif': 'image/gif',
+            'webp': 'image/webp',
+            'svg': 'image/svg+xml',
+            'bmp': 'image/bmp'
+        };
+        return map[ext.toLowerCase()] || 'image/png';
+    }
+
+    /**
+     * Convert image blob to PNG using Canvas API
+     */
+    private async convertToPng(blob: Blob): Promise<Blob> {
+        return new Promise((resolve, reject) => {
+            const img = new Image();
+            img.onload = () => {
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                if (!ctx) {
+                    reject(new Error('Failed to get canvas context'));
+                    return;
+                }
+                ctx.drawImage(img, 0, 0);
+                canvas.toBlob((pngBlob) => {
+                    URL.revokeObjectURL(img.src);
+                    if (pngBlob) {
+                        resolve(pngBlob);
+                    } else {
+                        reject(new Error('Failed to convert to PNG'));
+                    }
+                }, 'image/png');
+            };
+            img.onerror = () => {
+                URL.revokeObjectURL(img.src);
+                reject(new Error('Failed to load image'));
+            };
+            img.src = URL.createObjectURL(blob);
+        });
+    }
+
+    /**
+     * Create a group from selected nodes
+     */
+    private createGroupFromSelection(canvas: Canvas): void {
+        try {
+            // Canvas internal API for grouping
+            if (typeof (canvas as any).groupSelection === 'function') {
+                (canvas as any).groupSelection();
+                new Notice(t('Group created'));
+            } else {
+                console.warn('Canvas AI: groupSelection API not available');
+            }
+        } catch (e) {
+            console.error('Canvas AI: Failed to create group:', e);
+        }
+    }
+
+    /**
+     * Create a new text node at viewport center
+     */
+    private createNewNodeAtCenter(canvas: Canvas): void {
+        try {
+            // Get viewport center in canvas coordinates
+            const viewportCenter = this.getViewportCenter(canvas);
+
+            const node = canvas.createTextNode({
+                pos: { x: viewportCenter.x - 100, y: viewportCenter.y - 50, width: 200, height: 100 },
+                size: { x: viewportCenter.x - 100, y: viewportCenter.y - 50, width: 200, height: 100 },
+                text: '',
+                focus: true,
+                save: true
+            });
+
+            // Select and start editing the new node
+            canvas.deselectAll();
+            canvas.select(node);
+            node.startEditing?.();
+
+            new Notice(t('Node created'));
+        } catch (e) {
+            console.error('Canvas AI: Failed to create new node:', e);
+        }
+    }
+
+    /**
+     * Get viewport center in canvas coordinates
+     */
+    private getViewportCenter(canvas: Canvas): { x: number; y: number } {
+        // Canvas stores viewport position in canvas.x, canvas.y
+        // and wrapper dimensions give viewport size
+        const wrapperEl = canvas.wrapperEl;
+        if (wrapperEl) {
+            const rect = wrapperEl.getBoundingClientRect();
+            // canvas.x and canvas.y represent the center of the viewport in canvas coords
+            return { x: canvas.x, y: canvas.y };
+        }
+        return { x: 0, y: 0 };
+    }
+
     async loadSettings() {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
     }
@@ -2586,6 +2867,53 @@ class CanvasAISettingTab extends PluginSettingTab {
             (textAreaEl as HTMLTextAreaElement).rows = 3;
             (textAreaEl as HTMLTextAreaElement).style.width = '100%';
         }
+
+        // ========== Utilities ==========
+        containerEl.createEl('h3', { text: t('Utilities') });
+
+        new Setting(containerEl)
+            .setName(t('Copy Image to Clipboard'))
+            .setDesc(t('Copy Image to Clipboard Desc'))
+            .addText(text => text
+                .setPlaceholder('Alt+C')
+                .setValue(this.plugin.settings.hotkeyCopyImageToClipboard)
+                .onChange(async (value) => {
+                    this.plugin.settings.hotkeyCopyImageToClipboard = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName(t('Create Group'))
+            .setDesc(t('Create Group Desc'))
+            .addText(text => text
+                .setPlaceholder('Alt+G')
+                .setValue(this.plugin.settings.hotkeyCreateGroup)
+                .onChange(async (value) => {
+                    this.plugin.settings.hotkeyCreateGroup = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName(t('Open AI Palette'))
+            .setDesc(t('Open AI Palette Desc'))
+            .addText(text => text
+                .setPlaceholder('Alt+B')
+                .setValue(this.plugin.settings.hotkeyOpenPalette)
+                .onChange(async (value) => {
+                    this.plugin.settings.hotkeyOpenPalette = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName(t('Create New Node'))
+            .setDesc(t('Create New Node Desc'))
+            .addText(text => text
+                .setPlaceholder('Alt+N')
+                .setValue(this.plugin.settings.hotkeyCreateNewNode)
+                .onChange(async (value) => {
+                    this.plugin.settings.hotkeyCreateNewNode = value;
+                    await this.plugin.saveSettings();
+                }));
 
         // ========== Developer Options ==========
         containerEl.createEl('h3', { text: t('Developer Options') });
