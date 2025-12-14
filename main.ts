@@ -308,10 +308,8 @@ class FloatingPalette {
      * Set version info text dynamically
      */
     setVersion(version: string): void {
-        if (this.versionInfoEl) {
-            this.versionInfoEl.textContent = `🍌CanvasBanana by LiuYang v${version}`;
-        }
     }
+
 
     /**
      * 创建面板 DOM 结构
@@ -389,21 +387,21 @@ class FloatingPalette {
                         </span>
                     </div>
                 </div>
+                
+                <!-- Action Row (Moved from Footer) -->
+                <div class="canvas-ai-action-row">
+                    <button class="canvas-ai-generate-btn">${t('Generate')}</button>
+                    <button class="canvas-ai-debug-btn" style="display: none;">${t('Debug')}</button>
+                </div>
             </div>
             <div class="canvas-ai-palette-footer">
-                <div class="canvas-ai-footer-row">
-                    <span class="canvas-ai-context-preview"></span>
-                    <div class="canvas-ai-btn-group">
-                        <button class="canvas-ai-debug-btn" style="display: none;">${t('Debug')}</button>
-                        <button class="canvas-ai-generate-btn">${t('Generate')}</button>
-                    </div>
-                </div>
-                <div class="canvas-ai-version-info"></div>
+                <span class="canvas-ai-context-preview"></span>
             </div>
         `;
 
-        // Get version info element
-        this.versionInfoEl = container.querySelector('.canvas-ai-version-info');
+        // Get version info element - REMOVED
+
+        // Get image options DOM references
 
         // Get image options DOM references
         this.imageOptionsEl = container.querySelector('.canvas-ai-image-options');
@@ -1921,6 +1919,22 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         containerEl.createEl('h2', { text: t('SettingTitle') });
 
+        // ========== Copyright & About ==========
+        const version = this.plugin.manifest.version;
+        // Use standard Setting item structure for consistent look
+        const infoDiv = containerEl.createDiv({ cls: 'setting-item' });
+        infoDiv.style.borderTop = 'none'; // Optional: remove border if it looks weird at top
+        const infoCtrl = infoDiv.createDiv({ cls: 'setting-item-info' });
+        infoCtrl.createDiv({
+            text: `🍌CanvasBanana by LiuYang v${version}`,
+            cls: 'setting-item-name'
+        });
+        containerEl.createEl('p', {
+            text: t('Plugin Description')
+        });
+
+        containerEl.createEl('hr', { cls: 'canvas-ai-setting-separator' });
+
         // ========== API Provider Selection ==========
         containerEl.createEl('h3', { text: t('API Configuration') });
 
@@ -2123,15 +2137,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 }));
 
-        // ========== About Section ==========
-        containerEl.createEl('h3', { text: t('About') });
-        containerEl.createEl('p', {
-            text: t('Plugin Description')
-        });
-        containerEl.createEl('p', {
-            cls: 'setting-item-description',
-            text: t('Data Storage')
-        });
+
     }
 
     /**
