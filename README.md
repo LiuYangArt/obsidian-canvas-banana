@@ -101,3 +101,111 @@ Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增�
 *   **💾 (Save)**: 更新当前选中的预设内容。
 *   **❌ (Delete)**: 删除当前选中的预设。
 *   **📖 (Rename)**: 重命名当前预设。
+
+
+## 📄 License (开源协议)
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+本项目采用 GNU General Public License v3.0 开源协议，详情请参阅 [LICENSE](LICENSE) 文件。
+
+---
+
+# Canvas Banana (Obsidian Plugin)
+
+**Canvas Banana** is an AI enhancement plugin designed specificially for the **Obsidian Canvas** view. It deeply integrates advanced AI models (like Gemini, OpenRouter), allowing you to conduct intelligent conversations, content generation, and image creation directly within your whiteboard.
+
+The core philosophy of this plugin is "**Node Awareness**"—it understands the context of the nodes you select (text, cards, images) and uses them as context to assist your creative process.
+
+<br><img width="2200" height="1185" alt="image" src="https://github.com/user-attachments/assets/94bfc72e-6823-42da-8f3a-2c9da7bb77b8" />
+
+
+## 🌟 Core Features
+
+*   **🤖 Context-Aware Chat**
+    *   Intelligently recognizes selected Canvas node content as conversation context.
+    *   Discuss ideas, summarize content, or brainstorm with AI directly on the canvas.
+    *   Supports "Temperature" adjustment to control the creativity of responses.
+
+*   **🎨 AI Image Generation**
+    *   Transforms text descriptions into high-quality images.
+    *   Offers rich **Aspect Ratio** options: 1:1, 16:9, 4:3, 9:16, etc.
+    *   Supports multiple **Resolutions**: 1K, 2K, 4K.
+    *   Capable of using selected node text as the prompt for image generation.
+
+*   **🧠 Canvas Node Generation**
+    *   Let the LLM answer your questions in the form of a mind map or interconnected nodes.
+
+*   **⚡ Efficient Workflow**
+    *   **Concurrency**: Supports "fire and forget"—initiate multiple generation tasks simultaneously without waiting.
+    *   **Prompt Presets**: Built-in preset management to save, rename, and quickly reuse common prompts.
+
+*   **🌍 Multi-API Support**
+    *   Currently supports Gemini, OpenRouter, and Yunwu.
+
+## ⚠️ Disclaimer
+
+By using this plugin, you agree to the following terms:
+
+1.  **Third-Party Services**: This plugin relies on third-party API services (e.g., OpenRouter AI, Yunwu AI, Google Gemini). The plugin author is not directly affiliated with these providers.
+2.  **Costs**: Calling AI models may incur API usage fees charged by the service provider. Please manage your billing on the respective platforms.
+3.  **Content Compliance**: Users are responsible for ensuring generated content complies with local laws and the policies of model providers. The author assumes no liability for user-generated content.
+4.  **Privacy**: Your API Key is stored locally in your Obsidian config and is not uploaded to any server by the plugin. However, conversation content is sent to the third-party API for processing.
+
+## 📥 Installation Guide (Manual)
+
+Since this plugin may be in beta or not yet in the community store, please follow these steps:
+
+1.  **Download the Plugin**
+    *   [https://github.com/LiuYangArt/obsidian-canvas-banana/blob/main/Plugin/canvas-banana.zip](https://github.com/LiuYangArt/obsidian-canvas-banana/blob/main/Plugin/canvas-banana.zip)
+
+2.  **Create Plugin Folder**
+    *   Open your Obsidian vault directory.
+    *   Navigate to `.obsidian/plugins/`.
+    *   Extract the zip package there.<br><img width="803" height="573" alt="image" src="https://github.com/user-attachments/assets/e2d07451-3d49-41b5-888e-484d853cb22e" />
+
+3.  **Enable the Plugin**
+    *   Restart Obsidian.
+    *   Go to **Settings** -> **Community Plugins**.
+    *   Turn off "Restricted Mode".
+    *   Find "Canvas Banana" in the list and toggle it on.
+    <br><img width="1601" height="157" alt="image" src="https://github.com/user-attachments/assets/b07f3f52-61bc-454d-90c7-c531fe129f73" />
+
+
+## 🚀 User Guide
+
+### 1. Configure API Key
+Before first use:
+1.  Go to **Settings** -> **Canvas Banana**.
+2.  Select **API Provider** (Default: OpenRouter).
+3.  Enter your **API Key**.
+4.  (Optional) Select custom models for Text/Image.
+-   Get API: [yunwu](https://yunwu.ai/register?aff=VE3i)
+
+### 2. Activate the Panel
+1.  Open a **Canvas** file.
+2.  Select one or more nodes.
+3.  Click the **Banana Icon (🍌)** in the floating menu above the node.
+4.  The **Canvas Banana** panel appears.
+5.  *Tip*: If you select a text node with an empty prompt box, the node's content is automatically used as the prompt.
+
+### 3. AI Chat (Text Mode)
+*   Switch to the **Text** tab.
+*   Type your question or instruction.
+*   (Optional) Use a **Preset**.
+*   Click **Generate**.
+*   The output will appear as a new card on the canvas.
+
+### 4. Image Generation (Image Mode)
+*   Switch to the **Image** tab.
+*   Describe the image (or leave blank to use selected node text).
+*   Set **Resolution** and **Ratio**.
+*   Click **Generate**.
+*   The image appears as a new node.
+
+### 5. Manage Prompt Presets
+Use the icons above the input box:
+*   **+ (Add)**: Save current text as a preset.
+*   **💾 (Save)**: Update the selected preset.
+*   **❌ (Delete)**: Remove the selected preset.
+*   **📖 (Rename)**: Rename the selected preset.
