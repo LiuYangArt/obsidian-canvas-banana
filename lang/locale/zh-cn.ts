@@ -42,16 +42,20 @@ export default {
     // Floating Palette
     'Text': '文本',
     'Image': '图像',
+    'Node': '节点',
     'Select prompt preset': '选择提示词预设',
     'Enter instructions': '输入指令或提问...',
     'Describe the image': '描述图像，或留空以使用选中的文本...',
+    'Describe structure': '描述结构（例如："登录流程图"、"营销策略思维导图"）...',
     'Resolution': '分辨率',
     'Ratio': '比例',
     'Temperature': '温度',
     'Debug': '调试',
     'Generate': '生成',
     'Generating': '正在生成',
+    'Architecting': '正在构建',
     'Tasks': '个任务',
+    'Invalid JSON structure': 'AI 生成了无效的 JSON 结构',
 
     // Modals & Notices
     'New Preset': '新建预设',

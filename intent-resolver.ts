@@ -65,7 +65,7 @@ export class IntentResolver {
         canvas: Canvas,
         selection: Set<CanvasNode>,
         userInput: string,
-        mode: 'chat' | 'image',
+        mode: 'chat' | 'image' | 'node',
         settings: CanvasAISettings
     ): Promise<ResolvedIntent> {
         const warnings: string[] = [];
@@ -288,7 +288,7 @@ export class IntentResolver {
         userInput: string,
         nodes: ConvertedNode[],
         usedAsLabelIds: Set<string>,
-        mode: 'chat' | 'image'
+        mode: 'chat' | 'image' | 'node'
     ): { instruction: string; usedAsInstructionIds: Set<string> } {
         const usedAsInstructionIds = new Set<string>();
 
@@ -310,11 +310,14 @@ export class IntentResolver {
             return { instruction: textContents.join('\n\n'), usedAsInstructionIds };
         }
 
-        // Priority C: 默认预设
+        // Priority C: Default preset based on mode
         if (mode === 'chat') {
             return { instruction: 'Summarize the selected content.', usedAsInstructionIds };
-        } else {
+        } else if (mode === 'image') {
             return { instruction: 'Generate an image based on these references.', usedAsInstructionIds };
+        } else {
+            // Node mode
+            return { instruction: 'Generate a flowchart or structure based on the context.', usedAsInstructionIds };
         }
     }
 

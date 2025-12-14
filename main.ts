@@ -3,6 +3,7 @@ import type { Canvas, CanvasNode, CanvasCoords } from './types';
 import { CanvasConverter, ConvertedNode } from './canvas-converter';
 import { ApiManager } from './api-manager';
 import { IntentResolver, ResolvedIntent } from './intent-resolver';
+import { extractCanvasJSON, remapCoordinates, regenerateIds, CanvasData } from './node-mode-utils';
 import { t } from './lang/helpers';
 
 // ========== Plugin Settings Interfaces ==========
@@ -46,9 +47,12 @@ export interface CanvasAISettings {
     // Image generation system prompt
     imageSystemPrompt: string;
 
-    // Prompt presets - separate for chat and image modes
+    // Prompt presets - separate for chat, image, and node modes
     chatPresets: PromptPreset[];
     imagePresets: PromptPreset[];
+    nodePresets: PromptPreset[];
+    // Node mode temperature
+    defaultNodeTemperature: number;
 }
 
 const DEFAULT_SETTINGS: CanvasAISettings = {
@@ -79,7 +83,9 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
     imageSystemPrompt: 'Role: A Professional Image Creator. Use the following references for image creation.',
 
     chatPresets: [],
-    imagePresets: []
+    imagePresets: [],
+    nodePresets: [],
+    defaultNodeTemperature: 0.5
 };
 
 
@@ -91,7 +97,7 @@ export interface PromptPreset {
 }
 
 // ========== Floating Palette Mode ==========
-type PaletteMode = 'chat' | 'image';
+type PaletteMode = 'chat' | 'image' | 'node';
 
 // AI Button ID constant for popup menu
 const AI_SPARKLES_BUTTON_ID = 'canvas-ai-sparkles';
@@ -207,13 +213,14 @@ class FloatingPalette {
     private onClose: (() => void) | null = null;
     private onDebug: (() => void) | null = null;
     private onGenerate: ((prompt: string, mode: PaletteMode) => Promise<void>) | null = null;
-    private onSettingsChange: ((key: 'aspectRatio' | 'resolution' | 'chatTemperature', value: string | number) => void) | null = null;
+    private onSettingsChange: ((key: 'aspectRatio' | 'resolution' | 'chatTemperature' | 'nodeTemperature', value: string | number) => void) | null = null;
     private apiManager: ApiManager;
     private pendingTaskCount: number = 0;
     // Image generation options (no model selection - always use Pro)
     private imageAspectRatio: string = '1:1';
     private imageResolution: string = '1K';
     private chatTemperature: number = 0.5;
+    private nodeTemperature: number = 0.5;
 
     // DOM references for image options
     private imageOptionsEl: HTMLElement | null = null;
@@ -221,6 +228,8 @@ class FloatingPalette {
     private ratioSelect: HTMLSelectElement | null = null;
     private resolutionSelect: HTMLSelectElement | null = null;
     private tempInput: HTMLInputElement | null = null;
+    private nodeTempInput: HTMLInputElement | null = null;
+    private nodeOptionsEl: HTMLElement | null = null;
     private debugBtnEl: HTMLButtonElement | null = null;
     private versionInfoEl: HTMLElement | null = null;
 
@@ -232,6 +241,7 @@ class FloatingPalette {
     private presetRenameBtn: HTMLButtonElement | null = null;
     private chatPresets: PromptPreset[] = [];
     private imagePresets: PromptPreset[] = [];
+    private nodePresets: PromptPreset[] = [];
     private onPresetChange: ((presets: PromptPreset[], mode: PaletteMode) => void) | null = null;
     private app: App;
     private scope: Scope;
@@ -332,6 +342,7 @@ class FloatingPalette {
                 <div class="canvas-ai-tabs">
                     <button class="canvas-ai-tab active" data-mode="chat">${t('Text')}</button>
                     <button class="canvas-ai-tab" data-mode="image">${t('Image')}</button>
+                    <button class="canvas-ai-tab" data-mode="node">${t('Node')}</button>
                 </div>
                 <button class="canvas-ai-close-btn">×</button>
             </div>
@@ -387,6 +398,14 @@ class FloatingPalette {
                         </span>
                     </div>
                 </div>
+                <div class="canvas-ai-node-options" style="display: none;">
+                    <div class="canvas-ai-option-row">
+                        <span class="canvas-ai-option-group">
+                            <label>${t('Temperature')}</label>
+                            <input type="number" class="canvas-ai-node-temp-input" min="0" max="2" step="0.1" value="0.5">
+                        </span>
+                    </div>
+                </div>
                 
                 <!-- Action Row (Moved from Footer) -->
                 <div class="canvas-ai-action-row">
@@ -406,9 +425,11 @@ class FloatingPalette {
         // Get image options DOM references
         this.imageOptionsEl = container.querySelector('.canvas-ai-image-options');
         this.chatOptionsEl = container.querySelector('.canvas-ai-chat-options');
+        this.nodeOptionsEl = container.querySelector('.canvas-ai-node-options');
         this.ratioSelect = container.querySelector('.canvas-ai-ratio-select');
         this.resolutionSelect = container.querySelector('.canvas-ai-resolution-select');
         this.tempInput = container.querySelector('.canvas-ai-temp-input');
+        this.nodeTempInput = container.querySelector('.canvas-ai-node-temp-input');
 
         // Bind temperature input events
         this.tempInput?.addEventListener('input', () => {
@@ -431,6 +452,26 @@ class FloatingPalette {
             }
         });
 
+        // Bind node temperature input events
+        this.nodeTempInput?.addEventListener('input', () => {
+            const val = parseFloat(this.nodeTempInput!.value);
+            if (!isNaN(val)) {
+                this.nodeTemperature = val;
+            }
+        });
+
+        this.nodeTempInput?.addEventListener('change', () => {
+            const val = parseFloat(this.nodeTempInput!.value);
+            if (!isNaN(val)) {
+                const clampedVal = Math.max(0, Math.min(2, val));
+                this.nodeTemperature = clampedVal;
+                this.nodeTempInput!.value = String(clampedVal);
+                this.onSettingsChange?.('nodeTemperature', clampedVal);
+            } else {
+                this.nodeTempInput!.value = String(this.nodeTemperature);
+            }
+        });
+
         // Get preset DOM references
         this.presetSelect = container.querySelector('.canvas-ai-preset-select');
         this.presetAddBtn = container.querySelector('.canvas-ai-preset-btn[data-action="add"]');
@@ -448,7 +489,11 @@ class FloatingPalette {
         this.presetSelect?.addEventListener('change', () => {
             const selectedId = this.presetSelect!.value;
             if (selectedId) {
-                const presets = this.currentMode === 'chat' ? this.chatPresets : this.imagePresets;
+                const presets = this.currentMode === 'chat'
+                    ? this.chatPresets
+                    : this.currentMode === 'image'
+                        ? this.imagePresets
+                        : this.nodePresets;
                 const preset = presets.find(p => p.id === selectedId);
                 if (preset) {
                     this.promptInput.value = preset.prompt;
@@ -526,6 +571,9 @@ class FloatingPalette {
         if (this.chatOptionsEl) {
             this.chatOptionsEl.style.display = this.currentMode === 'chat' ? 'flex' : 'none';
         }
+        if (this.nodeOptionsEl) {
+            this.nodeOptionsEl.style.display = this.currentMode === 'node' ? 'flex' : 'none';
+        }
     }
 
     /**
@@ -534,7 +582,11 @@ class FloatingPalette {
     private refreshPresetDropdown(): void {
         if (!this.presetSelect) return;
 
-        const presets = this.currentMode === 'chat' ? this.chatPresets : this.imagePresets;
+        const presets = this.currentMode === 'chat'
+            ? this.chatPresets
+            : this.currentMode === 'image'
+                ? this.imagePresets
+                : this.nodePresets;
 
         // Clear existing options except the default
         this.presetSelect.innerHTML = `<option value="">${t('Select prompt preset')}</option>`;
@@ -567,9 +619,12 @@ class FloatingPalette {
                 if (this.currentMode === 'chat') {
                     this.chatPresets.push(newPreset);
                     this.onPresetChange?.(this.chatPresets, 'chat');
-                } else {
+                } else if (this.currentMode === 'image') {
                     this.imagePresets.push(newPreset);
                     this.onPresetChange?.(this.imagePresets, 'image');
+                } else {
+                    this.nodePresets.push(newPreset);
+                    this.onPresetChange?.(this.nodePresets, 'node');
                 }
 
                 this.refreshPresetDropdown();
@@ -591,7 +646,11 @@ class FloatingPalette {
             return;
         }
 
-        const presets = this.currentMode === 'chat' ? this.chatPresets : this.imagePresets;
+        const presets = this.currentMode === 'chat'
+            ? this.chatPresets
+            : this.currentMode === 'image'
+                ? this.imagePresets
+                : this.nodePresets;
         const preset = presets.find(p => p.id === selectedId);
         if (!preset) return;
 
@@ -602,9 +661,12 @@ class FloatingPalette {
                 if (this.currentMode === 'chat') {
                     this.chatPresets = this.chatPresets.filter(p => p.id !== selectedId);
                     this.onPresetChange?.(this.chatPresets, 'chat');
-                } else {
+                } else if (this.currentMode === 'image') {
                     this.imagePresets = this.imagePresets.filter(p => p.id !== selectedId);
                     this.onPresetChange?.(this.imagePresets, 'image');
+                } else {
+                    this.nodePresets = this.nodePresets.filter(p => p.id !== selectedId);
+                    this.onPresetChange?.(this.nodePresets, 'node');
                 }
 
                 this.refreshPresetDropdown();
@@ -622,7 +684,11 @@ class FloatingPalette {
             return;
         }
 
-        const presets = this.currentMode === 'chat' ? this.chatPresets : this.imagePresets;
+        const presets = this.currentMode === 'chat'
+            ? this.chatPresets
+            : this.currentMode === 'image'
+                ? this.imagePresets
+                : this.nodePresets;
         const preset = presets.find(p => p.id === selectedId);
         if (!preset) return;
 
@@ -630,10 +696,11 @@ class FloatingPalette {
 
         if (this.currentMode === 'chat') {
             this.onPresetChange?.(this.chatPresets, 'chat');
-        } else {
+        } else if (this.currentMode === 'image') {
             this.onPresetChange?.(this.imagePresets, 'image');
+        } else {
+            this.onPresetChange?.(this.nodePresets, 'node');
         }
-
 
         new Notice(t('Preset saved', { name: preset.name }));
     }
@@ -648,7 +715,11 @@ class FloatingPalette {
             return;
         }
 
-        const presets = this.currentMode === 'chat' ? this.chatPresets : this.imagePresets;
+        const presets = this.currentMode === 'chat'
+            ? this.chatPresets
+            : this.currentMode === 'image'
+                ? this.imagePresets
+                : this.nodePresets;
         const preset = presets.find(p => p.id === selectedId);
         if (!preset) return;
 
@@ -662,8 +733,10 @@ class FloatingPalette {
 
                 if (this.currentMode === 'chat') {
                     this.onPresetChange?.(this.chatPresets, 'chat');
-                } else {
+                } else if (this.currentMode === 'image') {
                     this.onPresetChange?.(this.imagePresets, 'image');
+                } else {
+                    this.onPresetChange?.(this.nodePresets, 'node');
                 }
 
                 this.refreshPresetDropdown();
@@ -678,9 +751,10 @@ class FloatingPalette {
     /**
      * Initialize presets from saved settings
      */
-    initPresets(chatPresets: PromptPreset[], imagePresets: PromptPreset[]): void {
+    initPresets(chatPresets: PromptPreset[], imagePresets: PromptPreset[], nodePresets: PromptPreset[] = []): void {
         this.chatPresets = [...chatPresets];
         this.imagePresets = [...imagePresets];
+        this.nodePresets = [...nodePresets];
         this.refreshPresetDropdown();
     }
 
@@ -704,8 +778,10 @@ class FloatingPalette {
     private updatePlaceholder(): void {
         if (this.currentMode === 'chat') {
             this.promptInput.placeholder = t('Enter instructions');
-        } else {
+        } else if (this.currentMode === 'image') {
             this.promptInput.placeholder = t('Describe the image');
+        } else {
+            this.promptInput.placeholder = t('Describe structure');
         }
     }
 
@@ -831,6 +907,25 @@ class FloatingPalette {
         return {
             temperature: this.chatTemperature
         };
+    }
+
+    /**
+     * Get current node mode options
+     */
+    getNodeOptions(): { temperature: number } {
+        return {
+            temperature: this.nodeTemperature
+        };
+    }
+
+    /**
+     * Initialize node options from settings
+     */
+    initNodeOptions(temperature: number): void {
+        this.nodeTemperature = temperature;
+        if (this.nodeTempInput) {
+            this.nodeTempInput.value = String(temperature);
+        }
     }
 
     /**
@@ -989,6 +1084,8 @@ export default class CanvasAIPlugin extends Plugin {
                 this.settings.defaultResolution = value as string;
             } else if (key === 'chatTemperature') {
                 this.settings.defaultChatTemperature = value as number;
+            } else if (key === 'nodeTemperature') {
+                this.settings.defaultNodeTemperature = value as number;
             }
             this.saveSettings();
         });
@@ -997,8 +1094,10 @@ export default class CanvasAIPlugin extends Plugin {
         this.floatingPalette.setOnPresetChange((presets, mode) => {
             if (mode === 'chat') {
                 this.settings.chatPresets = presets;
-            } else {
+            } else if (mode === 'image') {
                 this.settings.imagePresets = presets;
+            } else {
+                this.settings.nodePresets = presets;
             }
             this.saveSettings();
         });
@@ -1013,10 +1112,15 @@ export default class CanvasAIPlugin extends Plugin {
             this.settings.defaultChatTemperature
         );
 
+        this.floatingPalette.initNodeOptions(
+            this.settings.defaultNodeTemperature
+        );
+
         // Initialize presets from saved settings
         this.floatingPalette.initPresets(
             this.settings.chatPresets || [],
-            this.settings.imagePresets || []
+            this.settings.imagePresets || [],
+            this.settings.nodePresets || []
         );
 
         // Initialize debug mode from settings
@@ -1114,7 +1218,7 @@ export default class CanvasAIPlugin extends Plugin {
                 console.log('Canvas AI: API Response received');
                 this.updateGhostNode(ghostNode, response, false);
 
-            } else {
+            } else if (mode === 'image') {
                 // Image Mode - use new generateImageWithRoles
                 // Get user-selected image options from palette
                 const imageOptions = this.floatingPalette!.getImageOptions();
@@ -1140,11 +1244,172 @@ export default class CanvasAIPlugin extends Plugin {
 
                 // Replace Ghost Node with Image Node
                 this.replaceGhostWithImageNode(canvas, ghostNode, savedFile);
+
+            } else {
+                // Node Mode - Generate Canvas JSON structure
+                const nodeOptions = this.floatingPalette!.getNodeOptions();
+                console.log('Canvas AI: Sending node structure request');
+
+                // Build node mode system prompt from obsidian_canvas_json_rules.md
+                const nodeSystemPrompt = this.getNodeModeSystemPrompt();
+
+                let fullInstruction = intent.instruction;
+                if (intent.contextText) {
+                    fullInstruction = `Context:\n${intent.contextText}\n\nRequest: ${intent.instruction}`;
+                }
+
+                response = await this.apiManager!.chatCompletion(
+                    fullInstruction,
+                    nodeSystemPrompt,
+                    nodeOptions.temperature
+                );
+
+                console.log('Canvas AI: Node structure response received');
+                if (this.settings.debugMode) {
+                    console.log('Canvas AI: Raw node response:', response);
+                }
+
+                try {
+                    // Extract and parse JSON from response
+                    let canvasData = extractCanvasJSON(response);
+
+                    // Regenerate IDs to avoid collision with existing canvas elements
+                    canvasData = regenerateIds(canvasData);
+
+                    // Get ghost node center for coordinate remapping
+                    const ghostCenter = {
+                        x: ghostNode.x + ghostNode.width / 2,
+                        y: ghostNode.y + ghostNode.height / 2
+                    };
+                    canvasData = remapCoordinates(canvasData, ghostCenter);
+
+                    // Replace ghost node with generated structure by modifying canvas file directly
+                    await this.replaceGhostWithCanvasData(canvas, ghostNode, canvasData);
+
+                    console.log(`Canvas AI: Created ${canvasData.nodes.length} nodes and ${canvasData.edges.length} edges`);
+
+                } catch (parseError: any) {
+                    console.error('Canvas AI: JSON parse error:', parseError);
+                    this.updateGhostNode(ghostNode, `❗ ${t('Invalid JSON structure')}: ${parseError.message}`, true);
+                }
             }
         } catch (error: any) {
             console.error('Canvas AI: API Error:', error.message || error);
             this.updateGhostNode(ghostNode, `❗ Error: ${error.message || 'Unknown error'}`, true);
         }
+    }
+
+    /**
+     * Get Node Mode system prompt for structured JSON output
+     */
+    private getNodeModeSystemPrompt(): string {
+        return `你是一个专业的 Obsidian Canvas JSON 生成器。你的任务是根据用户的需求，输出符合 Obsidian Canvas 规范的 JSON 数据。
+
+请严格遵守以下规则：
+
+### 1. JSON 结构总览
+* 输出必须是一个有效的 JSON 对象。
+* JSON 对象必须包含两个顶级键：\`nodes\` (数组) 和 \`edges\` (数组)。
+
+### 2. 节点 (Nodes) 规则
+每个节点必须包含以下属性：
+* \`id\`: (字符串) 唯一标识符，使用 UUIDv4 格式
+* \`x\`: (数字) X 坐标
+* \`y\`: (数字) Y 坐标
+* \`width\`: (数字) 宽度，建议 200-400
+* \`height\`: (数字) 高度，建议 100-200
+* \`type\`: "text" | "group" | "link"
+* \`text\`: (字符串) 文本节点的内容
+* \`color\`: (可选) "1"-"6" 或颜色名称
+
+### 3. 连接线 (Edges) 规则
+每条边必须包含：
+* \`id\`: 唯一标识符
+* \`fromNode\`: 源节点 ID
+* \`toNode\`: 目标节点 ID
+* \`fromSide\`: "top" | "right" | "bottom" | "left"
+* \`toSide\`: "top" | "right" | "bottom" | "left"
+* \`toEnd\`: (可选) "arrow"
+
+### 4. 布局建议
+* 节点间距保持 50-100 像素
+* 流程图从左到右或从上到下布局
+* 避免节点重叠
+
+### 5. 输出格式
+Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UUIDv4.`;
+    }
+
+    /**
+     * Replace Ghost Node with Canvas data by directly modifying the .canvas file
+     * This is more reliable than using undocumented Canvas API methods
+     */
+    private async replaceGhostWithCanvasData(
+        canvas: Canvas,
+        ghostNode: CanvasNode,
+        data: CanvasData
+    ): Promise<void> {
+        // Get the canvas file
+        const canvasView = this.app.workspace.getActiveViewOfType(ItemView) as any;
+        const canvasFile = canvasView?.file as TFile | undefined;
+
+        if (!canvasFile || canvasFile.extension !== 'canvas') {
+            throw new Error('Cannot find canvas file');
+        }
+
+        // Read current canvas data
+        const fileContent = await this.app.vault.read(canvasFile);
+        let canvasJson: { nodes: any[], edges: any[] };
+
+        try {
+            canvasJson = JSON.parse(fileContent);
+        } catch (e) {
+            throw new Error('Failed to parse canvas file');
+        }
+
+        // Find and remove the ghost node from canvas data
+        const ghostNodeId = ghostNode.id;
+        canvasJson.nodes = canvasJson.nodes.filter((n: any) => n.id !== ghostNodeId);
+
+        // Add new nodes from LLM response
+        for (const node of data.nodes) {
+            canvasJson.nodes.push({
+                id: node.id,
+                type: node.type,
+                x: Math.round(node.x),
+                y: Math.round(node.y),
+                width: Math.round(node.width),
+                height: Math.round(node.height),
+                text: node.text,
+                color: node.color,
+                label: node.label,
+                url: node.url
+            });
+        }
+
+        // Add new edges from LLM response
+        for (const edge of data.edges) {
+            canvasJson.edges.push({
+                id: edge.id,
+                fromNode: edge.fromNode,
+                toNode: edge.toNode,
+                fromSide: edge.fromSide || 'right',
+                toSide: edge.toSide || 'left',
+                fromEnd: edge.fromEnd,
+                toEnd: edge.toEnd,
+                color: edge.color,
+                label: edge.label
+            });
+        }
+
+        // Write updated canvas data back to file
+        await this.app.vault.modify(canvasFile, JSON.stringify(canvasJson, null, '\t'));
+
+        // The canvas should auto-reload, but we can trigger a refresh
+        // by requesting save (which will cause canvas to reload from file)
+        setTimeout(() => {
+            canvas.requestSave();
+        }, 100);
     }
 
     /**

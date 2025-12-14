@@ -42,16 +42,20 @@ export default {
     // Floating Palette
     'Text': 'Text',
     'Image': 'Image',
+    'Node': 'Node',
     'Select prompt preset': 'Select prompt preset',
     'Enter instructions': 'Enter instructions or ask a question...',
     'Describe the image': 'Describe the image, or leave empty to use selected text...',
+    'Describe structure': 'Describe structure (e.g., "Flowchart for login process")...',
     'Resolution': 'Resolution',
     'Ratio': 'Ratio',
     'Temperature': 'Temperature',
     'Debug': 'Debug',
     'Generate': 'Generate',
     'Generating': 'Generating',
+    'Architecting': 'Architecting',
     'Tasks': 'Task(s)',
+    'Invalid JSON structure': 'AI generated invalid JSON structure',
 
     // Modals & Notices
     'New Preset': 'New Preset',

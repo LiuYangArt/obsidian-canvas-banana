@@ -1,14 +1,118 @@
-模块设计文档：Architect Mode (节点生成模式)
+
+这是一个独立的、针对 "Node Mode" (架构师模式/节点生成模式) 的详细设计文档。
+
+这份文档剥离了之前的文本和图像生成逻辑，专注于 LLM 如何生成结构化 Canvas 数据 并渲染到 Obsidian 的技术细节。您可以直接将此文档交给开发人员（或作为您的开发蓝本）。
+Mode
+3.5 Canvas 渲染与替换
+Obsidian 的非公开 API 操作步骤：
+
+获取 Ghost Node: 记录其 id 和 x, y, width, height。
+
+计算目标锚点: 使用 Ghost Node 的中心点作为 targetCenter。
+
+执行 Remap: 运行上述算法。
+
+批量添加:
+
+遍历 data.nodes，调用 canvas.addNode(node)。
+
+遍历 data.edges，调用 canvas.addEdge(edge)。
+
+清理: 调用 canvas.removeNode(ghostNode)。
+
+后续操作: 调用 canvas.select(newNodeIds) 高亮新生成的结构。
+
+4. 设置与配置 (Configuration)
+在插件的 Settings 页面，为 Node Mode 提供独立配置区：
+
+4.1 Architect System Prompt
+Type: Textarea (Long text)
+
+Default: 内置 Obsidian Canvas Rules.md 的完整文本。
+
+作用: 允许高级用户修改生成规则（例如：强制所有节点颜色为红色，或者改变默认节点的宽度）。
+
+4.2 有独立的prompt preset，跟 text/ image 模式分开
+
+5. 错误处理 (Error Handling)
+Node Mode 比普通文本生成更容易出错（JSON 格式错误）。
+
+JSON Parse Error:
+
+Ghost Node 变红。
+
+提示: "AI generated invalid JSON structure."
+
+Debug Feature: 在 Console 输出 LLM 返回的原始字符串，方便开发者调试 Prompt。
+
+Schema Validation Error (缺少 nodes 或 edges):
+
+提示: "Incomplete structure data."
+
+ID Collision:
+
+如果在添加节点时发现 ID 已存在（极低概率），捕获异常并提示重试。
+
+6. 开发测试步骤 (Implementation Steps)
+建议按以下顺序开发此模块：
+
+Step 1: Mock Test (本地模拟)
+
+不调用 LLM。
+
+在代码中硬编码一段标准的 Canvas JSON (例如两个连接的节点)。
+
+实现 remapCoordinates 函数。
+
+测试点击按钮后，能否在 Ghost Node 位置正确展开这两个硬编码节点。
+
+Step 2: Prompt Integration
+
+接入 LLM API。
+
+将 Obsidian Canvas Rules.md 作为 System Prompt 发送。
+
+测试简单的指令："Create two nodes connected by an arrow."
+
+观察 Console 中的 JSON 返回，确保格式正确。
+
+Step 3: Sanitizer & Rendering
+
+实现 JSON 提取与清洗逻辑。
+
+对接真实的 Canvas addNode 接口。
+
+测试 Ghost Node 的替换动画效果。
+
+Step 4: Complex Structure Test
+
+测试复杂指令："Generate a flowchart for a login system with 5 steps and decision branches."
+
+检查布局是否重叠，连线是否正确。
+
+
+
+
+
+
+
+
+
+
+
+
+
+模块设计文档：Node Mode (节点生成模式)
 
 1. 概述 (Overview)
 
-Architect Mode 是插件的一个独立功能模块，旨在利用 LLM 的逻辑构建能力，直接生成 Obsidian Canvas 的结构化数据（Nodes + Edges）。
+Node Mode 是插件的一个独立功能模块，旨在利用 LLM 的逻辑构建能力，直接生成 Obsidian Canvas 的结构化数据（Nodes + Edges）。
 
 核心差异：
 
 Text/Chat Mode: 生成内容填充到 一个 节点中。
 
-Architect Mode: 生成 一组 具有空间关系和逻辑连接的节点，并自动布局。
+Node Mode: 生成 一组 具有空间关系和逻辑连接的节点，并自动布局。
 
 输入: 用户指令 (Prompt) + 可选的上下文节点。
 
