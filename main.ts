@@ -1016,7 +1016,7 @@ class FloatingPalette {
 export default class CanvasAIPlugin extends Plugin {
     settings: CanvasAISettings;
 
-    private floatingPalette: FloatingPalette | null = null;
+    public floatingPalette: FloatingPalette | null = null;
     private lastSelectionSize: number = 0;
     private lastSelectedIds: Set<string> = new Set();
     private hideTimer: number | null = null;
@@ -2519,6 +2519,8 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.debugMode = value;
                     await this.plugin.saveSettings();
+                    // Sync debug button visibility in floating palette
+                    this.plugin.floatingPalette?.setDebugMode(value);
                 }));
 
 
