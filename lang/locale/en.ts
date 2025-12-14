@@ -104,6 +104,11 @@ export default {
     'Image copied': 'Image copied to clipboard',
     'No image selected': 'No image node selected',
     'Group created': 'Group created',
-    'Node created': 'New node created'
+    'Node created': 'New node created',
+
+    // Timeout
+    'Image Generation Timeout': 'Image Generation Timeout',
+    'Image Generation Timeout Desc': 'Maximum wait time (in seconds) for image generation requests. Increase if you experience timeouts on slow connections.',
+    'Image generation timed out': 'Image generation timed out after {seconds} seconds. Please try again.'
 };
 

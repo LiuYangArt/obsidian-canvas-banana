@@ -6,6 +6,24 @@
 import { requestUrl, RequestUrlParam } from 'obsidian';
 import type { CanvasAISettings } from './main';
 
+// ========== Timeout Helper ==========
+
+/**
+ * Wraps requestUrl with a timeout mechanism using Promise.race
+ * @param params Request parameters
+ * @param timeoutMs Timeout in milliseconds
+ * @returns Promise that rejects with timeout error if request takes too long
+ */
+async function requestUrlWithTimeout(params: RequestUrlParam, timeoutMs: number): Promise<any> {
+    const timeoutPromise = new Promise<never>((_, reject) => {
+        setTimeout(() => {
+            reject(new Error(`TIMEOUT:${timeoutMs}`));
+        }, timeoutMs);
+    });
+
+    return Promise.race([requestUrl(params), timeoutPromise]);
+}
+
 // ========== Types ==========
 
 export interface OpenRouterMessage {
@@ -360,7 +378,9 @@ export class ApiManager {
         console.log('Canvas AI: Sending image generation request to OpenRouter...');
         console.log('Request body:', JSON.stringify(requestBody, null, 2));
 
-        const response = await this.sendRequest(requestBody);
+        // Use timeout for image generation
+        const timeoutMs = (this.settings.imageGenerationTimeout || 120) * 1000;
+        const response = await this.sendRequest(requestBody, timeoutMs);
 
         if (response.error) {
             throw new Error(`OpenRouter API Error: ${response.error.message}`);
@@ -486,7 +506,9 @@ export class ApiManager {
         console.log('Canvas AI: [OpenRouter] Sending image generation request...');
         console.log('Request body:', JSON.stringify(requestBody, null, 2));
 
-        const response = await this.sendRequest(requestBody);
+        // Use timeout for image generation
+        const timeoutMs = (this.settings.imageGenerationTimeout || 120) * 1000;
+        const response = await this.sendRequest(requestBody, timeoutMs);
 
         if (response.error) {
             throw new Error(`OpenRouter API Error: ${response.error.message}`);
@@ -597,12 +619,21 @@ export class ApiManager {
         };
 
         try {
-            const response = await requestUrl(requestParams);
+            // Use timeout for image generation (configurable, default 120s)
+            const timeoutMs = (this.settings.imageGenerationTimeout || 120) * 1000;
+            console.log(`Canvas AI: Image generation timeout set to ${timeoutMs / 1000}s`);
+            const response = await requestUrlWithTimeout(requestParams, timeoutMs);
             const data = response.json;
 
             // Parse Gemini response format
             return this.parseGeminiImageResponse(data);
         } catch (error: any) {
+            // Check for timeout error
+            if (error.message?.startsWith('TIMEOUT:')) {
+                const timeoutSec = parseInt(error.message.split(':')[1]) / 1000;
+                console.error(`Canvas AI: Image generation timed out after ${timeoutSec}s`);
+                throw new Error(`Image generation timed out after ${timeoutSec} seconds. Please try again or increase the timeout in settings.`);
+            }
             if (error.status) {
                 const errorBody = error.json || { message: error.message };
                 console.error(`Canvas AI: ${provider} HTTP Error`, error.status, errorBody);
@@ -884,8 +915,10 @@ export class ApiManager {
     /**
      * Internal method to send chat request (OpenAI-compatible format)
      * Works for both OpenRouter and Yunwu chat endpoints
+     * @param body Request body
+     * @param timeoutMs Optional timeout in milliseconds (used for image generation)
      */
-    private async sendRequest(body: OpenRouterRequest): Promise<OpenRouterResponse> {
+    private async sendRequest(body: OpenRouterRequest, timeoutMs?: number): Promise<OpenRouterResponse> {
         const apiKey = this.getApiKey();
 
         const requestParams: RequestUrlParam = {
@@ -901,9 +934,21 @@ export class ApiManager {
         };
 
         try {
-            const response = await requestUrl(requestParams);
+            let response;
+            if (timeoutMs) {
+                console.log(`Canvas AI: Request timeout set to ${timeoutMs / 1000}s`);
+                response = await requestUrlWithTimeout(requestParams, timeoutMs);
+            } else {
+                response = await requestUrl(requestParams);
+            }
             return response.json as OpenRouterResponse;
         } catch (error: any) {
+            // Check for timeout error
+            if (error.message?.startsWith('TIMEOUT:')) {
+                const timeoutSec = parseInt(error.message.split(':')[1]) / 1000;
+                console.error(`Canvas AI: Request timed out after ${timeoutSec}s`);
+                throw new Error(`Image generation timed out after ${timeoutSec} seconds. Please try again or increase the timeout in settings.`);
+            }
             // Handle HTTP errors
             if (error.status) {
                 const errorBody = error.json || { message: error.message };

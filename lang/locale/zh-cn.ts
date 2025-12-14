@@ -104,6 +104,11 @@ export default {
     'Image copied': '图片已复制到剪贴板',
     'No image selected': '未选中图片节点',
     'Group created': '分组已创建',
-    'Node created': '新节点已创建'
+    'Node created': '新节点已创建',
+
+    // Timeout
+    'Image Generation Timeout': '图像生成超时',
+    'Image Generation Timeout Desc': '图像生成请求的最大等待时间（秒）。如果连接较慢可适当增加。',
+    'Image generation timed out': '图像生成超时，已等待 {seconds} 秒。请重试。'
 };
 

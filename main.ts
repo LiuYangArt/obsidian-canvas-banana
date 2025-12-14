@@ -65,6 +65,9 @@ export interface CanvasAISettings {
     nodePresets: PromptPreset[];
     // Node mode temperature
     defaultNodeTemperature: number;
+
+    // Image generation timeout (seconds)
+    imageGenerationTimeout: number;
 }
 
 const DEFAULT_SETTINGS: CanvasAISettings = {
@@ -107,7 +110,9 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
     chatPresets: [],
     imagePresets: [],
     nodePresets: [],
-    defaultNodeTemperature: 0.5
+    defaultNodeTemperature: 0.5,
+
+    imageGenerationTimeout: 120  // Default 120 seconds
 };
 
 
@@ -582,7 +587,14 @@ class FloatingPalette {
         const promptInput = container.querySelector('.canvas-ai-prompt-input');
         if (promptInput) {
             const stopPropagation = (e: Event) => e.stopPropagation();
-            promptInput.addEventListener('keydown', stopPropagation);
+            // Handle Ctrl+Enter to trigger generate
+            promptInput.addEventListener('keydown', (e: KeyboardEvent) => {
+                e.stopPropagation();
+                if (e.ctrlKey && e.key === 'Enter') {
+                    e.preventDefault();
+                    this.handleGenerate();
+                }
+            });
             promptInput.addEventListener('keyup', stopPropagation);
             promptInput.addEventListener('keypress', stopPropagation);
         }
@@ -1056,6 +1068,8 @@ export default class CanvasAIPlugin extends Plugin {
     private lastSelectedIds: Set<string> = new Set();
     private hideTimer: number | null = null;
     private apiManager: ApiManager | null = null;
+    // Track active ghost nodes to prevent race conditions during concurrent image generations
+    private activeGhostNodeIds: Set<string> = new Set();
 
     async onload() {
         console.log('Canvas AI: Plugin loading...');
@@ -1523,6 +1537,25 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         ghostNode: CanvasNode,
         data: CanvasData
     ): Promise<void> {
+        const ghostNodeId = ghostNode.id;
+
+        // Validate ghost node is still tracked (not already replaced by another concurrent operation)
+        if (!this.activeGhostNodeIds.has(ghostNodeId)) {
+            console.warn(`Canvas AI: Ghost node ${ghostNodeId} already replaced, skipping duplicate replacement (Node Mode)`);
+            return;
+        }
+
+        // Check if the ghost node still exists in the canvas
+        const existingNode = canvas.nodes?.get(ghostNodeId);
+        if (!existingNode) {
+            console.warn(`Canvas AI: Ghost node ${ghostNodeId} no longer exists in canvas, skipping (Node Mode)`);
+            this.activeGhostNodeIds.delete(ghostNodeId);
+            return;
+        }
+
+        // Remove from tracking BEFORE replacement to prevent race conditions
+        this.activeGhostNodeIds.delete(ghostNodeId);
+
         // Get the canvas file
         const canvasView = this.app.workspace.getActiveViewOfType(ItemView) as any;
         const canvasFile = canvasView?.file as TFile | undefined;
@@ -1542,7 +1575,6 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         }
 
         // Find and remove the ghost node from canvas data
-        const ghostNodeId = ghostNode.id;
         canvasJson.nodes = canvasJson.nodes.filter((n: any) => n.id !== ghostNodeId);
 
         // Add new nodes from LLM response
@@ -1663,6 +1695,25 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
      * Replace Ghost Node with real File Node
      */
     private replaceGhostWithImageNode(canvas: Canvas, ghostNode: CanvasNode, file: TFile): void {
+        const ghostNodeId = ghostNode.id;
+
+        // Validate ghost node is still tracked (not already replaced by another concurrent operation)
+        if (!this.activeGhostNodeIds.has(ghostNodeId)) {
+            console.warn(`Canvas AI: Ghost node ${ghostNodeId} already replaced, skipping duplicate replacement`);
+            return;
+        }
+
+        // Check if the ghost node still exists in the canvas
+        const existingNode = canvas.nodes?.get(ghostNodeId);
+        if (!existingNode) {
+            console.warn(`Canvas AI: Ghost node ${ghostNodeId} no longer exists in canvas, skipping`);
+            this.activeGhostNodeIds.delete(ghostNodeId);
+            return;
+        }
+
+        // Remove from tracking BEFORE replacement to prevent race conditions
+        this.activeGhostNodeIds.delete(ghostNodeId);
+
         const { x, y, width } = ghostNode;
         // Calculate aspect ratio height if needed, default square for 1:1
         const height = width;
@@ -1680,6 +1731,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         });
 
         canvas.requestSave();
+        console.log(`Canvas AI: Replaced ghost node ${ghostNodeId} with image node`);
     }
 
     /**
@@ -1693,6 +1745,9 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             focus: false,
             save: true
         });
+
+        // Track this ghost node to prevent race conditions
+        this.activeGhostNodeIds.add(node.id);
 
         // Add ghost node styling
         if (node.nodeEl) {
@@ -1708,6 +1763,10 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
      * Dynamically resize node height based on content length
      */
     private updateGhostNode(node: CanvasNode, content: string, isError: boolean): void {
+        // When updating ghost node to final state, remove from tracking
+        // (it's no longer a "ghost" that needs to be replaced)
+        this.activeGhostNodeIds.delete(node.id);
+
         // Remove ghost styling
         if (node.nodeEl) {
             node.nodeEl.removeClass('canvas-ai-ghost-node');
@@ -3048,6 +3107,30 @@ class CanvasAISettingTab extends PluginSettingTab {
                     // Re-render settings to show/hide experimental options
                     this.display();
                 }));
+
+        new Setting(containerEl)
+            .setName(t('Image Generation Timeout'))
+            .setDesc(t('Image Generation Timeout Desc'))
+            .addText(text => text
+                .setPlaceholder('120')
+                .setValue(String(this.plugin.settings.imageGenerationTimeout || 120))
+                .onChange(async (value) => {
+                    const num = parseInt(value);
+                    if (!isNaN(num) && num > 0) {
+                        this.plugin.settings.imageGenerationTimeout = num;
+                        await this.plugin.saveSettings();
+                    }
+                }))
+            .then(setting => {
+                // Make the input narrower
+                const inputEl = setting.controlEl.querySelector('input');
+                if (inputEl) {
+                    (inputEl as HTMLInputElement).style.width = '80px';
+                    (inputEl as HTMLInputElement).type = 'number';
+                    (inputEl as HTMLInputElement).min = '10';
+                    (inputEl as HTMLInputElement).max = '600';
+                }
+            });
 
 
     }
