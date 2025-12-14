@@ -45,7 +45,7 @@ Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增�
 由于本插件目前可能处于测试阶段或未上架社区商店，请按照以下步骤手动安装：
 
 1.  **插件下载**
-    *   [https://github.com/LiuYangArt/obsidian-canvas-banana/blob/main/Plugin/canvas-banana.zip](https://github.com/LiuYangArt/obsidian-canvas-banana/blob/main/Plugin/canvas-banana.zip)
+    *  在[releases](https://github.com/LiuYangArt/obsidian-canvas-banana/releases)中下载最新版本的插件 zip。
 
 2.  **创建插件文件夹**
     *   打开你的 Obsidian 仓库目录。
@@ -158,7 +158,7 @@ By using this plugin, you agree to the following terms:
 Since this plugin may be in beta or not yet in the community store, please follow these steps:
 
 1.  **Download the Plugin**
-    *   [https://github.com/LiuYangArt/obsidian-canvas-banana/blob/main/Plugin/canvas-banana.zip](https://github.com/LiuYangArt/obsidian-canvas-banana/blob/main/Plugin/canvas-banana.zip)
+    *   Get latest version in [releases](https://github.com/LiuYangArt/obsidian-canvas-banana/releases).
 
 2.  **Create Plugin Folder**
     *   Open your Obsidian vault directory.
