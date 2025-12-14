@@ -13,6 +13,7 @@ node_modules/
 canvas_vault/
 .obsidian/
 *.bat
+!publish_release.bat
 
 # Agent/AI tools
 .agent/
