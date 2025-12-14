@@ -7,7 +7,7 @@ import { extractCanvasJSON, remapCoordinates, regenerateIds, optimizeLayout, san
 import { t } from './lang/helpers';
 
 // ========== Plugin Settings Interfaces ==========
-export type ApiProvider = 'openrouter' | 'yunwu' | 'gemini';
+export type ApiProvider = 'openrouter' | 'yunwu' | 'gemini' | 'gptgod';
 
 export interface CanvasAISettings {
     // API Provider selection
@@ -34,6 +34,16 @@ export interface CanvasAISettings {
     geminiImageModel: string;
     geminiUseCustomTextModel: boolean;
     geminiUseCustomImageModel: boolean;
+
+    // GPTGod settings
+    gptGodApiKey: string;
+    gptGodBaseUrl: string;
+    gptGodTextModel: string;
+    gptGodImageModel: string;
+    gptGodUseCustomTextModel: boolean;
+    gptGodUseCustomImageModel: boolean;
+
+
 
     // Legacy fields (for migration)
     textModel?: string;
@@ -92,6 +102,15 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
     geminiImageModel: 'gemini-3-pro-image-preview',
     geminiUseCustomTextModel: false,
     geminiUseCustomImageModel: false,
+
+    gptGodApiKey: '',
+    gptGodBaseUrl: 'https://api.gptgod.online',
+    gptGodTextModel: 'gpt-4-gizmo-g-2fkFE8rbu',
+    gptGodImageModel: 'gemini-3-pro-image-preview',
+    gptGodUseCustomTextModel: false,
+    gptGodUseCustomImageModel: false,
+
+
 
     imageCompressionQuality: 80,  // Default 80% quality
     imageMaxSize: 2048,  // Default max size
@@ -2965,6 +2984,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .addOption('gemini', 'Google Gemini')
                 .addOption('openrouter', 'OpenRouter')
                 .addOption('yunwu', 'Yunwu')
+                .addOption('gptgod', 'GPTGod')
                 .setValue(this.plugin.settings.apiProvider)
                 .onChange(async (value) => {
                     this.plugin.settings.apiProvider = value as ApiProvider;
@@ -2980,7 +3000,9 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         const provider = this.plugin.settings.apiProvider;
         const isYunwu = provider === 'yunwu';
+
         const isGemini = provider === 'gemini';
+        const isGptGod = provider === 'gptgod';
 
         // ========== Configuration Section ==========
         if (provider === 'openrouter') {
@@ -3045,6 +3067,31 @@ class CanvasAISettingTab extends PluginSettingTab {
                     }));
 
             this.addTestButton(geminiKeySetting.controlEl, containerEl);
+        } else if (provider === 'gptgod') {
+            const gptGodKeySetting = new Setting(containerEl)
+                .setName(t('GPTGod API Key'))
+                .setDesc(t('Enter your GPTGod API Key'))
+                .addText(text => text
+                    .setPlaceholder('sk-...')
+                    .setValue(this.plugin.settings.gptGodApiKey)
+                    .onChange(async (value) => {
+                        this.plugin.settings.gptGodApiKey = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            this.addTestButton(gptGodKeySetting.controlEl, containerEl);
+
+            new Setting(containerEl)
+                .setName(t('API Base URL'))
+                .setDesc(t('API Base URL'))
+                .addText(text => text
+                    .setPlaceholder('https://api.gptgod.online')
+                    .setValue(this.plugin.settings.gptGodBaseUrl)
+                    .onChange(async (value) => {
+                        this.plugin.settings.gptGodBaseUrl = value;
+                        await this.plugin.saveSettings();
+                        this.plugin.apiManager.updateSettings(this.plugin.settings);
+                    }));
         }
 
         // ========== 模型配置区域 ==========
@@ -3056,7 +3103,9 @@ class CanvasAISettingTab extends PluginSettingTab {
             ? this.plugin.settings.geminiApiKey
             : isYunwu
                 ? this.plugin.settings.yunwuApiKey
-                : this.plugin.settings.openRouterApiKey;
+                : isGptGod
+                    ? this.plugin.settings.gptGodApiKey
+                    : this.plugin.settings.openRouterApiKey;
         if (!this.modelsFetched && apiKey && !this.isFetching) {
             this.fetchModels();
         }
@@ -3066,7 +3115,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         if (this.isFetching) {
             statusText = t('Fetching...');
         } else if (this.modelsFetched) {
-            const source = isGemini ? 'Gemini (Hardcoded)' : isYunwu ? 'Yunwu' : 'OpenRouter';
+            const source = isGemini ? 'Gemini (Hardcoded)' : isYunwu ? 'Yunwu' : isGptGod ? 'GPTGod' : 'OpenRouter';
             statusText = t('Loaded models', {
                 count: this.modelCache.length,
                 textCount: this.getTextModels().length,
@@ -3099,9 +3148,10 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         // ========== Text Model Setting ==========
         // Get model keys based on provider
-        const textModelKey = isGemini ? 'geminiTextModel' : isYunwu ? 'yunwuTextModel' : 'openRouterTextModel';
-        const textCustomKey = isGemini ? 'geminiUseCustomTextModel' : isYunwu ? 'yunwuUseCustomTextModel' : 'openRouterUseCustomTextModel';
-        const textPlaceholder = isGemini ? 'gemini-2.5-flash' : isYunwu ? 'gemini-2.5-flash' : 'google/gemini-2.5-flash';
+        // Get model keys based on provider
+        const textModelKey = isGemini ? 'geminiTextModel' : isYunwu ? 'yunwuTextModel' : isGptGod ? 'gptGodTextModel' : 'openRouterTextModel';
+        const textCustomKey = isGemini ? 'geminiUseCustomTextModel' : isYunwu ? 'yunwuUseCustomTextModel' : isGptGod ? 'gptGodUseCustomTextModel' : 'openRouterUseCustomTextModel';
+        const textPlaceholder = isGemini ? 'gemini-2.5-flash' : isYunwu ? 'gemini-2.5-flash' : isGptGod ? 'gpt-4-gizmo-g-2fkFE8rbu' : 'google/gemini-2.5-flash';
 
         this.renderModelSetting(containerEl, {
             name: t('Text Generation Model'),
@@ -3113,9 +3163,10 @@ class CanvasAISettingTab extends PluginSettingTab {
         });
 
         // ========== Image Model Setting ==========
-        const imageModelKey = isGemini ? 'geminiImageModel' : isYunwu ? 'yunwuImageModel' : 'openRouterImageModel';
-        const imageCustomKey = isGemini ? 'geminiUseCustomImageModel' : isYunwu ? 'yunwuUseCustomImageModel' : 'openRouterUseCustomImageModel';
-        const imagePlaceholder = isGemini ? 'gemini-3-pro-image-preview' : isYunwu ? 'gemini-3-pro-image-preview' : 'google/gemini-3-pro-image-preview';
+        // ========== Image Model Setting ==========
+        const imageModelKey = isGemini ? 'geminiImageModel' : isYunwu ? 'yunwuImageModel' : isGptGod ? 'gptGodImageModel' : 'openRouterImageModel';
+        const imageCustomKey = isGemini ? 'geminiUseCustomImageModel' : isYunwu ? 'yunwuUseCustomImageModel' : isGptGod ? 'gptGodUseCustomImageModel' : 'openRouterUseCustomImageModel';
+        const imagePlaceholder = isGemini ? 'gemini-3-pro-image-preview' : isYunwu ? 'gemini-3-pro-image-preview' : isGptGod ? 'gemini-3-pro-image-preview' : 'google/gemini-3-pro-image-preview';
 
         this.renderModelSetting(containerEl, {
             name: t('Image Generation Model'),

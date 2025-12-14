@@ -2,17 +2,25 @@
 chcp 65001 >nul
 setlocal enabledelayedexpansion
 
+:: Get versions using Node.js
+node -e "const v = require('./package.json').version; const [ma, mi, pa] = v.split('.').map(Number); console.log('set CURRENT_VERSION=' + v); console.log('set NEXT_PATCH=' + ma + '.' + mi + '.' + (pa + 1)); console.log('set NEXT_MINOR=' + ma + '.' + (mi + 1) + '.0'); console.log('set NEXT_MAJOR=' + (ma + 1) + '.0.0');" > versions.bat
+
+call versions.bat
+del versions.bat
+
 :menu
 cls
 echo ========================================================
 echo       Obsidian 插件一键发布助手 (Canvas Banana)
 echo ========================================================
 echo.
+echo  当前版本: !CURRENT_VERSION!
+echo.
 echo  请选择升级类型：
 echo.
-echo  [1] 补丁 (Patch) : 修复 Bug (例如 0.9.2 ^-^> 0.9.3)
-echo  [2] 次版本 (Minor): 新增功能 (例如 0.9.2 ^-^> 0.10.0)
-echo  [3] 主版本 (Major): 重大变更 (例如 0.9.2 ^-^> 1.0.0)
+echo  [1] 补丁 (Patch) : 修复 Bug (!CURRENT_VERSION! -^> !NEXT_PATCH!)
+echo  [2] 次版本 (Minor): 新增功能 (!CURRENT_VERSION! -^> !NEXT_MINOR!)
+echo  [3] 主版本 (Major): 重大变更 (!CURRENT_VERSION! -^> !NEXT_MAJOR!)
 echo  [4] 退出
 echo.
 echo ========================================================

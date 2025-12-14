@@ -104,7 +104,7 @@ export class ApiManager {
     /**
      * Get the current active provider
      */
-    private getActiveProvider(): 'openrouter' | 'yunwu' | 'gemini' {
+    private getActiveProvider(): 'openrouter' | 'yunwu' | 'gemini' | 'gptgod' {
         return this.settings.apiProvider || 'openrouter';
     }
 
@@ -119,6 +119,9 @@ export class ApiManager {
         if (provider === 'yunwu') {
             return this.settings.yunwuApiKey || '';
         }
+        if (provider === 'gptgod') {
+            return this.settings.gptGodApiKey || '';
+        }
         return this.settings.openRouterApiKey || '';
     }
 
@@ -129,6 +132,10 @@ export class ApiManager {
     private getChatEndpoint(): string {
         if (this.getActiveProvider() === 'yunwu') {
             const base = this.settings.yunwuBaseUrl || 'https://yunwu.ai';
+            return `${base}/v1/chat/completions`;
+        }
+        if (this.getActiveProvider() === 'gptgod') {
+            const base = this.settings.gptGodBaseUrl || 'https://api.gptgod.online';
             return `${base}/v1/chat/completions`;
         }
         return this.settings.openRouterBaseUrl || 'https://openrouter.ai/api/v1/chat/completions';
@@ -145,6 +152,9 @@ export class ApiManager {
         if (provider === 'yunwu') {
             return this.settings.yunwuTextModel || 'gemini-2.0-flash';
         }
+        if (provider === 'gptgod') {
+            return this.settings.gptGodTextModel || 'gpt-4-gizmo-g-2fkFE8rbu';
+        }
         return this.settings.openRouterTextModel || 'google/gemini-2.0-flash-001';
     }
 
@@ -158,6 +168,9 @@ export class ApiManager {
         }
         if (provider === 'yunwu') {
             return this.settings.yunwuImageModel || 'gemini-3-pro-image-preview';
+        }
+        if (provider === 'gptgod') {
+            return this.settings.gptGodImageModel || 'gemini-3-pro-image-preview';
         }
         return this.settings.openRouterImageModel || 'google/gemini-2.0-flash-001';
     }
@@ -429,6 +442,9 @@ export class ApiManager {
         const provider = this.getActiveProvider();
         if (provider === 'gemini' || provider === 'yunwu') {
             return this.generateImageGeminiNative(instruction, imagesWithRoles, contextText, aspectRatio, resolution);
+        }
+        if (provider === 'gptgod') {
+            return this.generateImageGptGod(instruction, imagesWithRoles, contextText, aspectRatio, resolution);
         }
         return this.generateImageOpenRouter(instruction, imagesWithRoles, contextText, aspectRatio, resolution);
     }
@@ -956,6 +972,193 @@ export class ApiManager {
                 throw new Error(`HTTP ${error.status}: ${errorBody.error?.message || error.message}`);
             }
             throw error;
+        }
+    }
+
+    /**
+     * Generate image using GPTGod
+     * Handles specific resolution suffixes and aspect ratio prompts
+     */
+    private async generateImageGptGod(
+        instruction: string,
+        imagesWithRoles: { base64: string, mimeType: string, role: string }[],
+        contextText?: string,
+        aspectRatio?: string,
+        resolution?: string
+    ): Promise<string> {
+        if (!this.isConfigured()) {
+            throw new Error('GPTGod API Key not configured. Please set it in plugin settings.');
+        }
+
+        const contentParts: OpenRouterContentPart[] = [];
+        const configLabels: string[] = [];
+
+        // System context from settings
+        contentParts.push({
+            type: 'text',
+            text: this.settings.imageSystemPrompt || 'Role: A Professional Image Creator. Use the following references for image creation.'
+        });
+
+        // Add images with role annotations
+        for (const img of imagesWithRoles) {
+            const mime = img.mimeType || 'image/png';
+            const url = `data:${mime};base64,${img.base64}`;
+
+            // Add role label before image
+            contentParts.push({
+                type: 'text',
+                text: `\n[Ref: ${img.role}]`
+            });
+
+            contentParts.push({
+                type: 'image_url',
+                image_url: { url }
+            });
+        }
+
+        // Add context text if present
+        if (contextText && contextText.trim()) {
+            contentParts.push({
+                type: 'text',
+                text: `\n[Context]\n${contextText}`
+            });
+        }
+
+        // Handle Aspect Ratio via Prompt
+        let finalInstruction = instruction;
+        if (aspectRatio) {
+            // e.g. "Aspect Ratio: 3:4"
+            finalInstruction += `\nAspect Ratio: ${aspectRatio}`;
+        }
+
+        // Add instruction
+        contentParts.push({
+            type: 'text',
+            text: `\nINSTRUCTION: ${finalInstruction}`
+        });
+
+        const messages: OpenRouterMessage[] = [{
+            role: 'user',
+            content: contentParts
+        }];
+
+        // Handle Resolution via Model Name Suffix
+        let model = this.getImageModel();
+        // Only apply suffixes if it looks like the Gemini 3 preview model (or generic if safe)
+        // User example explicitly mentions gemini-3-pro-image-preview behavior
+        if (resolution && model.includes('gemini-3-pro-image-preview')) {
+            if (resolution === '2K') {
+                model += '-2k';
+            } else if (resolution === '4K') {
+                model += '-4k';
+            }
+            // 1K or others: keep original
+        }
+
+        const requestBody: OpenRouterRequest = {
+            model: model,
+            messages: messages,
+            // GPTGod doesn't use 'modalities' or 'image_config' in the standard way, 
+            // it relies on chat completion returning image logic.
+            // But we can keep it standard OpenAI chat format.
+        };
+
+        console.log(`Canvas AI: [GPTGod] Sending image request (Model: ${model})...`);
+        const timeoutMs = (this.settings.imageGenerationTimeout || 120) * 1000;
+
+        // We reuse sendRequest which calls requestUrl
+        // But GPTGod might return a response structure different from standard Chat Completion 
+        // if it puts images in specific fields. sendRequest returns OpenRouterResponse (OpenAI compatible).
+        // we'll cast result to any to parse flexibly.
+        const responseStub = await this.sendRequest(requestBody, timeoutMs);
+
+        return this.parseGptGodResponse(responseStub);
+    }
+
+    /**
+     * Parse GPTGod response to extract image
+     * Ported/Adapted from provided example logic
+     */
+    private parseGptGodResponse(response: any): string {
+        try {
+            const images: string[] = [];
+
+            // 1. Check direct 'images' array (legacy/specific)
+            if (Array.isArray(response.images) && response.images.length > 0) {
+                return response.images[0];
+            }
+
+            // 2. Check single 'image' field
+            if (response.image && typeof response.image === 'string') {
+                return response.image;
+            }
+
+            // 3. Check choices/messages
+            if (response?.choices?.length > 0) {
+                const firstChoice = response.choices[0];
+                const content = firstChoice.message?.content;
+                let contentText = '';
+
+                if (typeof content === 'string') {
+                    contentText = content;
+                } else if (Array.isArray(content)) {
+                    // OpenAI content array
+                    for (const part of content) {
+                        if (part?.type === 'image_url' && part?.image_url?.url) {
+                            return part.image_url.url;
+                        }
+                        if (part?.type === 'text') {
+                            contentText += (part.text || '') + '\n';
+                        }
+                    }
+                }
+
+                // If no direct image part, parse text for Markdown or URLs
+                if (contentText) {
+                    // Markdown image: ![...](url)
+                    const mdMatch = /!\[.*?\]\((https?:\/\/[^\)]+)\)/.exec(contentText);
+                    if (mdMatch) return mdMatch[1];
+
+                    // Plain URL (http...)
+                    // Match url ending in image ext
+                    const urlRegex = /(https?:\/\/[^\s"')<>]+\.(?:png|jpg|jpeg|webp|gif|bmp))/i;
+                    const urlMatch = urlRegex.exec(contentText);
+                    if (urlMatch) return urlMatch[1];
+
+                    // Check for Data URL
+                    const dataRegex = /(data:image\/[^;]+;base64,[^\s"')<>]+)/i;
+                    const dataMatch = dataRegex.exec(contentText);
+                    if (dataMatch) return dataMatch[1];
+
+                    // Raw URL if entire content is URL
+                    if (contentText.trim().startsWith('http')) {
+                        const trimmed = contentText.trim().split(/\s/)[0];
+                        if (trimmed.match(/^https?:\/\//)) return trimmed;
+                    }
+                }
+
+                // Check message.image_url / message.images custom fields
+                if (firstChoice.message?.image_url) return firstChoice.message.image_url;
+                if (Array.isArray(firstChoice.message?.images) && firstChoice.message.images.length > 0) {
+                    return firstChoice.message.images[0];
+                }
+            }
+
+            // 4. Check Root level data/result
+            if (response.data) {
+                if (Array.isArray(response.data) && response.data.length > 0) {
+                    return response.data[0]?.url || response.data[0];
+                }
+                if (response.data.url) return response.data.url;
+            }
+
+            // Failure
+            console.warn('Canvas AI: GPTGod response structure:', JSON.stringify(response).substring(0, 500));
+            throw new Error('Could not extract image from GPTGod response');
+
+        } catch (error: any) {
+            console.error('Canvas AI: Error parsing GPTGod response:', error);
+            throw new Error(`GPTGod Response Parse Error: ${error.message}`);
         }
     }
 }
