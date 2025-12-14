@@ -44,8 +44,13 @@ export interface CanvasAISettings {
     // Debug mode
     debugMode: boolean;
 
-    // Image generation system prompt
+    // System prompts for different modes
+    chatSystemPrompt: string;
+    nodeSystemPrompt: string;
     imageSystemPrompt: string;
+
+    // Node mode settings
+    nodeDefaultColor: string;  // Override color for generated nodes ("1"-"6" or empty)
 
     // Prompt presets - separate for chat, image, and node modes
     chatPresets: PromptPreset[];
@@ -80,7 +85,11 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
 
     debugMode: false,
 
+    chatSystemPrompt: 'You are a helpful AI assistant embedded in an Obsidian Canvas. Answer concisely and use Markdown formatting.',
+    nodeSystemPrompt: '',  // Empty means use default built-in prompt
     imageSystemPrompt: 'Role: A Professional Image Creator. Use the following references for image creation.',
+
+    nodeDefaultColor: '6',  // Default to color 6
 
     chatPresets: [],
     imagePresets: [],
@@ -1195,7 +1204,7 @@ export default class CanvasAIPlugin extends Plugin {
 
             if (mode === 'chat') {
                 // Chat Mode - use context and instruction
-                let systemPrompt = 'You are a helpful AI assistant embedded in an Obsidian Canvas. Answer concisely and use Markdown formatting.';
+                let systemPrompt = this.settings.chatSystemPrompt || 'You are a helpful AI assistant embedded in an Obsidian Canvas. Answer concisely and use Markdown formatting.';
 
                 if (intent.contextText) {
                     systemPrompt += `\n\n---\nThe user has selected the following content from their canvas:\n\n${intent.contextText}\n\n---\nBased on this context, respond to the user's request.`;
@@ -1328,6 +1337,12 @@ ${intent.instruction}
      * Get Node Mode system prompt for structured JSON output
      */
     private getNodeModeSystemPrompt(): string {
+        // If user has set a custom prompt, use it
+        if (this.settings.nodeSystemPrompt && this.settings.nodeSystemPrompt.trim()) {
+            return this.settings.nodeSystemPrompt;
+        }
+
+        // Default built-in prompt
         return `你是一个专业的 Obsidian Canvas JSON 生成器。你的任务是根据用户提供的内容（包括文本和图片），将其转换为符合 Obsidian Canvas 规范的 JSON 结构。
 
 ## 重要：输入内容说明
@@ -1417,6 +1432,9 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         canvasJson.nodes = canvasJson.nodes.filter((n: any) => n.id !== ghostNodeId);
 
         // Add new nodes from LLM response
+        // Override color if nodeDefaultColor is set in settings
+        const overrideColor = this.settings.nodeDefaultColor || undefined;
+
         for (const node of data.nodes) {
             canvasJson.nodes.push({
                 id: node.id,
@@ -1426,7 +1444,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                 width: Math.round(node.width),
                 height: Math.round(node.height),
                 text: node.text,
-                color: node.color,
+                color: overrideColor || node.color,  // Use override if set, otherwise LLM value
                 label: node.label,
                 url: node.url
             });
@@ -2416,9 +2434,65 @@ class CanvasAISettingTab extends PluginSettingTab {
         // ========== Prompt Settings ==========
         containerEl.createEl('h3', { text: t('Prompt Settings') });
 
+        // Chat System Prompt
+        new Setting(containerEl)
+            .setName(t('Chat System Prompt'))
+            .setDesc(t('System prompt for text chat mode'))
+            .addTextArea(text => text
+                .setPlaceholder('You are a helpful AI assistant...')
+                .setValue(this.plugin.settings.chatSystemPrompt)
+                .onChange(async (value) => {
+                    this.plugin.settings.chatSystemPrompt = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // Make the text area larger
+        let textAreaEl = containerEl.querySelector('.setting-item:last-child textarea');
+        if (textAreaEl) {
+            (textAreaEl as HTMLTextAreaElement).rows = 3;
+            (textAreaEl as HTMLTextAreaElement).style.width = '100%';
+        }
+
+        // Node System Prompt
+        new Setting(containerEl)
+            .setName(t('Node System Prompt'))
+            .setDesc(t('System prompt for node mode (leave empty to use default built-in prompt)'))
+            .addTextArea(text => text
+                .setPlaceholder('Leave empty to use default Canvas JSON generation prompt...')
+                .setValue(this.plugin.settings.nodeSystemPrompt)
+                .onChange(async (value) => {
+                    this.plugin.settings.nodeSystemPrompt = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        textAreaEl = containerEl.querySelector('.setting-item:last-child textarea');
+        if (textAreaEl) {
+            (textAreaEl as HTMLTextAreaElement).rows = 3;
+            (textAreaEl as HTMLTextAreaElement).style.width = '100%';
+        }
+
+        // Node Default Color
+        new Setting(containerEl)
+            .setName(t('Node Default Color'))
+            .setDesc(t('Override color for generated nodes (1-6, leave empty to use LLM suggested colors)'))
+            .addDropdown(dropdown => dropdown
+                .addOption('', t('Use LLM colors'))
+                .addOption('1', '1 - Red')
+                .addOption('2', '2 - Orange')
+                .addOption('3', '3 - Yellow')
+                .addOption('4', '4 - Green')
+                .addOption('5', '5 - Cyan')
+                .addOption('6', '6 - Purple')
+                .setValue(this.plugin.settings.nodeDefaultColor)
+                .onChange(async (value) => {
+                    this.plugin.settings.nodeDefaultColor = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // Image System Prompt
         new Setting(containerEl)
             .setName(t('Image System Prompt'))
-            .setDesc(t('Image System Prompt'))
+            .setDesc(t('System prompt for image generation mode'))
             .addTextArea(text => text
                 .setPlaceholder('You are an expert creator...')
                 .setValue(this.plugin.settings.imageSystemPrompt)
@@ -2428,7 +2502,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 }));
 
         // Make the text area larger
-        const textAreaEl = containerEl.querySelector('.setting-item:last-child textarea');
+        textAreaEl = containerEl.querySelector('.setting-item:last-child textarea');
         if (textAreaEl) {
             (textAreaEl as HTMLTextAreaElement).rows = 3;
             (textAreaEl as HTMLTextAreaElement).style.width = '100%';
