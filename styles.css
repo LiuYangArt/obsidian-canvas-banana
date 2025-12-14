@@ -461,50 +461,46 @@
 
 /* ========== Ghost Node Styles ========== */
 
-/* Ghost node loading animation */
+/* Ghost node with breathing animation */
 .canvas-ai-ghost-node {
     position: relative;
 }
 
-.canvas-ai-ghost-node::before {
+/* Ghost node content - border styling */
+.canvas-ai-ghost-node .canvas-node-content {
+    border: 2px solid var(--interactive-accent) !important;
+    position: relative;
+    overflow: hidden;
+}
+
+/* Breathing overlay - using ::after on content element so it appears above the background */
+.canvas-ai-ghost-node .canvas-node-content::after {
     content: '';
     position: absolute;
     inset: 0;
-    border-radius: 8px;
-    background: linear-gradient(90deg,
-            transparent,
-            rgba(102, 126, 234, 0.5),
-            transparent);
-    animation: canvas-ai-shimmer 2s infinite;
+    background: var(--interactive-accent);
+    opacity: 0.4;
+    animation: canvas-ai-breathe 2s ease-in-out infinite;
+    pointer-events: none;
+    z-index: 0;
 }
 
-@keyframes canvas-ai-shimmer {
-    0% {
-        transform: translateX(-13%);
-    }
-
-    100% {
-        transform: translateX(13%);
-    }
+/* Ensure text content stays above the overlay */
+.canvas-ai-ghost-node .canvas-node-content>* {
+    position: relative;
+    z-index: 1;
 }
 
-/* Ghost node pulse border */
-.canvas-ai-ghost-node .canvas-node-content {
-    border: 2px solid var(--interactive-accent) !important;
-    animation: canvas-ai-pulse 2s ease-in-out infinite;
-}
-
-@keyframes canvas-ai-pulse {
+/* Breathing animation - smooth opacity pulse */
+@keyframes canvas-ai-breathe {
 
     0%,
     100% {
-        border-color: var(--interactive-accent);
-        box-shadow: 0 0 0 0 rgba(102, 126, 234, 0.4);
+        opacity: 0.25;
     }
 
     50% {
-        border-color: rgba(102, 126, 234, 0.6);
-        box-shadow: 0 0 0 8px rgba(102, 126, 234, 0);
+        opacity: 0.55;
     }
 }
 
