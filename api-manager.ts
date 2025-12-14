@@ -86,7 +86,7 @@ export class ApiManager {
     /**
      * Get the current active provider
      */
-    private getActiveProvider(): 'openrouter' | 'yunwu' {
+    private getActiveProvider(): 'openrouter' | 'yunwu' | 'gemini' {
         return this.settings.apiProvider || 'openrouter';
     }
 
@@ -94,7 +94,11 @@ export class ApiManager {
      * Get the API key to use based on active provider
      */
     private getApiKey(): string {
-        if (this.getActiveProvider() === 'yunwu') {
+        const provider = this.getActiveProvider();
+        if (provider === 'gemini') {
+            return this.settings.geminiApiKey || '';
+        }
+        if (provider === 'yunwu') {
             return this.settings.yunwuApiKey || '';
         }
         return this.settings.openRouterApiKey || '';
@@ -117,6 +121,9 @@ export class ApiManager {
      */
     private getTextModel(): string {
         const provider = this.getActiveProvider();
+        if (provider === 'gemini') {
+            return this.settings.geminiTextModel || 'gemini-2.5-flash';
+        }
         if (provider === 'yunwu') {
             return this.settings.yunwuTextModel || 'gemini-2.0-flash';
         }
@@ -128,6 +135,9 @@ export class ApiManager {
      */
     private getImageModel(): string {
         const provider = this.getActiveProvider();
+        if (provider === 'gemini') {
+            return this.settings.geminiImageModel || 'gemini-2.5-flash-preview-05-20';
+        }
         if (provider === 'yunwu') {
             return this.settings.yunwuImageModel || 'gemini-3-pro-image-preview';
         }
@@ -142,16 +152,24 @@ export class ApiManager {
     }
 
     /**
-     * Send a chat completion request to OpenRouter
+     * Send a chat completion request
      * @param prompt User's prompt text
      * @param systemPrompt Optional system prompt
      * @returns The assistant's response text
      */
     async chatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): Promise<string> {
         if (!this.isConfigured()) {
-            throw new Error('OpenRouter API Key not configured. Please set it in plugin settings.');
+            throw new Error('API Key not configured. Please set it in plugin settings.');
         }
 
+        const provider = this.getActiveProvider();
+
+        // Route Gemini and Yunwu to native Gemini API format
+        if (provider === 'gemini' || provider === 'yunwu') {
+            return this.chatCompletionGeminiNative(prompt, systemPrompt, temperature);
+        }
+
+        // OpenRouter uses OpenAI-compatible format
         const messages: OpenRouterMessage[] = [];
 
         if (systemPrompt) {
@@ -189,6 +207,95 @@ export class ApiManager {
         console.log('Canvas AI: Received response:', content);
 
         return content;
+    }
+
+    /**
+     * Chat completion using Gemini native API format
+     * Shared by Gemini and Yunwu providers
+     */
+    private async chatCompletionGeminiNative(prompt: string, systemPrompt?: string, temperature: number = 0.5): Promise<string> {
+        const provider = this.getActiveProvider();
+        const apiKey = this.getApiKey();
+        const model = this.getTextModel();
+
+        // Build base URL
+        let baseUrl: string;
+        if (provider === 'gemini') {
+            baseUrl = 'https://generativelanguage.googleapis.com';
+        } else {
+            baseUrl = this.settings.yunwuBaseUrl || 'https://yunwu.ai';
+        }
+
+        const endpoint = `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+        // Build request body in Gemini native format
+        const parts: Array<{ text: string }> = [];
+        if (systemPrompt) {
+            parts.push({ text: systemPrompt });
+        }
+        parts.push({ text: prompt });
+
+        const requestBody: any = {
+            contents: [{
+                role: 'user',
+                parts: parts
+            }],
+            generationConfig: {
+                temperature: temperature
+            }
+        };
+
+        // Add system instruction if provided (Gemini's separate field)
+        if (systemPrompt) {
+            requestBody.systemInstruction = {
+                parts: [{ text: systemPrompt }]
+            };
+            // Remove from user content since it's in systemInstruction
+            requestBody.contents[0].parts = [{ text: prompt }];
+        }
+
+        console.log(`Canvas AI: [${provider}] Sending chat request...`);
+
+        const requestParams: RequestUrlParam = {
+            url: endpoint,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        };
+
+        try {
+            const response = await requestUrl(requestParams);
+            const data = response.json;
+
+            // Parse Gemini response format
+            const candidates = data.candidates;
+            if (!candidates || candidates.length === 0) {
+                throw new Error('Gemini returned no candidates');
+            }
+
+            const parts = candidates[0]?.content?.parts;
+            if (!parts || parts.length === 0) {
+                throw new Error('Gemini returned no parts in response');
+            }
+
+            // Find text part
+            const textPart = parts.find((p: any) => p.text);
+            if (!textPart?.text) {
+                throw new Error('Gemini returned no text in response');
+            }
+
+            console.log(`Canvas AI: [${provider}] Received response:`, textPart.text.substring(0, 100));
+            return textPart.text;
+        } catch (error: any) {
+            if (error.status) {
+                const errorBody = error.json || { message: error.message };
+                console.error(`Canvas AI: ${provider} HTTP Error`, error.status, errorBody);
+                throw new Error(`HTTP ${error.status}: ${errorBody.error?.message || error.message}`);
+            }
+            throw error;
+        }
     }
 
     /**
@@ -297,8 +404,9 @@ export class ApiManager {
         }
 
         // Route to provider-specific implementation
-        if (this.getActiveProvider() === 'yunwu') {
-            return this.generateImageYunwu(instruction, imagesWithRoles, contextText, aspectRatio, resolution);
+        const provider = this.getActiveProvider();
+        if (provider === 'gemini' || provider === 'yunwu') {
+            return this.generateImageGeminiNative(instruction, imagesWithRoles, contextText, aspectRatio, resolution);
         }
         return this.generateImageOpenRouter(instruction, imagesWithRoles, contextText, aspectRatio, resolution);
     }
@@ -399,16 +507,18 @@ export class ApiManager {
     }
 
     /**
-     * Generate image using Yunwu native Gemini format
-     * Uses different parameter names: aspectRatio (no underscore), imageSize (no underscore)
+     * Generate image using Gemini native format
+     * Shared by Gemini and Yunwu providers
+     * Uses camelCase parameter names: aspectRatio, imageSize
      */
-    private async generateImageYunwu(
+    private async generateImageGeminiNative(
         instruction: string,
         imagesWithRoles: { base64: string, mimeType: string, role: string }[],
         contextText?: string,
         aspectRatio?: string,
         resolution?: string
     ): Promise<string> {
+        const provider = this.getActiveProvider();
         // Build parts array in Gemini native format
         const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
 
@@ -461,12 +571,17 @@ export class ApiManager {
             }
         }
 
-        console.log('Canvas AI: [Yunwu] Sending image generation request...');
+        console.log(`Canvas AI: [${provider}] Sending image generation request...`);
         console.log('Request body:', JSON.stringify(requestBody, null, 2));
 
-        // Yunwu image generation uses a different endpoint
+        // Build endpoint URL based on provider
         const apiKey = this.getApiKey();
-        const baseUrl = this.settings.yunwuBaseUrl || 'https://yunwu.ai';
+        let baseUrl: string;
+        if (provider === 'gemini') {
+            baseUrl = 'https://generativelanguage.googleapis.com';
+        } else {
+            baseUrl = this.settings.yunwuBaseUrl || 'https://yunwu.ai';
+        }
         const model = this.getImageModel();
         const endpoint = `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
 
@@ -483,12 +598,12 @@ export class ApiManager {
             const response = await requestUrl(requestParams);
             const data = response.json;
 
-            // Parse Yunwu/Gemini response format
-            return this.parseYunwuImageResponse(data);
+            // Parse Gemini response format
+            return this.parseGeminiImageResponse(data);
         } catch (error: any) {
             if (error.status) {
                 const errorBody = error.json || { message: error.message };
-                console.error('Canvas AI: Yunwu HTTP Error', error.status, errorBody);
+                console.error(`Canvas AI: ${provider} HTTP Error`, error.status, errorBody);
                 throw new Error(`HTTP ${error.status}: ${errorBody.error?.message || error.message}`);
             }
             throw error;
@@ -496,19 +611,19 @@ export class ApiManager {
     }
 
     /**
-     * Parse Yunwu/Gemini image response
+     * Parse Gemini image response
      * Handles both base64 and URL formats, and various MIME types
      */
-    private async parseYunwuImageResponse(data: any): Promise<string> {
+    private async parseGeminiImageResponse(data: any): Promise<string> {
         // Gemini response format: candidates[0].content.parts[]
         const candidates = data.candidates;
         if (!candidates || candidates.length === 0) {
-            throw new Error('Yunwu returned no candidates');
+            throw new Error('Gemini returned no candidates');
         }
 
         const parts = candidates[0]?.content?.parts;
         if (!parts || parts.length === 0) {
-            throw new Error('Yunwu returned no parts in response');
+            throw new Error('Gemini returned no parts in response');
         }
 
         // Find image part
@@ -517,14 +632,14 @@ export class ApiManager {
             if (part.inlineData) {
                 const mimeType = part.inlineData.mimeType || 'image/png';
                 const base64Data = part.inlineData.data;
-                console.log('Canvas AI: Yunwu returned base64 image, mimeType:', mimeType);
+                console.log('Canvas AI: Gemini returned base64 image, mimeType:', mimeType);
                 return `data:${mimeType};base64,${base64Data}`;
             }
 
             // Check for file_data (URL)
             if (part.file_data) {
                 const url = part.file_data.file_uri;
-                console.log('Canvas AI: Yunwu returned URL, fetching:', url);
+                console.log('Canvas AI: Gemini returned URL, fetching:', url);
                 return await this.fetchImageAsDataUrl(url);
             }
         }
@@ -532,7 +647,7 @@ export class ApiManager {
         // No image found, check for text content (may contain error or refusal)
         const textPart = parts.find((p: any) => p.text);
         const textContent = textPart?.text || 'No image returned';
-        console.log('Canvas AI: No image in Yunwu response, text:', textContent);
+        console.log('Canvas AI: No image in Gemini response, text:', textContent);
         throw new Error(`Image generation failed: ${textContent}`);
     }
 
@@ -586,9 +701,17 @@ export class ApiManager {
         temperature: number = 0.5
     ): Promise<string> {
         if (!this.isConfigured()) {
-            throw new Error('OpenRouter API Key not configured. Please set it in plugin settings.');
+            throw new Error('API Key not configured. Please set it in plugin settings.');
         }
 
+        const provider = this.getActiveProvider();
+
+        // Route Gemini and Yunwu to native Gemini API format
+        if (provider === 'gemini' || provider === 'yunwu') {
+            return this.multimodalChatGeminiNative(prompt, mediaList, systemPrompt, temperature);
+        }
+
+        // OpenRouter uses OpenAI-compatible format
         const messages: OpenRouterMessage[] = [];
 
         if (systemPrompt) {
@@ -645,6 +768,108 @@ export class ApiManager {
         }
 
         return response.choices[0].message.content;
+    }
+
+    /**
+     * Multimodal chat using Gemini native API format
+     * Shared by Gemini and Yunwu providers
+     */
+    private async multimodalChatGeminiNative(
+        prompt: string,
+        mediaList: { base64: string, mimeType: string, type: 'image' | 'pdf' }[],
+        systemPrompt?: string,
+        temperature: number = 0.5
+    ): Promise<string> {
+        const provider = this.getActiveProvider();
+        const apiKey = this.getApiKey();
+        const model = this.getTextModel();
+
+        // Build base URL
+        let baseUrl: string;
+        if (provider === 'gemini') {
+            baseUrl = 'https://generativelanguage.googleapis.com';
+        } else {
+            baseUrl = this.settings.yunwuBaseUrl || 'https://yunwu.ai';
+        }
+
+        const endpoint = `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
+
+        // Build parts array in Gemini native format
+        const parts: Array<{ text?: string; inlineData?: { mimeType: string; data: string } }> = [];
+
+        // Add text prompt first
+        parts.push({ text: prompt });
+
+        // Add images and PDFs as inlineData
+        for (const media of mediaList) {
+            const mime = media.mimeType || 'image/png';
+            parts.push({
+                inlineData: {
+                    mimeType: mime,
+                    data: media.base64
+                }
+            });
+        }
+
+        const requestBody: any = {
+            contents: [{
+                role: 'user',
+                parts: parts
+            }],
+            generationConfig: {
+                temperature: temperature
+            }
+        };
+
+        // Add system instruction if provided
+        if (systemPrompt) {
+            requestBody.systemInstruction = {
+                parts: [{ text: systemPrompt }]
+            };
+        }
+
+        console.log(`Canvas AI: [${provider}] Sending multimodal chat request...`);
+
+        const requestParams: RequestUrlParam = {
+            url: endpoint,
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(requestBody)
+        };
+
+        try {
+            const response = await requestUrl(requestParams);
+            const data = response.json;
+
+            // Parse Gemini response format
+            const candidates = data.candidates;
+            if (!candidates || candidates.length === 0) {
+                throw new Error('Gemini returned no candidates');
+            }
+
+            const responseParts = candidates[0]?.content?.parts;
+            if (!responseParts || responseParts.length === 0) {
+                throw new Error('Gemini returned no parts in response');
+            }
+
+            // Find text part
+            const textPart = responseParts.find((p: any) => p.text);
+            if (!textPart?.text) {
+                throw new Error('Gemini returned no text in response');
+            }
+
+            console.log(`Canvas AI: [${provider}] Received multimodal response`);
+            return textPart.text;
+        } catch (error: any) {
+            if (error.status) {
+                const errorBody = error.json || { message: error.message };
+                console.error(`Canvas AI: ${provider} HTTP Error`, error.status, errorBody);
+                throw new Error(`HTTP ${error.status}: ${errorBody.error?.message || error.message}`);
+            }
+            throw error;
+        }
     }
 
     /**

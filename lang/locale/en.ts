@@ -10,6 +10,8 @@ export default {
     'Yunwu API Key': 'Yunwu API Key',
     'Enter your Yunwu API Key': 'Enter your Yunwu API Key',
     'Yunwu Base URL': 'Yunwu Base URL',
+    'Gemini API Key': 'Gemini API Key',
+    'Enter your Gemini API Key': 'Enter your Gemini API Key (Get at: aistudio.google.com/apikey)',
     'Model Configuration': 'Model Configuration',
     'Model List': 'Model List',
     'Click refresh': 'Click refresh to get available models',

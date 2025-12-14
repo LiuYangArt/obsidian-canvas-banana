@@ -10,6 +10,8 @@ export default {
     'Yunwu API Key': '云雾 API Key',
     'Enter your Yunwu API Key': '输入你的云雾 API Key',
     'Yunwu Base URL': '云雾基础 URL',
+    'Gemini API Key': 'Gemini API Key',
+    'Enter your Gemini API Key': '输入你的 Gemini API Key (在 aistudio.google.com/apikey 获取)',
     'Model Configuration': '模型配置',
     'Model List': '模型列表',
     'Click refresh': '点击刷新以获取可用模型',

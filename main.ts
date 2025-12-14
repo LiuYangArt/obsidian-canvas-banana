@@ -7,7 +7,7 @@ import { extractCanvasJSON, remapCoordinates, regenerateIds, optimizeLayout, san
 import { t } from './lang/helpers';
 
 // ========== Plugin Settings Interfaces ==========
-export type ApiProvider = 'openrouter' | 'yunwu';
+export type ApiProvider = 'openrouter' | 'yunwu' | 'gemini';
 
 export interface CanvasAISettings {
     // API Provider selection
@@ -27,6 +27,13 @@ export interface CanvasAISettings {
     yunwuImageModel: string;
     yunwuUseCustomTextModel: boolean;
     yunwuUseCustomImageModel: boolean;
+
+    // Google Gemini settings
+    geminiApiKey: string;
+    geminiTextModel: string;
+    geminiImageModel: string;
+    geminiUseCustomTextModel: boolean;
+    geminiUseCustomImageModel: boolean;
 
     // Legacy fields (for migration)
     textModel?: string;
@@ -76,6 +83,12 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
     yunwuImageModel: 'gemini-3-pro-image-preview',
     yunwuUseCustomTextModel: false,
     yunwuUseCustomImageModel: false,
+
+    geminiApiKey: '',
+    geminiTextModel: 'gemini-2.5-flash',
+    geminiImageModel: 'gemini-2.5-flash-preview-05-20',
+    geminiUseCustomTextModel: false,
+    geminiUseCustomImageModel: false,
 
     imageCompressionQuality: 80,  // Default 80% quality
     imageMaxSize: 2048,  // Default max size
@@ -2681,6 +2694,7 @@ class CanvasAISettingTab extends PluginSettingTab {
             .addDropdown(dropdown => dropdown
                 .addOption('openrouter', 'OpenRouter')
                 .addOption('yunwu', 'Yunwu')
+                .addOption('gemini', 'Google Gemini')
                 .setValue(this.plugin.settings.apiProvider)
                 .onChange(async (value) => {
                     this.plugin.settings.apiProvider = value as ApiProvider;
@@ -2694,11 +2708,12 @@ class CanvasAISettingTab extends PluginSettingTab {
                     this.display();
                 }));
 
-        const isYunwu = this.plugin.settings.apiProvider === 'yunwu';
-        // Yunwu uses same OpenAI-compatible models endpoint
+        const provider = this.plugin.settings.apiProvider;
+        const isYunwu = provider === 'yunwu';
+        const isGemini = provider === 'gemini';
 
         // ========== Configuration Section ==========
-        if (!isYunwu) { // OpenRouter
+        if (provider === 'openrouter') {
             // API Key with Test Button
             const apiKeySetting = new Setting(containerEl)
                 .setName(t('OpenRouter API Key'))
@@ -2723,7 +2738,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                         this.plugin.settings.openRouterBaseUrl = value;
                         await this.plugin.saveSettings();
                     }));
-        } else { // Yunwu
+        } else if (provider === 'yunwu') {
             const yunwuKeySetting = new Setting(containerEl)
                 .setName(t('Yunwu API Key'))
                 .setDesc(t('Enter your Yunwu API Key'))
@@ -2747,66 +2762,95 @@ class CanvasAISettingTab extends PluginSettingTab {
                         this.plugin.settings.yunwuBaseUrl = value;
                         await this.plugin.saveSettings();
                     }));
+        } else if (provider === 'gemini') {
+            const geminiKeySetting = new Setting(containerEl)
+                .setName(t('Gemini API Key'))
+                .setDesc(t('Enter your Gemini API Key'))
+                .addText(text => text
+                    .setPlaceholder('AIza...')
+                    .setValue(this.plugin.settings.geminiApiKey)
+                    .onChange(async (value) => {
+                        this.plugin.settings.geminiApiKey = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            this.addTestButton(geminiKeySetting.controlEl, containerEl);
         }
 
         // ========== 模型配置区域 ==========
         containerEl.createEl('h3', { text: t('Model Configuration') });
 
         // Fetch models if not already fetched (Non-blocking)
-        const apiKey = isYunwu ? this.plugin.settings.yunwuApiKey : this.plugin.settings.openRouterApiKey;
-        if (!this.modelsFetched && apiKey && !this.isFetching) {
+        // Gemini doesn't have a models list API, so we skip fetching for it
+        const apiKey = isGemini
+            ? this.plugin.settings.geminiApiKey
+            : isYunwu
+                ? this.plugin.settings.yunwuApiKey
+                : this.plugin.settings.openRouterApiKey;
+        if (!this.modelsFetched && apiKey && !this.isFetching && !isGemini) {
             this.fetchModels();
         }
 
-        // Refresh button
-        let statusText = t('Click refresh');
-        if (this.isFetching) {
-            statusText = t('Fetching...');
-        } else if (this.modelsFetched) {
-            statusText = t('Loaded models', {
-                count: this.modelCache.length,
-                textCount: this.getTextModels().length,
-                imageCount: this.getImageModels().length,
-                source: isYunwu ? 'Yunwu' : 'OpenRouter'
+        // Refresh button - hide for Gemini since it doesn't have models API
+        if (!isGemini) {
+            let statusText = t('Click refresh');
+            if (this.isFetching) {
+                statusText = t('Fetching...');
+            } else if (this.modelsFetched) {
+                statusText = t('Loaded models', {
+                    count: this.modelCache.length,
+                    textCount: this.getTextModels().length,
+                    imageCount: this.getImageModels().length,
+                    source: isYunwu ? 'Yunwu' : 'OpenRouter'
+                });
+            }
+
+            const refreshSetting = new Setting(containerEl)
+                .setName(t('Model List'))
+                .setDesc(statusText);
+
+            const refreshBtn = refreshSetting.controlEl.createEl('button', {
+                text: this.isFetching ? t('Refreshing...') : t('Refresh Model List'),
+                cls: 'canvas-ai-refresh-btn'
+            });
+
+            refreshBtn.disabled = this.isFetching;
+
+            refreshBtn.addEventListener('click', async () => {
+                refreshBtn.textContent = 'Fetching...';
+                refreshBtn.disabled = true;
+                this.modelsFetched = false; // Force refresh
+                this.fetchModels(); // Fire and forget
+                // UI will be updated by fetchModels finally block
             });
         }
 
-        const refreshSetting = new Setting(containerEl)
-            .setName(t('Model List'))
-            .setDesc(statusText);
-
-        const refreshBtn = refreshSetting.controlEl.createEl('button', {
-            text: this.isFetching ? t('Refreshing...') : t('Refresh Model List'),
-            cls: 'canvas-ai-refresh-btn'
-        });
-
-        refreshBtn.disabled = this.isFetching;
-
-        refreshBtn.addEventListener('click', async () => {
-            refreshBtn.textContent = 'Fetching...';
-            refreshBtn.disabled = true;
-            this.modelsFetched = false; // Force refresh
-            this.fetchModels(); // Fire and forget
-            // UI will be updated by fetchModels finally block
-        });
-
         // ========== Text Model Setting ==========
+        // Get model keys based on provider
+        const textModelKey = isGemini ? 'geminiTextModel' : isYunwu ? 'yunwuTextModel' : 'openRouterTextModel';
+        const textCustomKey = isGemini ? 'geminiUseCustomTextModel' : isYunwu ? 'yunwuUseCustomTextModel' : 'openRouterUseCustomTextModel';
+        const textPlaceholder = isGemini ? 'gemini-2.5-flash' : isYunwu ? 'gemini-2.0-flash' : 'google/gemini-2.0-flash-001';
+
         this.renderModelSetting(containerEl, {
             name: t('Text Generation Model'),
             desc: t('Text Generation Model'), // Reusing key as desc
-            modelKey: isYunwu ? 'yunwuTextModel' : 'openRouterTextModel',
-            customKey: isYunwu ? 'yunwuUseCustomTextModel' : 'openRouterUseCustomTextModel',
-            placeholder: isYunwu ? 'gemini-2.0-flash' : 'google/gemini-2.0-flash-001',
+            modelKey: textModelKey,
+            customKey: textCustomKey,
+            placeholder: textPlaceholder,
             getModels: () => this.getTextModels()
         });
 
         // ========== Image Model Setting ==========
+        const imageModelKey = isGemini ? 'geminiImageModel' : isYunwu ? 'yunwuImageModel' : 'openRouterImageModel';
+        const imageCustomKey = isGemini ? 'geminiUseCustomImageModel' : isYunwu ? 'yunwuUseCustomImageModel' : 'openRouterUseCustomImageModel';
+        const imagePlaceholder = isGemini ? 'gemini-2.5-flash-preview-05-20' : isYunwu ? 'gemini-3-pro-image-preview' : 'google/gemini-2.0-flash-001';
+
         this.renderModelSetting(containerEl, {
             name: t('Image Generation Model'),
             desc: t('Image Generation Model'),
-            modelKey: isYunwu ? 'yunwuImageModel' : 'openRouterImageModel',
-            customKey: isYunwu ? 'yunwuUseCustomImageModel' : 'openRouterUseCustomImageModel',
-            placeholder: isYunwu ? 'gemini-3-pro-image-preview' : 'google/gemini-2.0-flash-001',
+            modelKey: imageModelKey,
+            customKey: imageCustomKey,
+            placeholder: imagePlaceholder,
             getModels: () => this.getImageModels()
         });
 
