@@ -23,6 +23,7 @@ export default {
     'Text Generation Model': '文本生成模型',
     'Image Generation Model': '图像生成模型',
     'Image Optimization': '图像优化',
+    'Image Optimization Desc': '在发送给 LLM 服务器前压缩图像，以优化传输效率并节省 Token。',
     'Image Compression Quality': '图像压缩质量',
     'Image Max Size': '图像最大尺寸',
     'Prompt Settings': '提示词设置',

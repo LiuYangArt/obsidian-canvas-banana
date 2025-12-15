@@ -23,6 +23,7 @@ export default {
     'Text Generation Model': 'Text generation model',
     'Image Generation Model': 'Image generation model',
     'Image Optimization': 'Image optimization',
+    'Image Optimization Desc': 'Compress images before sending to LLM to save tokens and improve transmission efficiency.',
     'Image Compression Quality': 'Image compression quality',
     'Image Max Size': 'Image max size',
     'Prompt Settings': 'Prompt settings',

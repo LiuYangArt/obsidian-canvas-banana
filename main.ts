@@ -3473,7 +3473,10 @@ class CanvasAISettingTab extends PluginSettingTab {
         });
 
         // 图片优化区域
-        new Setting(containerEl).setHeading().setName(t('Image Optimization'));
+        new Setting(containerEl)
+            .setHeading()
+            .setName(t('Image Optimization'))
+            .setDesc(t('Image Optimization Desc'));
 
         new Setting(containerEl)
             .setName(t('Image Compression Quality'))
