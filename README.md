@@ -71,11 +71,11 @@ Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增�
 ### 1. 配置 API Key
 首次使用前，请先配置 API：
 1.  打开 Obsidian **设置** -> **Canvas Banana**。
-2.  选择 **API Provider** (默认 OpenRouter)。
+2.  选择 **API Provider** 。
 3.  填入你的 **API Key**。
 4.  (可选) 选择或自定义你偏好的 Text/Image 模型。
 
-- 获得api [yunwu](https://yunwu.ai/register?aff=VE3i) 
+- 获得api [yunwu](https://yunwu.ai/register?aff=VE3i) | [gptgod](https://gptgod.site/#/register?invite_code=5ax35dxlk4bys0j7jnzqypwkc)
 
 ### 2. 唤起操作面板
 1.  打开一个 **Canvas (白板)** 文件。
@@ -182,10 +182,10 @@ Since this plugin may be in beta or not yet in the community store, please follo
 ### 1. Configure API Key
 Before first use:
 1.  Go to **Settings** -> **Canvas Banana**.
-2.  Select **API Provider** (Default: OpenRouter).
+2.  Select **API Provider** .
 3.  Enter your **API Key**.
 4.  (Optional) Select custom models for Text/Image.
--   Get API: [yunwu](https://yunwu.ai/register?aff=VE3i)
+
 
 ### 2. Activate the Panel
 1.  Open a **Canvas** file.
