@@ -120,5 +120,6 @@ export default {
     'Model already exists': 'Model already in quick switch list',
     'Model removed': 'Model removed from quick switch list',
     'Palette Model': 'Model',
-    'No quick switch models': 'No quick switch models configured'
+    'No quick switch models': 'No quick switch models configured',
+    'No model selected': 'No model selected'
 };

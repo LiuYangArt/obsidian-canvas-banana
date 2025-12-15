@@ -3987,47 +3987,52 @@ class CanvasAISettingTab extends PluginSettingTab {
                     this.display();
                 }));
 
-        // Add "Add to Quick Switch" button
+        // Add "Add to Quick Switch" button - always show it
         const provider = this.plugin.settings.apiProvider;
-        const currentModelId = this.plugin.settings[modelKey] as string;
-        if (currentModelId) {
-            toggleSetting.addButton(btn => btn
-                .setButtonText(t('Add to Quick Switch'))
-                .onClick(async () => {
-                    const targetList = isImageModel
-                        ? (this.plugin.settings.quickSwitchImageModels || [])
-                        : (this.plugin.settings.quickSwitchTextModels || []);
+        toggleSetting.addButton(btn => btn
+            .setButtonText(t('Add to Quick Switch'))
+            .onClick(async () => {
+                // Read current model ID at click time (not at button creation time)
+                const currentModelId = this.plugin.settings[modelKey] as string;
+                if (!currentModelId) {
+                    new Notice(t('No model selected'));
+                    return;
+                }
 
-                    const key = `${provider}|${currentModelId}`;
-                    if (targetList.some(m => `${m.provider}|${m.modelId}` === key)) {
-                        new Notice(t('Model already exists'));
-                        return;
-                    }
+                const targetList = isImageModel
+                    ? (this.plugin.settings.quickSwitchImageModels || [])
+                    : (this.plugin.settings.quickSwitchTextModels || []);
 
-                    targetList.push({
-                        provider: provider,
-                        modelId: currentModelId,
-                        displayName: this.getModelDisplayName(currentModelId)
-                    });
+                const currentProvider = this.plugin.settings.apiProvider;
+                const key = `${currentProvider}|${currentModelId}`;
+                if (targetList.some(m => `${m.provider}|${m.modelId}` === key)) {
+                    new Notice(t('Model already exists'));
+                    return;
+                }
 
-                    if (isImageModel) {
-                        this.plugin.settings.quickSwitchImageModels = targetList;
-                    } else {
-                        this.plugin.settings.quickSwitchTextModels = targetList;
-                    }
+                targetList.push({
+                    provider: currentProvider,
+                    modelId: currentModelId,
+                    displayName: this.getModelDisplayName(currentModelId)
+                });
 
-                    await this.plugin.saveSettings();
-                    this.plugin.floatingPalette?.initQuickSwitchModels(
-                        this.plugin.settings.quickSwitchTextModels || [],
-                        this.plugin.settings.quickSwitchImageModels || [],
-                        this.plugin.settings.paletteTextModel || '',
-                        this.plugin.settings.paletteImageModel || '',
-                        this.plugin.settings.paletteNodeModel || ''
-                    );
-                    new Notice(t('Model added'));
-                    this.display();
-                }));
-        }
+                if (isImageModel) {
+                    this.plugin.settings.quickSwitchImageModels = targetList;
+                } else {
+                    this.plugin.settings.quickSwitchTextModels = targetList;
+                }
+
+                await this.plugin.saveSettings();
+                this.plugin.floatingPalette?.initQuickSwitchModels(
+                    this.plugin.settings.quickSwitchTextModels || [],
+                    this.plugin.settings.quickSwitchImageModels || [],
+                    this.plugin.settings.paletteTextModel || '',
+                    this.plugin.settings.paletteImageModel || '',
+                    this.plugin.settings.paletteNodeModel || ''
+                );
+                new Notice(t('Model added'));
+                this.display();
+            }));
     }
 }
 

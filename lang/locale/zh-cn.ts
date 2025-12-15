@@ -120,5 +120,6 @@ export default {
     'Model already exists': '模型已存在于快捷切换列表',
     'Model removed': '模型已从快捷切换列表移除',
     'Palette Model': '模型',
-    'No quick switch models': '未配置快捷切换模型'
+    'No quick switch models': '未配置快捷切换模型',
+    'No model selected': '未选择模型'
 };
