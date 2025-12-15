@@ -1373,47 +1373,47 @@ export default class CanvasAIPlugin extends Plugin {
 
         const selection = canvas.selection;
 
-        // ========== Temporary settings override for quick switch model ==========
+        // ========== Create local API manager for this task (concurrency-safe) ==========
+        // Instead of modifying shared this.settings, create a local ApiManager instance
+        // This prevents race conditions when multiple tasks run concurrently
         const selectedModel = this.floatingPalette?.getSelectedModel(mode) || '';
-        let originalProvider: ApiProvider | null = null;
-        let originalTextModel: string | null = null;
-        let originalImageModel: string | null = null;
+        let localApiManager: ApiManager;
 
         if (selectedModel) {
             const [provider, modelId] = selectedModel.split('|');
             if (provider && modelId) {
-                // Backup original settings
-                originalProvider = this.settings.apiProvider;
-                originalTextModel = this.getCurrentTextModel();
-                originalImageModel = this.getCurrentImageModel();
+                // Create a shallow copy of settings with overridden provider/model
+                // Use type assertion to create the local settings object
+                const localSettings: CanvasAISettings = {
+                    ...this.settings,
+                    apiProvider: provider as ApiProvider
+                };
 
-                // Override settings temporarily
-                this.settings.apiProvider = provider as ApiProvider;
-                this.setCurrentTextModel(modelId);
-                this.setCurrentImageModel(modelId);
+                // Override the model for the specific provider
+                if (provider === 'openrouter') {
+                    localSettings.openRouterTextModel = modelId;
+                    localSettings.openRouterImageModel = modelId;
+                } else if (provider === 'gemini') {
+                    localSettings.geminiTextModel = modelId;
+                    localSettings.geminiImageModel = modelId;
+                } else if (provider === 'yunwu') {
+                    localSettings.yunwuTextModel = modelId;
+                    localSettings.yunwuImageModel = modelId;
+                } else if (provider === 'gptgod') {
+                    localSettings.gptGodTextModel = modelId;
+                    localSettings.gptGodImageModel = modelId;
+                }
 
-                // Reinitialize API manager with new settings
-                this.apiManager = new ApiManager(this.settings);
-
-                console.debug(`Canvas Banana: Quick switch to ${provider}/${modelId}`);
+                localApiManager = new ApiManager(localSettings);
+                console.debug(`Canvas Banana: Quick switch to ${provider}/${modelId} (using local ApiManager)`);
+            } else {
+                // No valid quick switch model, use the default apiManager's settings
+                localApiManager = new ApiManager(this.settings);
             }
+        } else {
+            // No quick switch model selected, use the default apiManager's settings
+            localApiManager = new ApiManager(this.settings);
         }
-
-        // Restoration function to call in finally block
-        const restoreSettings = () => {
-            if (originalProvider !== null) {
-                this.settings.apiProvider = originalProvider;
-                if (originalTextModel !== null) {
-                    this.setCurrentTextModel(originalTextModel);
-                }
-                if (originalImageModel !== null) {
-                    this.setCurrentImageModel(originalImageModel);
-                }
-                // Reinitialize API manager with original settings
-                this.apiManager = new ApiManager(this.settings);
-                console.debug('Canvas Banana: Restored original settings');
-            }
-        };
 
         // ========== Use IntentResolver for intelligent parsing ==========
         let intent: ResolvedIntent;
@@ -1496,14 +1496,14 @@ export default class CanvasAIPlugin extends Plugin {
                 }
 
                 if (mediaList.length > 0) {
-                    response = await this.apiManager!.multimodalChat(
+                    response = await localApiManager.multimodalChat(
                         intent.instruction,
                         mediaList,
                         systemPrompt,
                         chatOptions.temperature
                     );
                 } else {
-                    response = await this.apiManager!.chatCompletion(intent.instruction, systemPrompt, chatOptions.temperature);
+                    response = await localApiManager.chatCompletion(intent.instruction, systemPrompt, chatOptions.temperature);
                 }
                 console.debug('Canvas Banana: API Response received');
                 this.updateGhostNode(ghostNode, response, false);
@@ -1517,7 +1517,7 @@ export default class CanvasAIPlugin extends Plugin {
                 console.debug('Canvas Banana: Images with roles:', intent.images.map(i => i.role));
                 console.debug('Canvas Banana: Image options:', imageOptions);
 
-                const base64Image = await this.apiManager!.generateImageWithRoles(
+                const base64Image = await localApiManager.generateImageWithRoles(
                     intent.instruction,
                     intent.images,
                     intent.contextText,
@@ -1583,14 +1583,14 @@ ${intent.instruction}
 
                 if (mediaList.length > 0) {
                     console.debug('Canvas Banana: Sending node request with', mediaList.length, 'media items');
-                    response = await this.apiManager!.multimodalChat(
+                    response = await localApiManager.multimodalChat(
                         fullInstruction,
                         mediaList,
                         nodeSystemPrompt,
                         nodeOptions.temperature
                     );
                 } else {
-                    response = await this.apiManager!.chatCompletion(
+                    response = await localApiManager.chatCompletion(
                         fullInstruction,
                         nodeSystemPrompt,
                         nodeOptions.temperature
@@ -1642,8 +1642,8 @@ ${intent.instruction}
             console.error('Canvas Banana: API Error:', message);
             this.updateGhostNode(ghostNode, `❗ Error: ${message || 'Unknown error'}`, true);
         } finally {
-            // Restore original settings if they were overridden
-            restoreSettings();
+            // No restoration needed - we used a local ApiManager instance
+            // This prevents race conditions when multiple tasks run concurrently
         }
     }
 
