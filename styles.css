@@ -784,13 +784,20 @@
 .canvas-ai-image-model-select-row label,
 .canvas-ai-node-model-select-row label {
     flex-shrink: 0;
-    min-width: 50px;
+    min-width: 45px;
 }
 
 .canvas-ai-model-select-row select,
 .canvas-ai-image-model-select-row select,
-.canvas-ai-node-model-select-row select {
+.canvas-ai-node-model-select-row select,
+.canvas-ai-model-select-row select.dropdown,
+.canvas-ai-image-model-select-row select.dropdown,
+.canvas-ai-node-model-select-row select.dropdown,
+.canvas-ai-text-model-select,
+.canvas-ai-image-model-select,
+.canvas-ai-node-model-select {
     flex: 1 !important;
     min-width: 0 !important;
     width: 100% !important;
+    max-width: none !important;
 }
