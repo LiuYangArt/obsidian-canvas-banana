@@ -209,7 +209,7 @@
     flex: 1;
     min-width: 60px;
     max-width: 100px;
-    padding: 2px;
+    padding: 1px 5px;
     border: 1px solid var(--background-modifier-border);
     border-radius: 6px;
     background: var(--background-primary);
@@ -581,7 +581,7 @@
     flex: 1;
     min-width: 60px;
     max-width: 100px;
-    padding: 2px;
+    padding: 1px 5px;
     border: 1px solid var(--background-modifier-border);
     border-radius: 6px;
     background: var(--background-primary);
@@ -776,7 +776,7 @@
     flex: 1;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 3px;
     width: 100%;
 }
 
@@ -800,4 +800,5 @@
     min-width: 0 !important;
     width: 100% !important;
     max-width: none !important;
+    padding: 1px 5px;
 }
