@@ -17,6 +17,7 @@ coding rules
 
 - 总是使用 context 7 mcp 检索api
 - 每次改动完成后必须执行 npm run build 来构建代码
+- 每次改动完成后必须执行 npm run lint 检查代码规范
 
 ---
 多语言支持规范 (Localization)

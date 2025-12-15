@@ -17,6 +17,7 @@ canvas_vault/
 
 # Agent/AI tools
 .qoder/
+!agent/rules/canvasprojectrule.md
 
 # User-specific / temporary
 todo.md
@@ -26,3 +27,4 @@ data.json
 # OS files
 .DS_Store
 Thumbs.db
+
