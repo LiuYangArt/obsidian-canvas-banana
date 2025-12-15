@@ -802,3 +802,14 @@
     max-width: none !important;
     padding: 1px 5px;
 }
+
+/* Temperature input row - right align */
+.canvas-ai-chat-options .canvas-ai-option-row:first-child .canvas-ai-option-group,
+.canvas-ai-node-options .canvas-ai-option-row:first-child .canvas-ai-option-group {
+    justify-content: space-between;
+}
+
+.canvas-ai-temp-input,
+.canvas-ai-node-temp-input {
+    text-align: right;
+}
