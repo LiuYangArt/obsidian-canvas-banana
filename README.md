@@ -1,5 +1,9 @@
 [简体中文](#zh-cn) | [English](#en-us)
 
+
+https://github.com/user-attachments/assets/d8bbd2d9-97ab-465c-90c2-93ac667f51e6
+
+
 <span id="zh-cn"></span>
 
 # Canvas Banana (Obsidian Plugin)
