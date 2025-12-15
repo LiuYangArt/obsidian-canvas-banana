@@ -813,3 +813,8 @@
 .canvas-ai-node-temp-input {
     text-align: right;
 }
+/* Utility classes */
+.canvas-ai-hidden {
+    display: none !important;
+}
+

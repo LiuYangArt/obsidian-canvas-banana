@@ -409,249 +409,124 @@ class FloatingPalette {
 
 
     /**
-     * 创建面板 DOM 结构
+     * Create Panel DOM Structure
      */
     private createPaletteDOM(): HTMLElement {
         const container = document.createElement('div');
         container.addClass('canvas-ai-palette');
-        container.style.display = 'none';
+        // Visibility handled by CSS/classes
 
-        // 阻止点击事件冒泡，避免失去 Canvas 选中状态
         container.addEventListener('mousedown', (e) => e.stopPropagation());
         container.addEventListener('click', (e) => e.stopPropagation());
 
-        // 阻止所有键盘事件冒泡，确保输入框操作不会影响 Canvas 节点
-        // Canvas 可能在 capture 阶段监听，因此使用 capture: true
+        // Header
+        const header = container.createDiv('canvas-ai-palette-header');
+        const tabsDiv = header.createDiv('canvas-ai-tabs');
 
-
-        container.innerHTML = `
-            <div class="canvas-ai-palette-header">
-                <div class="canvas-ai-tabs">
-                    <button class="canvas-ai-tab active" data-mode="chat">${t('Text')}</button>
-                    <button class="canvas-ai-tab" data-mode="image">${t('Image')}</button>
-                    <button class="canvas-ai-tab" data-mode="node">${t('Node')}</button>
-                </div>
-                <button class="canvas-ai-close-btn">×</button>
-            </div>
-            <div class="canvas-ai-palette-body">
-                <div class="canvas-ai-preset-row">
-                    <select class="canvas-ai-preset-select dropdown">
-                        <option value="">${t('Select prompt preset')}</option>
-                    </select>
-                    <div class="canvas-ai-preset-actions">
-                        <button class="canvas-ai-preset-btn" data-action="add" title="${t('New Preset')}"></button>
-                        <button class="canvas-ai-preset-btn" data-action="delete" title="${t('Delete')}"></button>
-                        <button class="canvas-ai-preset-btn" data-action="save" title="${t('Save')}"></button>
-                        <button class="canvas-ai-preset-btn" data-action="rename" title="${t('Rename Preset')}"></button>
-                    </div>
-                </div>
-                <textarea 
-                    class="canvas-ai-prompt-input" 
-                    placeholder="${t('Enter instructions')}"
-                    rows="4"
-                ></textarea>
-                <div class="canvas-ai-image-options" style="display: none;">
-                    <div class="canvas-ai-option-row">
-                        <span class="canvas-ai-option-group">
-                            <label>${t('Resolution')}</label>
-                            <select class="canvas-ai-resolution-select dropdown">
-                                <option value="1K">1K</option>
-                                <option value="2K">2K</option>
-                                <option value="4K">4K</option>
-                            </select>
-                        </span>
-                        <span class="canvas-ai-option-group">
-                            <label>${t('Ratio')}</label>
-                            <select class="canvas-ai-ratio-select dropdown">
-                                <option value="1:1">1:1</option>
-                                <option value="2:3">2:3</option>
-                                <option value="3:2">3:2</option>
-                                <option value="3:4">3:4</option>
-                                <option value="4:3">4:3</option>
-                                <option value="4:5">4:5</option>
-                                <option value="5:4">5:4</option>
-                                <option value="9:16">9:16</option>
-                                <option value="16:9">16:9</option>
-                                <option value="21:9">21:9</option>
-                            </select>
-                        </span>
-                    </div>
-                    <div class="canvas-ai-option-row canvas-ai-image-model-select-row" style="display: none;">
-                        <span class="canvas-ai-option-group">
-                            <label>${t('Palette Model')}</label>
-                            <select class="canvas-ai-image-model-select dropdown"></select>
-                        </span>
-                    </div>
-                </div>
-                <div class="canvas-ai-chat-options">
-                    <div class="canvas-ai-option-row">
-                        <span class="canvas-ai-option-group">
-                            <label>${t('Temperature')}</label>
-                            <input type="number" class="canvas-ai-temp-input" min="0" max="2" step="0.1" value="0.5">
-                        </span>
-                    </div>
-                    <div class="canvas-ai-option-row canvas-ai-model-select-row" style="display: none;">
-                        <span class="canvas-ai-option-group">
-                            <label>${t('Palette Model')}</label>
-                            <select class="canvas-ai-text-model-select dropdown"></select>
-                        </span>
-                    </div>
-                </div>
-                <div class="canvas-ai-node-options" style="display: none;">
-                    <div class="canvas-ai-option-row">
-                        <span class="canvas-ai-option-group">
-                            <label>${t('Temperature')}</label>
-                            <input type="number" class="canvas-ai-node-temp-input" min="0" max="2" step="0.1" value="0.5">
-                        </span>
-                    </div>
-                    <div class="canvas-ai-option-row canvas-ai-node-model-select-row" style="display: none;">
-                        <span class="canvas-ai-option-group">
-                            <label>${t('Palette Model')}</label>
-                            <select class="canvas-ai-node-model-select dropdown"></select>
-                        </span>
-                    </div>
-                </div>
-                
-                <!-- Action Row (Moved from Footer) -->
-                <div class="canvas-ai-action-row">
-                    <button class="canvas-ai-generate-btn">${t('Generate')}</button>
-                    <button class="canvas-ai-debug-btn" style="display: none;">${t('Debug')}</button>
-                </div>
-            </div>
-            <div class="canvas-ai-palette-footer">
-                <span class="canvas-ai-context-preview"></span>
-            </div>
-        `;
-
-        // Get version info element - REMOVED
-
-        // Get image options DOM references
-
-        // Get image options DOM references
-        this.imageOptionsEl = container.querySelector('.canvas-ai-image-options');
-        this.chatOptionsEl = container.querySelector('.canvas-ai-chat-options');
-        this.nodeOptionsEl = container.querySelector('.canvas-ai-node-options');
-        this.ratioSelect = container.querySelector('.canvas-ai-ratio-select');
-        this.resolutionSelect = container.querySelector('.canvas-ai-resolution-select');
-        this.tempInput = container.querySelector('.canvas-ai-temp-input');
-        this.nodeTempInput = container.querySelector('.canvas-ai-node-temp-input');
-
-        // Get model select DOM references
-        this.textModelSelectEl = container.querySelector('.canvas-ai-text-model-select');
-        this.imageModelSelectEl = container.querySelector('.canvas-ai-image-model-select');
-        this.nodeModelSelectEl = container.querySelector('.canvas-ai-node-model-select');
-
-        // Bind text model select change events
-        this.textModelSelectEl?.addEventListener('change', () => {
-            const value = this.textModelSelectEl!.value;
-            this.selectedTextModel = value;
-            this.onModelChange?.('chat', value);
+        ['chat', 'image', 'node'].forEach(mode => {
+            const btn = tabsDiv.createEl('button', {
+                cls: `canvas-ai-tab${mode === 'chat' ? ' active' : ''}`,
+                text: mode === 'chat' ? t('Text') : mode === 'image' ? t('Image') : t('Node')
+            });
+            btn.dataset.mode = mode;
         });
 
-        // Bind image model select change events
-        this.imageModelSelectEl?.addEventListener('change', () => {
-            const value = this.imageModelSelectEl!.value;
-            this.selectedImageModel = value;
-            this.onModelChange?.('image', value);
+        const closeBtn = header.createEl('button', { cls: 'canvas-ai-close-btn', text: '×' });
+
+        // Body
+        const body = container.createDiv('canvas-ai-palette-body');
+
+        // Preset Row
+        const presetRow = body.createDiv('canvas-ai-preset-row');
+        this.presetSelect = presetRow.createEl('select', 'canvas-ai-preset-select dropdown');
+        this.presetSelect.createEl('option', { value: '', text: t('Select prompt preset') });
+
+        const presetActions = presetRow.createDiv('canvas-ai-preset-actions');
+
+        const createPresetBtn = (action: string, title: string, icon: string) => {
+            const btn = presetActions.createEl('button', {
+                cls: 'canvas-ai-preset-btn',
+                attr: { 'data-action': action, 'title': title }
+            });
+            setIcon(btn, icon);
+            return btn;
+        };
+
+        this.presetAddBtn = createPresetBtn('add', t('New Preset'), 'circle-plus');
+        this.presetDeleteBtn = createPresetBtn('delete', t('Delete'), 'circle-x');
+        this.presetSaveBtn = createPresetBtn('save', t('Save'), 'save');
+        this.presetRenameBtn = createPresetBtn('rename', t('Rename Preset'), 'book-a');
+
+        // Prompt Input
+        this.promptInput = body.createEl('textarea', {
+            cls: 'canvas-ai-prompt-input',
+            attr: { placeholder: t('Enter instructions'), rows: '4' }
         });
 
-        // Bind node model select change events
-        this.nodeModelSelectEl?.addEventListener('change', () => {
-            const value = this.nodeModelSelectEl!.value;
-            this.selectedNodeModel = value;
-            this.onModelChange?.('node', value);
-        });
+        // Image Options
+        this.imageOptionsEl = body.createDiv({ cls: 'canvas-ai-image-options' });
+        this.imageOptionsEl.style.display = 'none';
 
-        // Bind temperature input events
-        this.tempInput?.addEventListener('input', () => {
-            const val = parseFloat(this.tempInput!.value);
-            if (!isNaN(val)) {
-                this.chatTemperature = val; // Update internal state immediately
-            }
-        });
+        const imgRow = this.imageOptionsEl.createDiv('canvas-ai-option-row');
+        const resGrp = imgRow.createEl('span', 'canvas-ai-option-group');
+        resGrp.createEl('label', { text: t('Resolution') });
+        this.resolutionSelect = resGrp.createEl('select', 'canvas-ai-resolution-select dropdown');
+        ['1K', '2K', '4K'].forEach(v => this.resolutionSelect!.createEl('option', { value: v, text: v }));
 
-        this.tempInput?.addEventListener('change', () => {
-            const val = parseFloat(this.tempInput!.value);
-            if (!isNaN(val)) {
-                const clampedVal = Math.max(0, Math.min(2, val));
-                this.chatTemperature = clampedVal;
-                this.tempInput!.value = String(clampedVal); // Auto-correct display
-                this.onSettingsChange?.('chatTemperature', clampedVal);
-            } else {
-                // Revert to current valid value if NaN
-                this.tempInput!.value = String(this.chatTemperature);
-            }
-        });
+        const ratioGrp = imgRow.createEl('span', 'canvas-ai-option-group');
+        ratioGrp.createEl('label', { text: t('Ratio') });
+        this.ratioSelect = ratioGrp.createEl('select', 'canvas-ai-ratio-select dropdown');
+        ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'].forEach(v => this.ratioSelect!.createEl('option', { value: v, text: v }));
 
-        // Bind node temperature input events
-        this.nodeTempInput?.addEventListener('input', () => {
-            const val = parseFloat(this.nodeTempInput!.value);
-            if (!isNaN(val)) {
-                this.nodeTemperature = val;
-            }
-        });
+        const imgModelRow = this.imageOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-image-model-select-row' });
+        imgModelRow.style.display = 'none';
+        const imgModelGrp = imgModelRow.createEl('span', 'canvas-ai-option-group');
+        imgModelGrp.createEl('label', { text: t('Palette Model') });
+        this.imageModelSelectEl = imgModelGrp.createEl('select', 'canvas-ai-image-model-select dropdown');
 
-        this.nodeTempInput?.addEventListener('change', () => {
-            const val = parseFloat(this.nodeTempInput!.value);
-            if (!isNaN(val)) {
-                const clampedVal = Math.max(0, Math.min(2, val));
-                this.nodeTemperature = clampedVal;
-                this.nodeTempInput!.value = String(clampedVal);
-                this.onSettingsChange?.('nodeTemperature', clampedVal);
-            } else {
-                this.nodeTempInput!.value = String(this.nodeTemperature);
-            }
-        });
+        // Chat Options
+        this.chatOptionsEl = body.createDiv('canvas-ai-chat-options');
+        const chatRow = this.chatOptionsEl.createDiv('canvas-ai-option-row');
 
-        // Get preset DOM references
-        this.presetSelect = container.querySelector('.canvas-ai-preset-select');
-        this.presetAddBtn = container.querySelector('.canvas-ai-preset-btn[data-action="add"]');
-        this.presetDeleteBtn = container.querySelector('.canvas-ai-preset-btn[data-action="delete"]');
-        this.presetSaveBtn = container.querySelector('.canvas-ai-preset-btn[data-action="save"]');
-        this.presetRenameBtn = container.querySelector('.canvas-ai-preset-btn[data-action="rename"]');
+        const tempGrp = chatRow.createEl('span', 'canvas-ai-option-group');
+        tempGrp.createEl('label', { text: t('Temperature') });
+        this.tempInput = tempGrp.createEl('input', { cls: 'canvas-ai-temp-input', type: 'number', attr: { min: '0', max: '2', step: '0.1', value: '0.5' } });
 
-        // Set icons for preset buttons using Lucide icons
-        if (this.presetAddBtn) setIcon(this.presetAddBtn, 'circle-plus');
-        if (this.presetDeleteBtn) setIcon(this.presetDeleteBtn, 'circle-x');
-        if (this.presetSaveBtn) setIcon(this.presetSaveBtn, 'save');
-        if (this.presetRenameBtn) setIcon(this.presetRenameBtn, 'book-a');
+        const chatModelRow = this.chatOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-model-select-row' });
+        chatModelRow.style.display = 'none';
+        const chatModelGrp = chatModelRow.createEl('span', 'canvas-ai-option-group');
+        chatModelGrp.createEl('label', { text: t('Palette Model') });
+        this.textModelSelectEl = chatModelGrp.createEl('select', 'canvas-ai-text-model-select dropdown');
 
-        // Bind preset select change
-        this.presetSelect?.addEventListener('change', () => {
-            const selectedId = this.presetSelect!.value;
-            if (selectedId) {
-                const presets = this.currentMode === 'chat'
-                    ? this.chatPresets
-                    : this.currentMode === 'image'
-                        ? this.imagePresets
-                        : this.nodePresets;
-                const preset = presets.find(p => p.id === selectedId);
-                if (preset) {
-                    this.promptInput.value = preset.prompt;
-                }
-            }
-        });
+        // Node Options
+        this.nodeOptionsEl = body.createDiv({ cls: 'canvas-ai-node-options' });
+        this.nodeOptionsEl.style.display = 'none';
 
-        // Bind preset action buttons
-        this.presetAddBtn?.addEventListener('click', () => this.handlePresetAdd());
-        this.presetDeleteBtn?.addEventListener('click', () => this.handlePresetDelete());
-        this.presetSaveBtn?.addEventListener('click', () => this.handlePresetSave());
-        this.presetRenameBtn?.addEventListener('click', () => this.handlePresetRename());
+        const nodeRow = this.nodeOptionsEl.createDiv('canvas-ai-option-row');
+        const nodeTempGrp = nodeRow.createEl('span', 'canvas-ai-option-group');
+        nodeTempGrp.createEl('label', { text: t('Temperature') });
+        this.nodeTempInput = nodeTempGrp.createEl('input', { cls: 'canvas-ai-node-temp-input', type: 'number', attr: { min: '0', max: '2', step: '0.1', value: '0.5' } });
 
-        // Bind ratio select change
-        this.ratioSelect?.addEventListener('change', () => {
-            this.imageAspectRatio = this.ratioSelect!.value;
-            this.onSettingsChange?.('aspectRatio', this.imageAspectRatio);
-        });
+        const nodeModelRow = this.nodeOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-node-model-select-row' });
+        nodeModelRow.style.display = 'none';
+        const nodeModelGrp = nodeModelRow.createEl('span', 'canvas-ai-option-group');
+        nodeModelGrp.createEl('label', { text: t('Palette Model') });
+        this.nodeModelSelectEl = nodeModelGrp.createEl('select', 'canvas-ai-node-model-select dropdown');
 
-        // Bind resolution select change
-        this.resolutionSelect?.addEventListener('change', () => {
-            this.imageResolution = this.resolutionSelect!.value;
-            this.onSettingsChange?.('resolution', this.imageResolution);
-        });
+        // Action Row
+        const actionRow = body.createDiv('canvas-ai-action-row');
+        const generateBtn = actionRow.createEl('button', { cls: 'canvas-ai-generate-btn', text: t('Generate') });
+        this.debugBtnEl = actionRow.createEl('button', { cls: 'canvas-ai-debug-btn', text: t('Debug') });
+        this.debugBtnEl.style.display = 'none';
 
-        // 绑定 Tab 切换事件
-        const tabs = container.querySelectorAll('.canvas-ai-tab');
+        // Footer
+        const footer = container.createDiv('canvas-ai-palette-footer');
+        footer.createEl('span', 'canvas-ai-context-preview');
+
+        // Bindings
+
+        // Tabs
+        const tabs = tabsDiv.querySelectorAll('.canvas-ai-tab');
         tabs.forEach(tab => {
             tab.addEventListener('click', () => {
                 tabs.forEach(t => t.removeClass('active'));
@@ -663,33 +538,117 @@ class FloatingPalette {
             });
         });
 
-        // 绑定关闭按钮
-        const closeBtn = container.querySelector('.canvas-ai-close-btn');
-        closeBtn?.addEventListener('click', () => {
+        closeBtn.addEventListener('click', () => {
             this.hide();
             this.onClose?.();
         });
 
-        // 绑定 Debug 按钮
-        this.debugBtnEl = container.querySelector('.canvas-ai-debug-btn') as HTMLButtonElement;
-        this.debugBtnEl?.addEventListener('click', () => {
+        this.debugBtnEl.addEventListener('click', () => {
             this.onDebug?.(this.currentMode);
         });
 
-        // 绑定生成按钮
-        const generateBtn = container.querySelector('.canvas-ai-generate-btn');
-        generateBtn?.addEventListener('click', () => this.handleGenerate());
+        generateBtn.addEventListener('click', () => this.handleGenerate());
 
-        // Prevent keyboard events from bubbling to Canvas when textarea is focused
-        const promptInput = container.querySelector('.canvas-ai-prompt-input');
-        if (promptInput) {
+        if (this.promptInput) {
             const stopPropagation = (e: Event) => e.stopPropagation();
-            // Prevent keyboard events from bubbling to Canvas when textarea is focused
-            // Note: Ctrl+Enter is handled by the Scope API registered in constructor
-            promptInput.addEventListener('keydown', stopPropagation, { capture: true });
-            promptInput.addEventListener('keyup', stopPropagation);
-            promptInput.addEventListener('keypress', stopPropagation);
+            this.promptInput.addEventListener('keydown', stopPropagation, { capture: true });
+            this.promptInput.addEventListener('keyup', stopPropagation);
+            this.promptInput.addEventListener('keypress', stopPropagation);
         }
+
+        this.textModelSelectEl?.addEventListener('change', () => {
+            const value = this.textModelSelectEl!.value;
+            this.selectedTextModel = value;
+            this.onModelChange?.('chat', value);
+        });
+
+        this.imageModelSelectEl?.addEventListener('change', () => {
+            const value = this.imageModelSelectEl!.value;
+            this.selectedImageModel = value;
+            this.onModelChange?.('image', value);
+        });
+
+        this.nodeModelSelectEl?.addEventListener('change', () => {
+            const value = this.nodeModelSelectEl!.value;
+            this.selectedNodeModel = value;
+            this.onModelChange?.('node', value);
+        });
+
+        const handleTempInput = (input: HTMLInputElement, setter: (v: number) => void, settingKey: string) => {
+            input.addEventListener('input', () => {
+                const val = parseFloat(input.value);
+                if (!isNaN(val)) setter(val);
+            });
+            input.addEventListener('change', () => {
+                const val = parseFloat(input.value);
+                if (!isNaN(val)) {
+                    const clamped = Math.max(0, Math.min(2, val));
+                    setter(clamped);
+                    input.value = String(clamped);
+                    this.onSettingsChange?.(settingKey as any, clamped);
+                } else {
+                    // Reset to valid? We don't have getter here easily, but can assume current val.
+                    // Or reuse original logic which used `this.chatTemperature`.
+                }
+            });
+        };
+
+        // Replicating original temp logic precisely
+        this.tempInput?.addEventListener('input', () => {
+            const val = parseFloat(this.tempInput!.value);
+            if (!isNaN(val)) this.chatTemperature = val;
+        });
+        this.tempInput?.addEventListener('change', () => {
+            const val = parseFloat(this.tempInput!.value);
+            if (!isNaN(val)) {
+                const clamped = Math.max(0, Math.min(2, val));
+                this.chatTemperature = clamped;
+                this.tempInput!.value = String(clamped);
+                this.onSettingsChange?.('chatTemperature', clamped);
+            } else {
+                this.tempInput!.value = String(this.chatTemperature);
+            }
+        });
+
+        this.nodeTempInput?.addEventListener('input', () => {
+            const val = parseFloat(this.nodeTempInput!.value);
+            if (!isNaN(val)) this.nodeTemperature = val;
+        });
+        this.nodeTempInput?.addEventListener('change', () => {
+            const val = parseFloat(this.nodeTempInput!.value);
+            if (!isNaN(val)) {
+                const clamped = Math.max(0, Math.min(2, val));
+                this.nodeTemperature = clamped;
+                this.nodeTempInput!.value = String(clamped);
+                this.onSettingsChange?.('nodeTemperature', clamped);
+            } else {
+                this.nodeTempInput!.value = String(this.nodeTemperature);
+            }
+        });
+
+        this.presetSelect?.addEventListener('change', () => {
+            const selectedId = this.presetSelect!.value;
+            if (selectedId) {
+                const presets = this.currentMode === 'chat' ? this.chatPresets : this.currentMode === 'image' ? this.imagePresets : this.nodePresets;
+                const p = presets.find(x => x.id === selectedId);
+                if (p) this.promptInput.value = p.prompt;
+            }
+        });
+
+        this.presetAddBtn?.addEventListener('click', () => this.handlePresetAdd());
+        this.presetDeleteBtn?.addEventListener('click', () => this.handlePresetDelete());
+        this.presetSaveBtn?.addEventListener('click', () => this.handlePresetSave());
+        this.presetRenameBtn?.addEventListener('click', () => this.handlePresetRename());
+
+        this.ratioSelect?.addEventListener('change', () => {
+            this.imageAspectRatio = this.ratioSelect!.value;
+            this.onSettingsChange?.('aspectRatio', this.imageAspectRatio);
+        });
+
+        this.resolutionSelect?.addEventListener('change', () => {
+            this.imageResolution = this.resolutionSelect!.value;
+            this.onSettingsChange?.('resolution', this.imageResolution);
+        });
 
         return container;
     }
@@ -721,15 +680,15 @@ class FloatingPalette {
                 ? this.imagePresets
                 : this.nodePresets;
 
-        // Clear existing options except the default
-        this.presetSelect.innerHTML = `<option value="">${t('Select prompt preset')}</option>`;
+        this.presetSelect.empty();
+        this.presetSelect.createEl('option', { value: '', text: t('Select prompt preset') });
 
         // Add preset options
         presets.forEach(preset => {
-            const option = document.createElement('option');
-            option.value = preset.id;
-            option.textContent = preset.name;
-            this.presetSelect!.appendChild(option);
+            this.presetSelect!.createEl('option', {
+                value: preset.id,
+                text: preset.name
+            });
         });
     }
 
@@ -1119,15 +1078,15 @@ class FloatingPalette {
             selectedValue: string
         ): string => {
             if (!selectEl) return selectedValue;
-            selectEl.innerHTML = '';
+            selectEl.empty();
 
             // Add models from quick switch list (no empty default option)
             // Format: "ModelName | Provider"
             for (const model of models) {
-                const opt = document.createElement('option');
-                opt.value = `${model.provider}|${model.modelId}`;
-                opt.textContent = `${model.displayName} | ${formatProviderName(model.provider)}`;
-                selectEl.appendChild(opt);
+                selectEl.createEl('option', {
+                    value: `${model.provider}|${model.modelId}`,
+                    text: `${model.displayName} | ${formatProviderName(model.provider)}`
+                });
             }
 
             // If no selection or selection not in list, default to first model
