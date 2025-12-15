@@ -1,7 +1,5 @@
 [简体中文](#zh-cn) | [English](#en-us)
 
-[![IMAGE ALT TEXT HERE](https://img.youtube.com/vi/FN8d_2q4evo/0.jpg)](https://www.youtube.com/watch?v=FN8d_2q4evo)
-
 <span id="zh-cn"></span>
 
 # Canvas Banana (Obsidian Plugin)
