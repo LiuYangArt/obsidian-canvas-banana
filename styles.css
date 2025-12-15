@@ -208,7 +208,7 @@
 .canvas-ai-option-group select {
     flex: 1;
     min-width: 60px;
-    max-width: 100px;
+    /* max-width removed - let model dropdown expand */
     padding: 1px 5px;
     border: 1px solid var(--background-modifier-border);
     border-radius: 6px;
@@ -806,4 +806,6 @@
 .canvas-ai-node-model-select {
     flex: 1 !important;
     min-width: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
 }
