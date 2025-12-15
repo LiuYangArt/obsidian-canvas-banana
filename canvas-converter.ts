@@ -4,7 +4,7 @@
  */
 
 import { App, TFile } from 'obsidian';
-import type { Canvas, CanvasNode, CanvasEdge, CanvasCoords } from './types';
+import type { Canvas, CanvasNode, CanvasEdge } from './types';
 
 // ========== 转换后的数据结构 ==========
 

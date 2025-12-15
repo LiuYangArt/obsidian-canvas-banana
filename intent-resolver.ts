@@ -6,7 +6,7 @@
  */
 
 import { App } from 'obsidian';
-import type { Canvas, CanvasNode, CanvasEdge } from './types';
+import type { Canvas, CanvasNode } from './types';
 import { CanvasConverter, ConvertedNode, ConvertedEdge } from './canvas-converter';
 import type { CanvasAISettings } from './main';
 
@@ -292,7 +292,7 @@ export class IntentResolver {
             // 优先级 3: Group 标题（如果节点是 Group 成员）
             if (role === DEFAULT_ROLE && node.isGroupMember) {
                 // 找到包含此节点的 Group
-                for (const [groupId, label] of groupLabels) {
+                for (const [_groupId, label] of groupLabels) {
                     if (label && label.trim()) {
                         role = this.truncateRole(label);
                         break;

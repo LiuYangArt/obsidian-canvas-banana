@@ -1,6 +1,6 @@
 import { App, ItemView, Modal, Notice, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, TFile, Scope, requestUrl } from 'obsidian';
 import type { Canvas, CanvasNode, CanvasCoords, CanvasView, CanvasData } from './types';
-import { CanvasConverter, ConvertedNode } from './canvas-converter';
+import { CanvasConverter } from './canvas-converter';
 import { ApiManager } from './api-manager';
 import { IntentResolver, ResolvedIntent } from './intent-resolver';
 import { extractCanvasJSON, remapCoordinates, regenerateIds, optimizeLayout, sanitizeCanvasData } from './node-mode-utils';
@@ -573,25 +573,6 @@ class FloatingPalette {
             this.selectedNodeModel = value;
             this.onModelChange?.('node', value);
         });
-
-        const handleTempInput = (input: HTMLInputElement, setter: (v: number) => void, settingKey: string) => {
-            input.addEventListener('input', () => {
-                const val = parseFloat(input.value);
-                if (!isNaN(val)) setter(val);
-            });
-            input.addEventListener('change', () => {
-                const val = parseFloat(input.value);
-                if (!isNaN(val)) {
-                    const clamped = Math.max(0, Math.min(2, val));
-                    setter(clamped);
-                    input.value = String(clamped);
-                    this.onSettingsChange?.(settingKey as any, clamped);
-                } else {
-                    // Reset to valid? We don't have getter here easily, but can assume current val.
-                    // Or reuse original logic which used `this.chatTemperature`.
-                }
-            });
-        };
 
         // Replicating original temp logic precisely
         this.tempInput?.addEventListener('input', () => {
@@ -1650,14 +1631,16 @@ ${intent.instruction}
 
                     console.debug(`Canvas Banana: Created ${canvasData.nodes.length} nodes and ${canvasData.edges.length} edges`);
 
-                } catch (parseError: any) {
+                } catch (parseError: unknown) {
+                    const message = parseError instanceof Error ? parseError.message : String(parseError);
                     console.error('Canvas Banana: JSON parse error:', parseError);
-                    this.updateGhostNode(ghostNode, `❗ ${t('Invalid JSON structure')}: ${parseError.message}`, true);
+                    this.updateGhostNode(ghostNode, `❗ ${t('Invalid JSON structure')}: ${message}`, true);
                 }
             }
-        } catch (error: any) {
-            console.error('Canvas Banana: API Error:', error.message || error);
-            this.updateGhostNode(ghostNode, `❗ Error: ${error.message || 'Unknown error'}`, true);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error('Canvas Banana: API Error:', message);
+            this.updateGhostNode(ghostNode, `❗ Error: ${message || 'Unknown error'}`, true);
         } finally {
             // Restore original settings if they were overridden
             restoreSettings();
@@ -1793,16 +1776,16 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
 
         // Read current canvas data
         const fileContent = await this.app.vault.read(canvasFile);
-        let canvasJson: { nodes: any[], edges: any[] };
+        let canvasJson: { nodes: Record<string, unknown>[], edges: Record<string, unknown>[] };
 
         try {
             canvasJson = JSON.parse(fileContent);
-        } catch (e) {
+        } catch (_e) {
             throw new Error('Failed to parse canvas file');
         }
 
         // Find and remove the ghost node from canvas data
-        canvasJson.nodes = canvasJson.nodes.filter((n: any) => n.id !== ghostNodeId);
+        canvasJson.nodes = canvasJson.nodes.filter((n) => n.id !== ghostNodeId);
 
         // Add new nodes from LLM response
         // Override color if nodeDefaultColor is set in settings
@@ -1892,10 +1875,11 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         if (!existingFolder) {
             try {
                 await this.app.vault.createFolder(folderName);
-            } catch (e: any) {
+            } catch (e: unknown) {
                 if (!this.app.vault.getAbstractFileByPath(folderName)) {
+                    const message = e instanceof Error ? e.message : String(e);
                     console.error('Canvas Banana: Failed to create folder:', e);
-                    throw new Error(`Failed to create Canvas Images folder: ${e.message}`);
+                    throw new Error(`Failed to create Canvas Images folder: ${message}`);
                 }
             }
         }
@@ -1949,7 +1933,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         canvas.removeNode(ghostNode);
 
         // Create file node
-        const fileNode = canvas.createFileNode({
+        canvas.createFileNode({
             file: file,
             pos: { x, y, width, height },
             size: { x, y, width, height },
@@ -2019,7 +2003,6 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         // - Count number of lines
         // - Consider average characters per line (approximately 50 chars at 400px width)
         const lines = content.split('\n');
-        const lineCount = lines.length;
 
         // Estimate wrapped lines for long lines
         let totalEstimatedLines = 0;
@@ -2374,11 +2357,11 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             return;
         }
 
-        console.group('🔍 Canvas Banana Debug: Selected Nodes');
+        console.debug('🔍 Canvas Banana Debug: Selected Nodes');
         console.debug('Current Mode:', mode);
 
         // 步骤 2.1：打印每个节点的原始信息
-        console.group('📋 Raw Node Data');
+        console.debug('📋 Raw Node Data');
         selection.forEach((node: CanvasNode) => {
             console.debug('---');
             console.debug('ID:', node.id);
@@ -2402,10 +2385,9 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                 console.debug('Node Object:', node);
             }
         });
-        console.groupEnd();
 
         // 步骤 2.2：使用 CanvasConverter 进行格式转换（异步）
-        console.group('📝 Converted Output');
+        console.debug('📝 Converted Output');
         const result = await CanvasConverter.convert(this.app, canvas, selection);
 
         console.debug('Converted Nodes:', result.nodes);
@@ -2414,10 +2396,9 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         console.debug(result.markdown);
         console.debug('\n--- Mermaid Output ---\n');
         console.debug(result.mermaid);
-        console.groupEnd();
 
         // ========== 新增：IntentResolver 解析输出 ==========
-        console.group(`🎨 IntentResolver Output (${mode} Mode Simulation)`);
+        console.debug(`🎨 IntentResolver Output (${mode} Mode Simulation)`);
         try {
             // Get prompt from palette (might be empty)
             const prompt = this.floatingPalette?.getPrompt() || '';
@@ -2434,37 +2415,33 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             console.debug('✅ canGenerate:', intent.canGenerate);
 
             if (intent.images.length > 0) {
-                console.group('📷 Images with Roles');
+                console.debug('📷 Images with Roles');
                 intent.images.forEach((img, idx) => {
                     console.debug(`[${idx + 1}] Role: "${img.role}", MimeType: ${img.mimeType}, Base64 Length: ${img.base64.length}`);
                 });
-                console.groupEnd();
             } else {
                 console.debug('(No images in selection)');
             }
 
-            console.group('📝 Instruction');
+            console.debug('📝 Instruction');
             console.debug('Final Instruction:', intent.instruction);
-            console.groupEnd();
 
-            console.group('📄 Context Text');
+            console.debug('📄 Context Text');
             if (intent.contextText) {
                 console.debug(intent.contextText);
             } else {
                 console.debug('(No context text)');
             }
-            console.groupEnd();
 
             if (intent.warnings.length > 0) {
-                console.group('⚠️ Warnings');
+                console.debug('⚠️ Warnings');
                 intent.warnings.forEach(w => console.warn(w));
-                console.groupEnd();
             }
 
             // 模拟 Payload 结构
-            console.group('📦 Simulated API Payload Structure');
+            console.debug('📦 Simulated API Payload Structure');
 
-            let payloadPreview: any;
+            let payloadPreview: Record<string, unknown>;
 
             if (mode === 'chat') {
                 const systemPrompt = this.settings.chatSystemPrompt || 'You are a helpful AI assistant...';
@@ -2513,14 +2490,11 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             }
 
             console.debug(JSON.stringify(payloadPreview, null, 2));
-            console.groupEnd();
 
         } catch (e) {
             console.error('IntentResolver failed:', e);
         }
-        console.groupEnd();
 
-        console.groupEnd();
     }
 
     /**
@@ -2883,7 +2857,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         // and wrapper dimensions give viewport size
         const wrapperEl = canvas.wrapperEl;
         if (wrapperEl) {
-            const rect = wrapperEl.getBoundingClientRect();
+            const _rect = wrapperEl.getBoundingClientRect();
             // canvas.x and canvas.y represent the center of the viewport in canvas coords
             return { x: canvas.x, y: canvas.y };
         }
@@ -3063,10 +3037,11 @@ class CanvasAISettingTab extends PluginSettingTab {
 
             this.modelsFetched = true;
             console.debug(`Canvas Banana Settings: Fetched ${this.modelCache.length} models from ${isYunwu ? 'Yunwu' : 'OpenRouter'}`);
-        } catch (error: any) {
-            console.error('Canvas Banana Settings: Failed to fetch models:', error.message);
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error('Canvas Banana Settings: Failed to fetch models:', message);
             // Keep existing cache or empty
-            new Notice(`Failed to fetch model list: ${error.message}`);
+            new Notice(`Failed to fetch model list: ${message}`);
         } finally {
             this.isFetching = false;
             // Update UI after fetch completes (success or error)
@@ -3555,12 +3530,12 @@ class CanvasAISettingTab extends PluginSettingTab {
             .setDesc(t('Override color for generated nodes (1-6, leave empty to use LLM suggested colors)'))
             .addDropdown(dropdown => dropdown
                 .addOption('', t('Use LLM colors'))
-                .addOption('1', '1 - Red')
-                .addOption('2', '2 - Orange')
-                .addOption('3', '3 - Yellow')
-                .addOption('4', '4 - Green')
-                .addOption('5', '5 - Cyan')
-                .addOption('6', '6 - Purple')
+                .addOption('1', '1 - red')
+                .addOption('2', '2 - orange')
+                .addOption('3', '3 - yellow')
+                .addOption('4', '4 - green')
+                .addOption('5', '5 - cyan')
+                .addOption('6', '6 - purple')
                 .setValue(this.plugin.settings.nodeDefaultColor)
                 .onChange(async (value) => {
                     this.plugin.settings.nodeDefaultColor = value;
@@ -3646,10 +3621,11 @@ class CanvasAISettingTab extends PluginSettingTab {
                     testBtn.textContent = t('Test Connection');
                     testBtn.removeClass('success');
                 }, 3000);
-            } catch (error: any) {
+            } catch (error: unknown) {
+                const message = error instanceof Error ? error.message : String(error);
                 testBtn.textContent = t('Failed');
                 testBtn.addClass('error');
-                testResultEl.textContent = `✗ ${t('Connection failed')}: ${error.message}`;
+                testResultEl.textContent = `✗ ${t('Connection failed')}: ${message}`;
                 testResultEl.removeClass('success');
                 testResultEl.addClass('error');
                 testResultEl.style.display = 'block';
@@ -3957,7 +3933,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         }
 
         // 2. Manual Input Toggle + Add to Quick Switch Button (Same Line)
-        const toggleSetting = new Setting(containerEl)
+        new Setting(containerEl)
             .setName(t('Manually Enter Model Name'))
             .setDesc(isManualMode ? t('Disable Manual Model') : t('Enable Manual Model'))
             .addToggle(toggle => toggle

@@ -6,6 +6,27 @@
 import { requestUrl, RequestUrlParam, RequestUrlResponse } from 'obsidian';
 import type { CanvasAISettings } from './main';
 
+// ========== Error Type Helpers ==========
+
+/**
+ * Type guard for HTTP errors from requestUrl
+ */
+interface HttpError {
+    status: number;
+    message: string;
+    json?: Record<string, unknown>;
+}
+
+function isHttpError(error: unknown): error is HttpError {
+    return typeof error === 'object' && error !== null && 'status' in error && typeof (error as HttpError).status === 'number';
+}
+
+function getErrorMessage(error: unknown): string {
+    if (error instanceof Error) return error.message;
+    if (typeof error === 'string') return error;
+    return String(error);
+}
+
 // ========== Timeout Helper ==========
 
 /**
@@ -89,7 +110,7 @@ export interface OpenRouterResponse {
 export type GptGodResponse = OpenRouterResponse & {
     images?: string[];
     image?: string;
-    data?: any; // Allow flexible data field for GPTGod
+    data?: Record<string, unknown>; // Allow flexible data field for GPTGod
 };
 
 export interface GeminiPart {
@@ -377,11 +398,12 @@ export class ApiManager {
 
             console.debug(`Canvas AI: [${provider}] Received response (filtered thinking):`, textPart.text.substring(0, 100));
             return textPart.text;
-        } catch (error: any) {
-            if (error.status) {
+        } catch (error: unknown) {
+            if (isHttpError(error)) {
                 const errorBody = error.json || { message: error.message };
+                const errorMessage = (errorBody as Record<string, Record<string, string>>).error?.message || error.message;
                 console.error(`Canvas AI: ${provider} HTTP Error`, error.status, errorBody);
-                throw new Error(`HTTP ${error.status}: ${errorBody.error?.message || error.message}`);
+                throw new Error(`HTTP ${error.status}: ${errorMessage}`);
             }
             throw error;
         }
@@ -704,17 +726,19 @@ export class ApiManager {
 
             // Parse Gemini response format
             return this.parseGeminiImageResponse(data);
-        } catch (error: any) {
+        } catch (error: unknown) {
             // Check for timeout error
-            if (error.message?.startsWith('TIMEOUT:')) {
-                const timeoutSec = parseInt(error.message.split(':')[1]) / 1000;
+            const errMsg = getErrorMessage(error);
+            if (errMsg.startsWith('TIMEOUT:')) {
+                const timeoutSec = parseInt(errMsg.split(':')[1]) / 1000;
                 console.error(`Canvas AI: Image generation timed out after ${timeoutSec}s`);
                 throw new Error(`Image generation timed out after ${timeoutSec} seconds. Please try again or increase the timeout in settings.`);
             }
-            if (error.status) {
+            if (isHttpError(error)) {
                 const errorBody = error.json || { message: error.message };
+                const errorMessage = (errorBody as Record<string, Record<string, string>>).error?.message || error.message;
                 console.error(`Canvas AI: ${provider} HTTP Error`, error.status, errorBody);
-                throw new Error(`HTTP ${error.status}: ${errorBody.error?.message || error.message}`);
+                throw new Error(`HTTP ${error.status}: ${errorMessage}`);
             }
             throw error;
         }
@@ -795,9 +819,9 @@ export class ApiManager {
 
             console.debug('Canvas AI: Fetched image, mimeType:', mimeType, 'size:', arrayBuffer.byteLength);
             return `data:${mimeType};base64,${base64Data}`;
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Canvas AI: Failed to fetch image from URL:', error);
-            throw new Error(`Failed to fetch image: ${error.message}`);
+            throw new Error(`Failed to fetch image: ${getErrorMessage(error)}`);
         }
     }
 
@@ -980,11 +1004,12 @@ export class ApiManager {
 
             console.debug(`Canvas AI: [${provider}] Received multimodal response (filtered thinking)`);
             return textPart.text;
-        } catch (error: any) {
-            if (error.status) {
+        } catch (error: unknown) {
+            if (isHttpError(error)) {
                 const errorBody = error.json || { message: error.message };
+                const errorMessage = (errorBody as Record<string, Record<string, string>>).error?.message || error.message;
                 console.error(`Canvas AI: ${provider} HTTP Error`, error.status, errorBody);
-                throw new Error(`HTTP ${error.status}: ${errorBody.error?.message || error.message}`);
+                throw new Error(`HTTP ${error.status}: ${errorMessage}`);
             }
             throw error;
         }
@@ -1020,18 +1045,20 @@ export class ApiManager {
                 response = await requestUrl(requestParams);
             }
             return response.json as OpenRouterResponse;
-        } catch (error: any) {
+        } catch (error: unknown) {
             // Check for timeout error
-            if (error.message?.startsWith('TIMEOUT:')) {
-                const timeoutSec = parseInt(error.message.split(':')[1]) / 1000;
+            const errMsg = getErrorMessage(error);
+            if (errMsg.startsWith('TIMEOUT:')) {
+                const timeoutSec = parseInt(errMsg.split(':')[1]) / 1000;
                 console.error(`Canvas AI: Request timed out after ${timeoutSec}s`);
                 throw new Error(`Image generation timed out after ${timeoutSec} seconds. Please try again or increase the timeout in settings.`);
             }
             // Handle HTTP errors
-            if (error.status) {
+            if (isHttpError(error)) {
                 const errorBody = error.json || { message: error.message };
+                const errorMessage = (errorBody as Record<string, Record<string, string>>).error?.message || error.message;
                 console.error('Canvas AI: HTTP Error', error.status, errorBody);
-                throw new Error(`HTTP ${error.status}: ${errorBody.error?.message || error.message}`);
+                throw new Error(`HTTP ${error.status}: ${errorMessage}`);
             }
             throw error;
         }
@@ -1241,10 +1268,13 @@ export class ApiManager {
             // 4. Check Root level data/result
             if (response.data) {
                 if (Array.isArray(response.data) && response.data.length > 0) {
-                    const url = response.data[0]?.url || response.data[0];
-                    return await ensureDataUrl(url);
+                    const firstItem = response.data[0];
+                    const url = (typeof firstItem === 'object' && firstItem !== null && 'url' in firstItem) 
+                        ? (firstItem as Record<string, unknown>).url as string 
+                        : (typeof firstItem === 'string' ? firstItem : null);
+                    if (url) return await ensureDataUrl(url);
                 }
-                if (response.data.url) {
+                if (typeof response.data === 'object' && 'url' in response.data && typeof response.data.url === 'string') {
                     return await ensureDataUrl(response.data.url);
                 }
             }
@@ -1253,9 +1283,9 @@ export class ApiManager {
             console.warn('Canvas AI: GPTGod response structure:', JSON.stringify(response).substring(0, 500));
             throw new Error('Could not extract image from GPTGod response');
 
-        } catch (error: any) {
+        } catch (error: unknown) {
             console.error('Canvas AI: Error parsing GPTGod response:', error);
-            throw new Error(`GPTGod Response Parse Error: ${error.message}`);
+            throw new Error(`GPTGod Response Parse Error: ${getErrorMessage(error)}`);
         }
     }
 }

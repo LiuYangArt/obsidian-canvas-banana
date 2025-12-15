@@ -4,7 +4,7 @@
  * for LLM-generated Canvas JSON structures
  */
 
-import { CanvasData, CanvasJsonNode, CanvasJsonEdge } from './types';
+import { CanvasData, CanvasJsonNode } from './types';
 
 // ========== Type Definitions ==========
 
@@ -40,11 +40,12 @@ export function extractCanvasJSON(response: string): CanvasData {
     }
 
     // Parse JSON
-    let data: any;
+    let data: unknown;
     try {
         data = JSON.parse(jsonStr);
-    } catch (e: any) {
-        throw new Error(`JSON parse error: ${e.message}`);
+    } catch (e: unknown) {
+        const message = e instanceof Error ? e.message : String(e);
+        throw new Error(`JSON parse error: ${message}`);
     }
 
     return validateCanvasData(data);
@@ -57,23 +58,26 @@ export function extractCanvasJSON(response: string): CanvasData {
  * Ensures nodes array exists and each node has required fields
  */
 export function validateCanvasData(inputData: unknown): CanvasData {
-    const data = inputData as any;
-    if (!data || typeof data !== 'object') {
+    if (!inputData || typeof inputData !== 'object') {
         throw new Error('Invalid JSON: not an object');
     }
+    
+    const data = inputData as Record<string, unknown>;
 
     if (!Array.isArray(data.nodes)) {
         throw new Error('Invalid structure: missing nodes array');
     }
 
     // Allow empty edges
-    if (!Array.isArray(data.edges)) {
-        data.edges = [];
+    const nodes = data.nodes as CanvasJsonNode[];
+    let edges = data.edges as Array<{ id: string; fromNode: string; toNode: string; label?: string }>;
+    if (!Array.isArray(edges)) {
+        edges = [];
     }
 
     // Validate each node has required fields
-    for (let i = 0; i < data.nodes.length; i++) {
-        const node = data.nodes[i];
+    for (let i = 0; i < nodes.length; i++) {
+        const node = nodes[i];
         if (!node.id) {
             throw new Error(`Node ${i}: missing id`);
         }
@@ -90,9 +94,9 @@ export function validateCanvasData(inputData: unknown): CanvasData {
     }
 
     // Validate edges reference existing nodes
-    const nodeIds = new Set(data.nodes.map((n: CanvasJsonNode) => n.id));
-    for (let i = 0; i < data.edges.length; i++) {
-        const edge = data.edges[i];
+    const nodeIds = new Set(nodes.map((n: CanvasJsonNode) => n.id));
+    for (let i = 0; i < edges.length; i++) {
+        const edge = edges[i];
         if (!edge.id) {
             throw new Error(`Edge ${i}: missing id`);
         }
@@ -107,7 +111,7 @@ export function validateCanvasData(inputData: unknown): CanvasData {
         }
     }
 
-    return data as CanvasData;
+    return { nodes, edges } as CanvasData;
 }
 
 // ========== Sanitization (Post-processing) ==========

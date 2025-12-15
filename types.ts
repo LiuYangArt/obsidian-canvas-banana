@@ -147,8 +147,20 @@ export interface Canvas {
 
     addNode(node: CanvasNode): void;
     removeNode(node: CanvasNode): void;
-    createFileNode(options: any): CanvasNode;
-    createGroupNode(options: any): CanvasNode;
+    createFileNode(options: {
+        file: TFile;
+        pos: { x: number; y: number; width: number; height: number };
+        size: { x: number; y: number; width: number; height: number };
+        focus?: boolean;
+        save?: boolean;
+    }): CanvasNode;
+    createGroupNode(options: {
+        pos: { x: number; y: number };
+        size?: { width: number; height: number };
+        label?: string;
+        focus?: boolean;
+        save?: boolean;
+    }): CanvasNode;
 }
 
 // Canvas 视图接口
