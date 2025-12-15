@@ -701,3 +701,71 @@
     min-width: 100px;
     max-width: none;
 }
+
+/* Quick Switch compact row display */
+.canvas-ai-quick-switch-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px;
+    margin: 8px 0;
+    padding: 8px 12px;
+    background: var(--background-secondary);
+    border-radius: 6px;
+    font-size: 12px;
+}
+
+.canvas-ai-quick-switch-tags {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    align-items: center;
+}
+
+.canvas-ai-quick-switch-tag {
+    display: inline-flex;
+    align-items: center;
+    padding: 3px 8px;
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 12px;
+    font-size: 11px;
+    color: var(--text-normal);
+    white-space: nowrap;
+}
+
+.canvas-ai-quick-switch-remove {
+    margin-left: 4px;
+    color: var(--text-muted);
+    cursor: pointer;
+    font-weight: bold;
+    transition: color 0.15s ease;
+}
+
+.canvas-ai-quick-switch-remove:hover {
+    color: var(--text-error);
+}
+
+/* Model select row - full width */
+.canvas-ai-model-select-row,
+.canvas-ai-image-model-select-row,
+.canvas-ai-node-model-select-row {
+    display: flex;
+    width: 100%;
+}
+
+.canvas-ai-model-select-row .canvas-ai-option-group,
+.canvas-ai-image-model-select-row .canvas-ai-option-group,
+.canvas-ai-node-model-select-row .canvas-ai-option-group {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.canvas-ai-model-select-row select,
+.canvas-ai-image-model-select-row select,
+.canvas-ai-node-model-select-row select {
+    flex: 1;
+    min-width: 0;
+}

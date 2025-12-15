@@ -317,6 +317,7 @@ class FloatingPalette {
     // Quick switch model selection
     private textModelSelectEl: HTMLSelectElement | null = null;
     private imageModelSelectEl: HTMLSelectElement | null = null;
+    private nodeModelSelectEl: HTMLSelectElement | null = null;
     private quickSwitchTextModels: QuickSwitchModel[] = [];
     private quickSwitchImageModels: QuickSwitchModel[] = [];
     private selectedTextModel: string = '';  // Format: "provider|modelId"
@@ -538,17 +539,13 @@ class FloatingPalette {
         // Get model select DOM references
         this.textModelSelectEl = container.querySelector('.canvas-ai-text-model-select');
         this.imageModelSelectEl = container.querySelector('.canvas-ai-image-model-select');
-        // Note: node-model-select uses the same list as text models
+        this.nodeModelSelectEl = container.querySelector('.canvas-ai-node-model-select');
 
         // Bind text model select change events
         this.textModelSelectEl?.addEventListener('change', () => {
             const value = this.textModelSelectEl!.value;
-            if (this.currentMode === 'chat') {
-                this.selectedTextModel = value;
-            } else if (this.currentMode === 'node') {
-                this.selectedNodeModel = value;
-            }
-            this.onModelChange?.(this.currentMode, value);
+            this.selectedTextModel = value;
+            this.onModelChange?.('chat', value);
         });
 
         // Bind image model select change events
@@ -558,10 +555,9 @@ class FloatingPalette {
             this.onModelChange?.('image', value);
         });
 
-        // Get and bind node model select (shares the same model list as text)
-        const nodeModelSelectEl = container.querySelector('.canvas-ai-node-model-select') as HTMLSelectElement;
-        nodeModelSelectEl?.addEventListener('change', () => {
-            const value = nodeModelSelectEl.value;
+        // Bind node model select change events
+        this.nodeModelSelectEl?.addEventListener('change', () => {
+            const value = this.nodeModelSelectEl!.value;
             this.selectedNodeModel = value;
             this.onModelChange?.('node', value);
         });
@@ -1102,55 +1098,54 @@ class FloatingPalette {
      * Update model select dropdowns based on current mode
      */
     updateModelSelects(): void {
-        // Update text model select (shared by chat and node modes)
-        if (this.textModelSelectEl) {
-            this.textModelSelectEl.innerHTML = '';
+        const hasTextModels = this.quickSwitchTextModels.length > 0;
+        const hasImageModels = this.quickSwitchImageModels.length > 0;
+
+        // Helper to populate a select with models
+        const populateSelect = (
+            selectEl: HTMLSelectElement | null,
+            models: QuickSwitchModel[],
+            selectedValue: string
+        ) => {
+            if (!selectEl) return;
+            selectEl.innerHTML = '';
+
             // Add default option
             const defaultOpt = document.createElement('option');
             defaultOpt.value = '';
-            defaultOpt.textContent = t('Select prompt preset');
-            this.textModelSelectEl.appendChild(defaultOpt);
+            defaultOpt.textContent = '-- ' + t('Palette Model') + ' --';
+            selectEl.appendChild(defaultOpt);
 
             // Add models from quick switch list
-            for (const model of this.quickSwitchTextModels) {
+            for (const model of models) {
                 const opt = document.createElement('option');
                 opt.value = `${model.provider}|${model.modelId}`;
                 opt.textContent = `${model.provider.charAt(0).toUpperCase() + model.provider.slice(1)} | ${model.displayName}`;
-                this.textModelSelectEl.appendChild(opt);
+                selectEl.appendChild(opt);
             }
 
-            // Set selected value based on current mode
-            const selectedValue = this.currentMode === 'chat' ? this.selectedTextModel : this.selectedNodeModel;
-            this.textModelSelectEl.value = selectedValue;
+            selectEl.value = selectedValue;
+        };
 
-            // Show/hide based on whether there are models
-            const row = this.textModelSelectEl.closest('.canvas-ai-model-select-row') as HTMLElement;
-            if (row) {
-                row.style.display = this.quickSwitchTextModels.length > 0 ? 'flex' : 'none';
-            }
+        // Update text model select (chat mode)
+        populateSelect(this.textModelSelectEl, this.quickSwitchTextModels, this.selectedTextModel);
+        const textRow = this.textModelSelectEl?.closest('.canvas-ai-model-select-row') as HTMLElement;
+        if (textRow) {
+            textRow.style.display = hasTextModels ? 'flex' : 'none';
+        }
+
+        // Update node model select (node mode uses same text model list)
+        populateSelect(this.nodeModelSelectEl, this.quickSwitchTextModels, this.selectedNodeModel);
+        const nodeRow = this.nodeModelSelectEl?.closest('.canvas-ai-node-model-select-row') as HTMLElement;
+        if (nodeRow) {
+            nodeRow.style.display = hasTextModels ? 'flex' : 'none';
         }
 
         // Update image model select
-        if (this.imageModelSelectEl) {
-            this.imageModelSelectEl.innerHTML = '';
-            const defaultOpt = document.createElement('option');
-            defaultOpt.value = '';
-            defaultOpt.textContent = t('Select prompt preset');
-            this.imageModelSelectEl.appendChild(defaultOpt);
-
-            for (const model of this.quickSwitchImageModels) {
-                const opt = document.createElement('option');
-                opt.value = `${model.provider}|${model.modelId}`;
-                opt.textContent = `${model.provider.charAt(0).toUpperCase() + model.provider.slice(1)} | ${model.displayName}`;
-                this.imageModelSelectEl.appendChild(opt);
-            }
-
-            this.imageModelSelectEl.value = this.selectedImageModel;
-
-            const row = this.imageModelSelectEl.closest('.canvas-ai-model-select-row') as HTMLElement;
-            if (row) {
-                row.style.display = this.quickSwitchImageModels.length > 0 ? 'flex' : 'none';
-            }
+        populateSelect(this.imageModelSelectEl, this.quickSwitchImageModels, this.selectedImageModel);
+        const imageRow = this.imageModelSelectEl?.closest('.canvas-ai-image-model-select-row') as HTMLElement;
+        if (imageRow) {
+            imageRow.style.display = hasImageModels ? 'flex' : 'none';
         }
     }
 
@@ -3476,12 +3471,16 @@ class CanvasAISettingTab extends PluginSettingTab {
             });
         }
 
+        // ========== Quick Switch Models (Compact Display) ==========
+        this.renderQuickSwitchCompact(containerEl, provider);
+
         // ========== Text Model Setting ==========
         // Get model keys based on provider
         // Get model keys based on provider
         const textModelKey = isGemini ? 'geminiTextModel' : isYunwu ? 'yunwuTextModel' : isGptGod ? 'gptGodTextModel' : 'openRouterTextModel';
         const textCustomKey = isGemini ? 'geminiUseCustomTextModel' : isYunwu ? 'yunwuUseCustomTextModel' : isGptGod ? 'gptGodUseCustomTextModel' : 'openRouterUseCustomTextModel';
         const textPlaceholder = isGemini ? 'gemini-2.5-flash' : isYunwu ? 'gemini-2.5-flash' : isGptGod ? 'gemini-2.5-flash' : 'google/gemini-2.5-flash';
+
 
         this.renderModelSetting(containerEl, {
             name: t('Text Generation Model'),
@@ -3504,7 +3503,8 @@ class CanvasAISettingTab extends PluginSettingTab {
             modelKey: imageModelKey,
             customKey: imageCustomKey,
             placeholder: imagePlaceholder,
-            getModels: () => this.getImageModels()
+            getModels: () => this.getImageModels(),
+            isImageModel: true
         });
 
         // 图片优化区域
@@ -3655,144 +3655,6 @@ class CanvasAISettingTab extends PluginSettingTab {
                 }
             });
 
-        // ========== Quick Switch Models ==========
-        containerEl.createEl('h3', { text: t('Quick Switch Text Models') });
-
-        // Add current text model to quick switch button
-        const currentTextModel = this.getCurrentTextModelId();
-        if (currentTextModel) {
-            new Setting(containerEl)
-                .setName(t('Add to Quick Switch'))
-                .setDesc(`${provider}: ${currentTextModel}`)
-                .addButton(btn => btn
-                    .setButtonText('+')
-                    .onClick(async () => {
-                        const models = this.plugin.settings.quickSwitchTextModels || [];
-                        const key = `${provider}|${currentTextModel}`;
-                        if (models.some(m => `${m.provider}|${m.modelId}` === key)) {
-                            new Notice(t('Model already exists'));
-                            return;
-                        }
-                        models.push({
-                            provider: provider,
-                            modelId: currentTextModel,
-                            displayName: this.getModelDisplayName(currentTextModel)
-                        });
-                        this.plugin.settings.quickSwitchTextModels = models;
-                        await this.plugin.saveSettings();
-                        this.plugin.floatingPalette?.initQuickSwitchModels(
-                            models,
-                            this.plugin.settings.quickSwitchImageModels || [],
-                            this.plugin.settings.paletteTextModel || '',
-                            this.plugin.settings.paletteImageModel || '',
-                            this.plugin.settings.paletteNodeModel || ''
-                        );
-                        new Notice(t('Model added'));
-                        this.display();
-                    }));
-        }
-
-        // List existing quick switch text models
-        const textModels = this.plugin.settings.quickSwitchTextModels || [];
-        if (textModels.length === 0) {
-            containerEl.createEl('p', { text: t('No quick switch models'), cls: 'setting-item-description' });
-        } else {
-            for (const model of textModels) {
-                new Setting(containerEl)
-                    .setName(`${model.provider} | ${model.displayName}`)
-                    .setDesc(model.modelId)
-                    .addButton(btn => btn
-                        .setButtonText('×')
-                        .setWarning()
-                        .onClick(async () => {
-                            const index = textModels.findIndex(m => m.provider === model.provider && m.modelId === model.modelId);
-                            if (index > -1) {
-                                textModels.splice(index, 1);
-                                this.plugin.settings.quickSwitchTextModels = textModels;
-                                await this.plugin.saveSettings();
-                                this.plugin.floatingPalette?.initQuickSwitchModels(
-                                    textModels,
-                                    this.plugin.settings.quickSwitchImageModels || [],
-                                    this.plugin.settings.paletteTextModel || '',
-                                    this.plugin.settings.paletteImageModel || '',
-                                    this.plugin.settings.paletteNodeModel || ''
-                                );
-                                new Notice(t('Model removed'));
-                                this.display();
-                            }
-                        }));
-            }
-        }
-
-        // ========== Quick Switch Image Models ==========
-        containerEl.createEl('h3', { text: t('Quick Switch Image Models') });
-
-        // Add current image model to quick switch button
-        const currentImageModel = this.getCurrentImageModelId();
-        if (currentImageModel) {
-            new Setting(containerEl)
-                .setName(t('Add to Quick Switch'))
-                .setDesc(`${provider}: ${currentImageModel}`)
-                .addButton(btn => btn
-                    .setButtonText('+')
-                    .onClick(async () => {
-                        const models = this.plugin.settings.quickSwitchImageModels || [];
-                        const key = `${provider}|${currentImageModel}`;
-                        if (models.some(m => `${m.provider}|${m.modelId}` === key)) {
-                            new Notice(t('Model already exists'));
-                            return;
-                        }
-                        models.push({
-                            provider: provider,
-                            modelId: currentImageModel,
-                            displayName: this.getModelDisplayName(currentImageModel)
-                        });
-                        this.plugin.settings.quickSwitchImageModels = models;
-                        await this.plugin.saveSettings();
-                        this.plugin.floatingPalette?.initQuickSwitchModels(
-                            this.plugin.settings.quickSwitchTextModels || [],
-                            models,
-                            this.plugin.settings.paletteTextModel || '',
-                            this.plugin.settings.paletteImageModel || '',
-                            this.plugin.settings.paletteNodeModel || ''
-                        );
-                        new Notice(t('Model added'));
-                        this.display();
-                    }));
-        }
-
-        // List existing quick switch image models
-        const imageModels = this.plugin.settings.quickSwitchImageModels || [];
-        if (imageModels.length === 0) {
-            containerEl.createEl('p', { text: t('No quick switch models'), cls: 'setting-item-description' });
-        } else {
-            for (const model of imageModels) {
-                new Setting(containerEl)
-                    .setName(`${model.provider} | ${model.displayName}`)
-                    .setDesc(model.modelId)
-                    .addButton(btn => btn
-                        .setButtonText('×')
-                        .setWarning()
-                        .onClick(async () => {
-                            const index = imageModels.findIndex(m => m.provider === model.provider && m.modelId === model.modelId);
-                            if (index > -1) {
-                                imageModels.splice(index, 1);
-                                this.plugin.settings.quickSwitchImageModels = imageModels;
-                                await this.plugin.saveSettings();
-                                this.plugin.floatingPalette?.initQuickSwitchModels(
-                                    this.plugin.settings.quickSwitchTextModels || [],
-                                    imageModels,
-                                    this.plugin.settings.paletteTextModel || '',
-                                    this.plugin.settings.paletteImageModel || '',
-                                    this.plugin.settings.paletteNodeModel || ''
-                                );
-                                new Notice(t('Model removed'));
-                                this.display();
-                            }
-                        }));
-            }
-        }
-
     }
 
 
@@ -3847,6 +3709,78 @@ class CanvasAISettingTab extends PluginSettingTab {
                 testBtn.disabled = false;
             }
         });
+    }
+
+    /**
+     * Render quick switch models as compact inline tags
+     */
+    private renderQuickSwitchCompact(containerEl: HTMLElement, currentProvider: string): void {
+        const textModels = this.plugin.settings.quickSwitchTextModels || [];
+        const imageModels = this.plugin.settings.quickSwitchImageModels || [];
+
+        // Text/Node models row
+        const textRow = containerEl.createDiv({ cls: 'canvas-ai-quick-switch-row' });
+        textRow.createSpan({ text: `${t('Quick Switch Text Models')}: `, cls: 'canvas-ai-quick-switch-label' });
+        const textTagsContainer = textRow.createSpan({ cls: 'canvas-ai-quick-switch-tags' });
+
+        if (textModels.length === 0) {
+            textTagsContainer.createSpan({ text: t('No quick switch models'), cls: 'canvas-ai-quick-switch-empty' });
+        } else {
+            for (const model of textModels) {
+                const tag = textTagsContainer.createSpan({ cls: 'canvas-ai-quick-switch-tag' });
+                tag.createSpan({ text: `${model.provider}|${model.displayName}` });
+                const removeBtn = tag.createSpan({ text: ' ×', cls: 'canvas-ai-quick-switch-remove' });
+                removeBtn.addEventListener('click', async () => {
+                    const index = textModels.findIndex(m => m.provider === model.provider && m.modelId === model.modelId);
+                    if (index > -1) {
+                        textModels.splice(index, 1);
+                        this.plugin.settings.quickSwitchTextModels = textModels;
+                        await this.plugin.saveSettings();
+                        this.plugin.floatingPalette?.initQuickSwitchModels(
+                            textModels,
+                            this.plugin.settings.quickSwitchImageModels || [],
+                            this.plugin.settings.paletteTextModel || '',
+                            this.plugin.settings.paletteImageModel || '',
+                            this.plugin.settings.paletteNodeModel || ''
+                        );
+                        new Notice(t('Model removed'));
+                        this.display();
+                    }
+                });
+            }
+        }
+
+        // Image models row
+        const imageRow = containerEl.createDiv({ cls: 'canvas-ai-quick-switch-row' });
+        imageRow.createSpan({ text: `${t('Quick Switch Image Models')}: `, cls: 'canvas-ai-quick-switch-label' });
+        const imageTagsContainer = imageRow.createSpan({ cls: 'canvas-ai-quick-switch-tags' });
+
+        if (imageModels.length === 0) {
+            imageTagsContainer.createSpan({ text: t('No quick switch models'), cls: 'canvas-ai-quick-switch-empty' });
+        } else {
+            for (const model of imageModels) {
+                const tag = imageTagsContainer.createSpan({ cls: 'canvas-ai-quick-switch-tag' });
+                tag.createSpan({ text: `${model.provider}|${model.displayName}` });
+                const removeBtn = tag.createSpan({ text: ' ×', cls: 'canvas-ai-quick-switch-remove' });
+                removeBtn.addEventListener('click', async () => {
+                    const index = imageModels.findIndex(m => m.provider === model.provider && m.modelId === model.modelId);
+                    if (index > -1) {
+                        imageModels.splice(index, 1);
+                        this.plugin.settings.quickSwitchImageModels = imageModels;
+                        await this.plugin.saveSettings();
+                        this.plugin.floatingPalette?.initQuickSwitchModels(
+                            this.plugin.settings.quickSwitchTextModels || [],
+                            imageModels,
+                            this.plugin.settings.paletteTextModel || '',
+                            this.plugin.settings.paletteImageModel || '',
+                            this.plugin.settings.paletteNodeModel || ''
+                        );
+                        new Notice(t('Model removed'));
+                        this.display();
+                    }
+                });
+            }
+        }
     }
 
     /**
@@ -3910,8 +3844,9 @@ class CanvasAISettingTab extends PluginSettingTab {
         customKey: keyof CanvasAISettings;
         placeholder: string;
         getModels: () => OpenRouterModel[];
+        isImageModel?: boolean;
     }): void {
-        const { name, desc, modelKey, customKey, placeholder, getModels } = options;
+        const { name, desc, modelKey, customKey, placeholder, getModels, isImageModel } = options;
 
         const useCustom = this.plugin.settings[customKey] as boolean;
         const models = getModels();
@@ -3964,8 +3899,8 @@ class CanvasAISettingTab extends PluginSettingTab {
             });
         }
 
-        // 2. Manual Input Toggle (Next Line)
-        new Setting(containerEl)
+        // 2. Manual Input Toggle + Add to Quick Switch Button (Same Line)
+        const toggleSetting = new Setting(containerEl)
             .setName(t('Manually Enter Model Name'))
             .setDesc(isManualMode ? t('Disable Manual Model') : t('Enable Manual Model'))
             .addToggle(toggle => toggle
@@ -3976,6 +3911,48 @@ class CanvasAISettingTab extends PluginSettingTab {
                     // Re-render to switch between dropdown and text input
                     this.display();
                 }));
+
+        // Add "Add to Quick Switch" button
+        const provider = this.plugin.settings.apiProvider;
+        const currentModelId = this.plugin.settings[modelKey] as string;
+        if (currentModelId) {
+            toggleSetting.addButton(btn => btn
+                .setButtonText(t('Add to Quick Switch'))
+                .onClick(async () => {
+                    const targetList = isImageModel
+                        ? (this.plugin.settings.quickSwitchImageModels || [])
+                        : (this.plugin.settings.quickSwitchTextModels || []);
+
+                    const key = `${provider}|${currentModelId}`;
+                    if (targetList.some(m => `${m.provider}|${m.modelId}` === key)) {
+                        new Notice(t('Model already exists'));
+                        return;
+                    }
+
+                    targetList.push({
+                        provider: provider,
+                        modelId: currentModelId,
+                        displayName: this.getModelDisplayName(currentModelId)
+                    });
+
+                    if (isImageModel) {
+                        this.plugin.settings.quickSwitchImageModels = targetList;
+                    } else {
+                        this.plugin.settings.quickSwitchTextModels = targetList;
+                    }
+
+                    await this.plugin.saveSettings();
+                    this.plugin.floatingPalette?.initQuickSwitchModels(
+                        this.plugin.settings.quickSwitchTextModels || [],
+                        this.plugin.settings.quickSwitchImageModels || [],
+                        this.plugin.settings.paletteTextModel || '',
+                        this.plugin.settings.paletteImageModel || '',
+                        this.plugin.settings.paletteNodeModel || ''
+                    );
+                    new Notice(t('Model added'));
+                    this.display();
+                }));
+        }
     }
 }
 
