@@ -2,7 +2,7 @@
 
 /* ========== Canvas Popup Menu AI Button ========== */
 #canvas-ai-sparkles {
-    color: var(--text-normal);
+    color: var(--text-muted);
 }
 
 #canvas-ai-sparkles:hover {
