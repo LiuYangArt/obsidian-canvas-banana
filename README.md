@@ -1,8 +1,6 @@
 [简体中文](#zh-cn) | [English](#en-us)
 
-
-https://github.com/user-attachments/assets/d8bbd2d9-97ab-465c-90c2-93ac667f51e6
-
+[https://www.youtube.com/watch?v=FN8d_2q4evo](https://www.youtube.com/watch?v=FN8d_2q4evo)
 
 <span id="zh-cn"></span>
 
