@@ -486,11 +486,10 @@ class FloatingPalette {
 
         // Chat Options
         this.chatOptionsEl = body.createDiv('canvas-ai-chat-options');
-        const chatRow = this.chatOptionsEl.createDiv('canvas-ai-option-row');
+        const chatRow = this.chatOptionsEl.createDiv('canvas-ai-option-row canvas-ai-temp-row');
 
-        const tempGrp = chatRow.createEl('span', 'canvas-ai-option-group');
-        tempGrp.createEl('label', { text: t('Temperature') });
-        this.tempInput = tempGrp.createEl('input', { cls: 'canvas-ai-temp-input', type: 'number', attr: { min: '0', max: '2', step: '0.1', value: '0.5' } });
+        chatRow.createEl('label', { cls: 'canvas-ai-temp-label', text: t('Temperature') });
+        this.tempInput = chatRow.createEl('input', { cls: 'canvas-ai-temp-input', type: 'number', attr: { min: '0', max: '2', step: '0.1', value: '0.5' } });
 
         const chatModelRow = this.chatOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-model-select-row' });
         chatModelRow.style.display = 'none';
@@ -502,10 +501,9 @@ class FloatingPalette {
         this.nodeOptionsEl = body.createDiv({ cls: 'canvas-ai-node-options' });
         this.nodeOptionsEl.style.display = 'none';
 
-        const nodeRow = this.nodeOptionsEl.createDiv('canvas-ai-option-row');
-        const nodeTempGrp = nodeRow.createEl('span', 'canvas-ai-option-group');
-        nodeTempGrp.createEl('label', { text: t('Temperature') });
-        this.nodeTempInput = nodeTempGrp.createEl('input', { cls: 'canvas-ai-node-temp-input', type: 'number', attr: { min: '0', max: '2', step: '0.1', value: '0.5' } });
+        const nodeRow = this.nodeOptionsEl.createDiv('canvas-ai-option-row canvas-ai-temp-row');
+        nodeRow.createEl('label', { cls: 'canvas-ai-temp-label', text: t('Temperature') });
+        this.nodeTempInput = nodeRow.createEl('input', { cls: 'canvas-ai-node-temp-input', type: 'number', attr: { min: '0', max: '2', step: '0.1', value: '0.5' } });
 
         const nodeModelRow = this.nodeOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-node-model-select-row' });
         nodeModelRow.style.display = 'none';

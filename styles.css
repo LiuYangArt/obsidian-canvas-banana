@@ -197,6 +197,17 @@
     flex: 1;
 }
 
+/* Temperature row - label left, input right */
+.canvas-ai-temp-row {
+    justify-content: space-between;
+}
+
+.canvas-ai-temp-label {
+    font-size: 12px;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
 .canvas-ai-option-group label {
     font-size: 12px;
     color: var(--text-muted);
