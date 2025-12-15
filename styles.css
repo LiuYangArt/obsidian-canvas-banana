@@ -387,21 +387,29 @@
 
 /* ========== Settings Page Styles ========== */
 
-/* Make setting items stack vertically with full-width inputs - REMOVED for standard layout */
-/* .canvas-ai-settings .setting-item {
+/* Block (Vertical) Setting Item Style */
+.canvas-ai-settings .canvas-ai-block-setting {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
     gap: 8px;
+    border-bottom: 1px solid var(--background-modifier-border);
+    padding-bottom: 18px;
 }
 
-.canvas-ai-settings .setting-item-info {
+.canvas-ai-settings .canvas-ai-block-setting .setting-item-info {
     width: 100%;
+    margin-right: 0;
 }
 
-.canvas-ai-settings .setting-item-control {
+.canvas-ai-settings .canvas-ai-block-setting .setting-item-control {
     width: 100%;
+    justify-content: flex-start;
 }
-*/
+
+.canvas-ai-settings .canvas-ai-block-setting textarea {
+    width: 100%;
+    min-height: 80px;
+}
 
 /* Small input for Max Size */
 .canvas-ai-settings .canvas-ai-small-input {
@@ -798,23 +806,4 @@
 .canvas-ai-node-model-select {
     flex: 1 !important;
     min-width: 0 !important;
-    width: 100% !important;
-    max-width: none !important;
-    padding: 1px 5px;
 }
-
-/* Temperature input row - right align */
-.canvas-ai-chat-options .canvas-ai-option-row:first-child .canvas-ai-option-group,
-.canvas-ai-node-options .canvas-ai-option-row:first-child .canvas-ai-option-group {
-    justify-content: space-between;
-}
-
-.canvas-ai-temp-input,
-.canvas-ai-node-temp-input {
-    text-align: right;
-}
-/* Utility classes */
-.canvas-ai-hidden {
-    display: none !important;
-}
-

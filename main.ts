@@ -3507,6 +3507,7 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         // Chat System Prompt
         new Setting(containerEl)
+            .setClass('canvas-ai-block-setting')
             .setName(t('Chat System Prompt'))
             .setDesc(t('System prompt for text chat mode'))
             .addTextArea(text => text
@@ -3517,30 +3518,33 @@ class CanvasAISettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 }));
 
-        // Make the text area larger
-        let textAreaEl = containerEl.querySelector('.setting-item:last-child textarea');
-        if (textAreaEl) {
-            (textAreaEl as HTMLTextAreaElement).rows = 3;
-            (textAreaEl as HTMLTextAreaElement).style.width = '100%';
+        // Node System Prompt (Only visible in Debug Mode)
+        if (this.plugin.settings.debugMode) {
+            new Setting(containerEl)
+                .setClass('canvas-ai-block-setting')
+                .setName(t('Node System Prompt'))
+                .setDesc(t('System prompt for node mode (leave empty to use default built-in prompt)'))
+                .addTextArea(text => text
+                    .setPlaceholder('Leave empty to use default Canvas JSON generation prompt...')
+                    .setValue(this.plugin.settings.nodeSystemPrompt)
+                    .onChange(async (value) => {
+                        this.plugin.settings.nodeSystemPrompt = value;
+                        await this.plugin.saveSettings();
+                    }));
         }
 
-        // Node System Prompt
+        // Image System Prompt
         new Setting(containerEl)
-            .setName(t('Node System Prompt'))
-            .setDesc(t('System prompt for node mode (leave empty to use default built-in prompt)'))
+            .setClass('canvas-ai-block-setting')
+            .setName(t('Image System Prompt'))
+            .setDesc(t('System prompt for image generation mode'))
             .addTextArea(text => text
-                .setPlaceholder('Leave empty to use default Canvas JSON generation prompt...')
-                .setValue(this.plugin.settings.nodeSystemPrompt)
+                .setPlaceholder('You are an expert creator...')
+                .setValue(this.plugin.settings.imageSystemPrompt)
                 .onChange(async (value) => {
-                    this.plugin.settings.nodeSystemPrompt = value;
+                    this.plugin.settings.imageSystemPrompt = value;
                     await this.plugin.saveSettings();
                 }));
-
-        textAreaEl = containerEl.querySelector('.setting-item:last-child textarea');
-        if (textAreaEl) {
-            (textAreaEl as HTMLTextAreaElement).rows = 3;
-            (textAreaEl as HTMLTextAreaElement).style.width = '100%';
-        }
 
         // Node Default Color
         new Setting(containerEl)
@@ -3559,25 +3563,6 @@ class CanvasAISettingTab extends PluginSettingTab {
                     this.plugin.settings.nodeDefaultColor = value;
                     await this.plugin.saveSettings();
                 }));
-
-        // Image System Prompt
-        new Setting(containerEl)
-            .setName(t('Image System Prompt'))
-            .setDesc(t('System prompt for image generation mode'))
-            .addTextArea(text => text
-                .setPlaceholder('You are an expert creator...')
-                .setValue(this.plugin.settings.imageSystemPrompt)
-                .onChange(async (value) => {
-                    this.plugin.settings.imageSystemPrompt = value;
-                    await this.plugin.saveSettings();
-                }));
-
-        // Make the text area larger
-        textAreaEl = containerEl.querySelector('.setting-item:last-child textarea');
-        if (textAreaEl) {
-            (textAreaEl as HTMLTextAreaElement).rows = 3;
-            (textAreaEl as HTMLTextAreaElement).style.width = '100%';
-        }
 
         // ========== Developer Options ==========
         new Setting(containerEl).setHeading().setName(t('Developer Options'));
@@ -3926,24 +3911,11 @@ class CanvasAISettingTab extends PluginSettingTab {
             });
         }
 
-        // 2. Manual Input Toggle + Add to Quick Switch Button (Same Line)
-        const toggleSetting = new Setting(containerEl)
-            .setName(t('Manually Enter Model Name'))
-            .setDesc(isManualMode ? t('Disable Manual Model') : t('Enable Manual Model'))
-            .addToggle(toggle => toggle
-                .setValue(useCustom || false)
-                .onChange(async (value) => {
-                    (this.plugin.settings[customKey] as boolean) = value;
-                    await this.plugin.saveSettings();
-                    // Re-render to switch between dropdown and text input
-                    this.display();
-                }));
-
         // Add "Add to Quick Switch" button
         const provider = this.plugin.settings.apiProvider;
         const currentModelId = this.plugin.settings[modelKey] as string;
         if (currentModelId) {
-            toggleSetting.addButton(btn => btn
+            modelSetting.addButton(btn => btn
                 .setButtonText(t('Add to Quick Switch'))
                 .onClick(async () => {
                     const targetList = isImageModel
@@ -3980,6 +3952,21 @@ class CanvasAISettingTab extends PluginSettingTab {
                     this.display();
                 }));
         }
+
+        // 2. Manual Input Toggle + Add to Quick Switch Button (Same Line)
+        const toggleSetting = new Setting(containerEl)
+            .setName(t('Manually Enter Model Name'))
+            .setDesc(isManualMode ? t('Disable Manual Model') : t('Enable Manual Model'))
+            .addToggle(toggle => toggle
+                .setValue(useCustom || false)
+                .onChange(async (value) => {
+                    (this.plugin.settings[customKey] as boolean) = value;
+                    await this.plugin.saveSettings();
+                    // Re-render to switch between dropdown and text input
+                    this.display();
+                }));
+
+
     }
 }
 
