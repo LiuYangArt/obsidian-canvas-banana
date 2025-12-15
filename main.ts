@@ -949,7 +949,7 @@ class FloatingPalette {
      */
     private async handleGenerate(): Promise<void> {
         const prompt = this.promptInput.value.trim();
-        console.debug('Canvas AI: Generate clicked');
+        console.debug('Canvas Banana: Generate clicked');
         console.debug('Mode:', this.currentMode);
         console.debug('Prompt:', prompt || '(empty - will use fallback)');
 
@@ -958,7 +958,7 @@ class FloatingPalette {
 
         // Check if API is configured
         if (!this.apiManager.isConfigured()) {
-            console.error('Canvas AI: API Key not configured. Please set it in plugin settings.');
+            console.error('Canvas Banana: API Key not configured. Please set it in plugin settings.');
             return;
         }
 
@@ -1233,7 +1233,7 @@ export default class CanvasAIPlugin extends Plugin {
     private activeGhostNodeIds: Set<string> = new Set();
 
     async onload() {
-        console.debug('Canvas AI: Plugin loading...');
+        console.debug('Canvas Banana: Plugin loading...');
 
         await this.loadSettings();
 
@@ -1270,16 +1270,16 @@ export default class CanvasAIPlugin extends Plugin {
         // Register Canvas utility hotkeys
         this.registerCanvasUtilities();
 
-        console.debug('Canvas AI: Plugin loaded');
+        console.debug('Canvas Banana: Plugin loaded');
     }
 
     onunload() {
-        console.debug('Canvas AI: Plugin unloading...');
+        console.debug('Canvas Banana: Plugin unloading...');
 
         // 清理 DOM 组件
         this.floatingPalette?.destroy();
 
-        console.debug('Canvas AI: Plugin unloaded');
+        console.debug('Canvas Banana: Plugin unloaded');
     }
 
     /**
@@ -1380,13 +1380,13 @@ export default class CanvasAIPlugin extends Plugin {
     private async handleGeneration(userPrompt: string, mode: PaletteMode): Promise<void> {
         const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
         if (!canvasView || canvasView.getViewType() !== 'canvas') {
-            console.error('Canvas AI: Not in canvas view');
+            console.error('Canvas Banana: Not in canvas view');
             return;
         }
 
         const canvas = (canvasView as CanvasView).canvas;
         if (!canvas) {
-            console.error('Canvas AI: Canvas not found');
+            console.error('Canvas Banana: Canvas not found');
             return;
         }
 
@@ -1414,7 +1414,7 @@ export default class CanvasAIPlugin extends Plugin {
                 // Reinitialize API manager with new settings
                 this.apiManager = new ApiManager(this.settings);
 
-                console.debug(`Canvas AI: Quick switch to ${provider}/${modelId}`);
+                console.debug(`Canvas Banana: Quick switch to ${provider}/${modelId}`);
             }
         }
 
@@ -1430,7 +1430,7 @@ export default class CanvasAIPlugin extends Plugin {
                 }
                 // Reinitialize API manager with original settings
                 this.apiManager = new ApiManager(this.settings);
-                console.debug('Canvas AI: Restored original settings');
+                console.debug('Canvas Banana: Restored original settings');
             }
         };
 
@@ -1446,19 +1446,19 @@ export default class CanvasAIPlugin extends Plugin {
                 this.settings
             );
         } catch (e) {
-            console.error('Canvas AI: Intent resolution failed:', e);
+            console.error('Canvas Banana: Intent resolution failed:', e);
             return;
         }
 
         // Check if generation is possible
         if (!intent.canGenerate) {
-            console.debug('Canvas AI: Nothing to generate (no images, no text, no prompt)');
+            console.debug('Canvas Banana: Nothing to generate (no images, no text, no prompt)');
             return;
         }
 
         // Log warnings
         if (intent.warnings.length > 0) {
-            console.warn('Canvas AI: Warnings:', intent.warnings);
+            console.warn('Canvas Banana: Warnings:', intent.warnings);
         }
 
         // ========== Calculate position for ghost node (right of selection) ==========
@@ -1473,7 +1473,7 @@ export default class CanvasAIPlugin extends Plugin {
 
         // Create Ghost Node
         const ghostNode = this.createGhostNode(canvas, nodeX, nodeY);
-        console.debug('Canvas AI: Ghost Node created:', ghostNode.id);
+        console.debug('Canvas Banana: Ghost Node created:', ghostNode.id);
 
         try {
             let response: string;
@@ -1489,7 +1489,7 @@ export default class CanvasAIPlugin extends Plugin {
                 // Get chat options from palette
                 const chatOptions = this.floatingPalette!.getChatOptions();
 
-                console.debug('Canvas AI: Sending chat request with context');
+                console.debug('Canvas Banana: Sending chat request with context');
 
                 // Build media list for multimodal request (images + PDFs)
                 const mediaList: { base64: string, mimeType: string, type: 'image' | 'pdf' }[] = [];
@@ -1524,17 +1524,17 @@ export default class CanvasAIPlugin extends Plugin {
                 } else {
                     response = await this.apiManager!.chatCompletion(intent.instruction, systemPrompt, chatOptions.temperature);
                 }
-                console.debug('Canvas AI: API Response received');
+                console.debug('Canvas Banana: API Response received');
                 this.updateGhostNode(ghostNode, response, false);
 
             } else if (mode === 'image') {
                 // Image Mode - use new generateImageWithRoles
                 // Get user-selected image options from palette
                 const imageOptions = this.floatingPalette!.getImageOptions();
-                console.debug('Canvas AI: Sending image request with roles');
-                console.debug('Canvas AI: Instruction:', intent.instruction);
-                console.debug('Canvas AI: Images with roles:', intent.images.map(i => i.role));
-                console.debug('Canvas AI: Image options:', imageOptions);
+                console.debug('Canvas Banana: Sending image request with roles');
+                console.debug('Canvas Banana: Instruction:', intent.instruction);
+                console.debug('Canvas Banana: Images with roles:', intent.images.map(i => i.role));
+                console.debug('Canvas Banana: Image options:', imageOptions);
 
                 const base64Image = await this.apiManager!.generateImageWithRoles(
                     intent.instruction,
@@ -1549,7 +1549,7 @@ export default class CanvasAIPlugin extends Plugin {
 
                 // Save to Vault
                 const savedFile = await this.saveImageToVault(base64Image, intent.instruction);
-                console.debug('Canvas AI: Image saved to', savedFile.path);
+                console.debug('Canvas Banana: Image saved to', savedFile.path);
 
                 // Replace Ghost Node with Image Node
                 this.replaceGhostWithImageNode(canvas, ghostNode, savedFile);
@@ -1557,9 +1557,9 @@ export default class CanvasAIPlugin extends Plugin {
             } else {
                 // Node Mode - Generate Canvas JSON structure
                 const nodeOptions = this.floatingPalette!.getNodeOptions();
-                console.debug('Canvas AI: Sending node structure request');
-                console.debug('Canvas AI: Context text length:', intent.contextText.length);
-                console.debug('Canvas AI: Images count:', intent.images.length);
+                console.debug('Canvas Banana: Sending node structure request');
+                console.debug('Canvas Banana: Context text length:', intent.contextText.length);
+                console.debug('Canvas Banana: Images count:', intent.images.length);
 
                 // Build node mode system prompt
                 const nodeSystemPrompt = this.getNodeModeSystemPrompt();
@@ -1601,7 +1601,7 @@ ${intent.instruction}
                 }
 
                 if (mediaList.length > 0) {
-                    console.debug('Canvas AI: Sending node request with', mediaList.length, 'media items');
+                    console.debug('Canvas Banana: Sending node request with', mediaList.length, 'media items');
                     response = await this.apiManager!.multimodalChat(
                         fullInstruction,
                         mediaList,
@@ -1616,9 +1616,9 @@ ${intent.instruction}
                     );
                 }
 
-                console.debug('Canvas AI: Node structure response received');
+                console.debug('Canvas Banana: Node structure response received');
                 if (this.settings.debugMode) {
-                    console.debug('Canvas AI: Raw node response:', response);
+                    console.debug('Canvas Banana: Raw node response:', response);
                 }
 
                 try {
@@ -1629,7 +1629,7 @@ ${intent.instruction}
                     const sanitizeResult = sanitizeCanvasData(canvasData, true);
                     canvasData = sanitizeResult.data;
                     if (sanitizeResult.stats.removedEmptyNodes > 0 || sanitizeResult.stats.removedOrphanNodes > 0 || sanitizeResult.stats.removedInvalidEdges > 0 || sanitizeResult.stats.fixedMalformedGroups > 0) {
-                        console.debug(`Canvas AI: Sanitized - removed ${sanitizeResult.stats.removedEmptyNodes} empty nodes, ${sanitizeResult.stats.removedOrphanNodes} orphan nodes, ${sanitizeResult.stats.removedInvalidEdges} invalid edges, fixed ${sanitizeResult.stats.fixedMalformedGroups} malformed groups`);
+                        console.debug(`Canvas Banana: Sanitized - removed ${sanitizeResult.stats.removedEmptyNodes} empty nodes, ${sanitizeResult.stats.removedOrphanNodes} orphan nodes, ${sanitizeResult.stats.removedInvalidEdges} invalid edges, fixed ${sanitizeResult.stats.fixedMalformedGroups} malformed groups`);
                     }
 
                     // Regenerate IDs to avoid collision with existing canvas elements
@@ -1648,15 +1648,15 @@ ${intent.instruction}
                     // Replace ghost node with generated structure by modifying canvas file directly
                     await this.replaceGhostWithCanvasData(canvas, ghostNode, canvasData);
 
-                    console.debug(`Canvas AI: Created ${canvasData.nodes.length} nodes and ${canvasData.edges.length} edges`);
+                    console.debug(`Canvas Banana: Created ${canvasData.nodes.length} nodes and ${canvasData.edges.length} edges`);
 
                 } catch (parseError: any) {
-                    console.error('Canvas AI: JSON parse error:', parseError);
+                    console.error('Canvas Banana: JSON parse error:', parseError);
                     this.updateGhostNode(ghostNode, `❗ ${t('Invalid JSON structure')}: ${parseError.message}`, true);
                 }
             }
         } catch (error: any) {
-            console.error('Canvas AI: API Error:', error.message || error);
+            console.error('Canvas Banana: API Error:', error.message || error);
             this.updateGhostNode(ghostNode, `❗ Error: ${error.message || 'Unknown error'}`, true);
         } finally {
             // Restore original settings if they were overridden
@@ -1768,14 +1768,14 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
 
         // Validate ghost node is still tracked (not already replaced by another concurrent operation)
         if (!this.activeGhostNodeIds.has(ghostNodeId)) {
-            console.warn(`Canvas AI: Ghost node ${ghostNodeId} already replaced, skipping duplicate replacement (Node Mode)`);
+            console.warn(`Canvas Banana: Ghost node ${ghostNodeId} already replaced, skipping duplicate replacement (Node Mode)`);
             return;
         }
 
         // Check if the ghost node still exists in the canvas
         const existingNode = canvas.nodes?.get(ghostNodeId);
         if (!existingNode) {
-            console.warn(`Canvas AI: Ghost node ${ghostNodeId} no longer exists in canvas, skipping (Node Mode)`);
+            console.warn(`Canvas Banana: Ghost node ${ghostNodeId} no longer exists in canvas, skipping (Node Mode)`);
             this.activeGhostNodeIds.delete(ghostNodeId);
             return;
         }
@@ -1894,14 +1894,14 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                 await this.app.vault.createFolder(folderName);
             } catch (e: any) {
                 if (!this.app.vault.getAbstractFileByPath(folderName)) {
-                    console.error('Canvas AI: Failed to create folder:', e);
+                    console.error('Canvas Banana: Failed to create folder:', e);
                     throw new Error(`Failed to create Canvas Images folder: ${e.message}`);
                 }
             }
         }
 
         const filePath = `${folderName}/${filename}`;
-        console.debug(`Canvas AI: Saving image to ${filePath}, mimeType: ${mimeType}`);
+        console.debug(`Canvas Banana: Saving image to ${filePath}, mimeType: ${mimeType}`);
         return await this.app.vault.createBinary(filePath, buffer);
     }
 
@@ -1926,14 +1926,14 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
 
         // Validate ghost node is still tracked (not already replaced by another concurrent operation)
         if (!this.activeGhostNodeIds.has(ghostNodeId)) {
-            console.warn(`Canvas AI: Ghost node ${ghostNodeId} already replaced, skipping duplicate replacement`);
+            console.warn(`Canvas Banana: Ghost node ${ghostNodeId} already replaced, skipping duplicate replacement`);
             return;
         }
 
         // Check if the ghost node still exists in the canvas
         const existingNode = canvas.nodes?.get(ghostNodeId);
         if (!existingNode) {
-            console.warn(`Canvas AI: Ghost node ${ghostNodeId} no longer exists in canvas, skipping`);
+            console.warn(`Canvas Banana: Ghost node ${ghostNodeId} no longer exists in canvas, skipping`);
             this.activeGhostNodeIds.delete(ghostNodeId);
             return;
         }
@@ -1958,7 +1958,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         });
 
         canvas.requestSave();
-        console.debug(`Canvas AI: Replaced ghost node ${ghostNodeId} with image node`);
+        console.debug(`Canvas Banana: Replaced ghost node ${ghostNodeId} with image node`);
     }
 
     /**
@@ -2051,7 +2051,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         }
 
         node.canvas?.requestSave();
-        console.debug(`Canvas AI: Ghost Node updated, estimated ${totalEstimatedLines} lines, height: ${estimatedHeight}px`);
+        console.debug(`Canvas Banana: Ghost Node updated, estimated ${totalEstimatedLines} lines, height: ${estimatedHeight}px`);
     }
 
     /**
@@ -2358,23 +2358,23 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
 
         if (!canvasView || canvasView.getViewType() !== 'canvas') {
-            console.debug('Canvas AI Debug: Not in Canvas view');
+            console.debug('Canvas Banana Debug: Not in Canvas view');
             return;
         }
 
         const canvas = (canvasView as CanvasView).canvas;
         if (!canvas) {
-            console.debug('Canvas AI Debug: Canvas not found');
+            console.debug('Canvas Banana Debug: Canvas not found');
             return;
         }
 
         const selection = canvas.selection;
         if (!selection || selection.size === 0) {
-            console.debug('Canvas AI Debug: No nodes selected');
+            console.debug('Canvas Banana Debug: No nodes selected');
             return;
         }
 
-        console.group('🔍 Canvas AI Debug: Selected Nodes');
+        console.group('🔍 Canvas Banana Debug: Selected Nodes');
         console.debug('Current Mode:', mode);
 
         // 步骤 2.1：打印每个节点的原始信息
@@ -2710,7 +2710,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             const leaf = this.app.workspace.openPopoutLeaf();
             await leaf.openFile(file);
         } catch (e) {
-            console.error('Canvas AI: Failed to open image in new window:', e);
+            console.error('Canvas Banana: Failed to open image in new window:', e);
         }
     }
 
@@ -2737,7 +2737,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
 
             new Notice(t('Image copied'));
         } catch (error) {
-            console.error('Canvas AI: Failed to copy image:', error);
+            console.error('Canvas Banana: Failed to copy image:', error);
             new Notice(t('No image selected'));
         }
     }
@@ -2839,12 +2839,12 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                     canvas.menu.groupNodes();
                     new Notice(t('Group created'));
                 } else {
-                    console.warn('Canvas AI: No group creation API available');
+                    console.warn('Canvas Banana: No group creation API available');
                     new Notice('Group creation not available');
                 }
             }
         } catch (e) {
-            console.error('Canvas AI: Failed to create group:', e);
+            console.error('Canvas Banana: Failed to create group:', e);
         }
     }
 
@@ -2871,7 +2871,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
 
             new Notice(t('Node created'));
         } catch (e) {
-            console.error('Canvas AI: Failed to create new node:', e);
+            console.error('Canvas Banana: Failed to create new node:', e);
         }
     }
 
@@ -3013,7 +3013,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         if (isGemini) {
             this.modelCache = this.getGeminiHardcodedModels();
             this.modelsFetched = true;
-            console.debug(`Canvas AI Settings: Loaded ${this.modelCache.length} hardcoded Gemini models`);
+            console.debug(`Canvas Banana Settings: Loaded ${this.modelCache.length} hardcoded Gemini models`);
             this.display();
             return;
         }
@@ -3025,7 +3025,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 : this.plugin.settings.openRouterApiKey;
 
         if (!apiKey) {
-            console.debug('Canvas AI Settings: No API key, skipping model fetch');
+            console.debug('Canvas Banana Settings: No API key, skipping model fetch');
             return;
         }
 
@@ -3062,9 +3062,9 @@ class CanvasAISettingTab extends PluginSettingTab {
             }));
 
             this.modelsFetched = true;
-            console.debug(`Canvas AI Settings: Fetched ${this.modelCache.length} models from ${isYunwu ? 'Yunwu' : 'OpenRouter'}`);
+            console.debug(`Canvas Banana Settings: Fetched ${this.modelCache.length} models from ${isYunwu ? 'Yunwu' : 'OpenRouter'}`);
         } catch (error: any) {
-            console.error('Canvas AI Settings: Failed to fetch models:', error.message);
+            console.error('Canvas Banana Settings: Failed to fetch models:', error.message);
             // Keep existing cache or empty
             new Notice(`Failed to fetch model list: ${error.message}`);
         } finally {

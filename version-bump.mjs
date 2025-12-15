@@ -7,7 +7,7 @@ if (!targetVersion) {
     process.exit(1);
 }
 
-console.log(`Canvas AI: Syncing version to ${targetVersion}...`);
+console.log(`Canvas Banana: Syncing version to ${targetVersion}...`);
 
 // 1. Update manifest.json
 try {
