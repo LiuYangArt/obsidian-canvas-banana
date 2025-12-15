@@ -1,3 +1,6 @@
+[简体中文](#zh-cn) | [English](#en-us)
+
+<span id="zh-cn"></span>
 # Canvas Banana (Obsidian Plugin)
 
 Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增强插件。它深度集成了 Gemini 等先进 AI 模型，让你可以在白板中直接进行智能对话、文本创作和图像生成。
@@ -112,6 +115,7 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 
 ---
 
+<span id="en-us"></span>
 # Canvas Banana (Obsidian Plugin)
 
 **Canvas Banana** is an AI enhancement plugin designed specificially for the **Obsidian Canvas** view. It deeply integrates advanced AI models (like Gemini, OpenRouter), allowing you to conduct intelligent conversations, content generation, and image creation directly within your whiteboard.
