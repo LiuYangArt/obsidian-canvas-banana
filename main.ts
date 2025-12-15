@@ -1101,6 +1101,17 @@ class FloatingPalette {
         const hasTextModels = this.quickSwitchTextModels.length > 0;
         const hasImageModels = this.quickSwitchImageModels.length > 0;
 
+        // Helper to format provider name with proper capitalization
+        const formatProviderName = (provider: string): string => {
+            switch (provider.toLowerCase()) {
+                case 'openrouter': return 'OpenRouter';
+                case 'yunwu': return 'Yunwu';
+                case 'gemini': return 'Gemini';
+                case 'gptgod': return 'GPTGod';
+                default: return provider.charAt(0).toUpperCase() + provider.slice(1);
+            }
+        };
+
         // Helper to populate a select with models
         const populateSelect = (
             selectEl: HTMLSelectElement | null,
@@ -1111,10 +1122,11 @@ class FloatingPalette {
             selectEl.innerHTML = '';
 
             // Add models from quick switch list (no empty default option)
+            // Format: "ModelName | Provider"
             for (const model of models) {
                 const opt = document.createElement('option');
                 opt.value = `${model.provider}|${model.modelId}`;
-                opt.textContent = `${model.provider.charAt(0).toUpperCase() + model.provider.slice(1)} | ${model.displayName}`;
+                opt.textContent = `${model.displayName} | ${formatProviderName(model.provider)}`;
                 selectEl.appendChild(opt);
             }
 
@@ -3719,6 +3731,17 @@ class CanvasAISettingTab extends PluginSettingTab {
         const textModels = this.plugin.settings.quickSwitchTextModels || [];
         const imageModels = this.plugin.settings.quickSwitchImageModels || [];
 
+        // Helper to format provider name with proper capitalization
+        const formatProviderName = (provider: string): string => {
+            switch (provider.toLowerCase()) {
+                case 'openrouter': return 'OpenRouter';
+                case 'yunwu': return 'Yunwu';
+                case 'gemini': return 'Gemini';
+                case 'gptgod': return 'GPTGod';
+                default: return provider.charAt(0).toUpperCase() + provider.slice(1);
+            }
+        };
+
         // Helper to create draggable tag
         const createDraggableTag = (
             container: HTMLElement,
@@ -3731,7 +3754,8 @@ class CanvasAISettingTab extends PluginSettingTab {
             tag.setAttribute('draggable', 'true');
             tag.dataset.index = String(index);
 
-            tag.createSpan({ text: `${model.provider}|${model.displayName}` });
+            // Format: "ModelName | Provider"
+            tag.createSpan({ text: `${model.displayName} | ${formatProviderName(model.provider)}` });
             const removeBtn = tag.createSpan({ text: ' ×', cls: 'canvas-ai-quick-switch-remove' });
 
             // Remove button click
@@ -3873,7 +3897,13 @@ class CanvasAISettingTab extends PluginSettingTab {
         // Try to find in model cache
         const cached = this.modelCache.find(m => m.id === modelId);
         if (cached) {
-            return cached.name;
+            // Remove company prefix like "Google: " if present
+            const name = cached.name;
+            const colonIndex = name.indexOf(': ');
+            if (colonIndex > -1 && colonIndex < 20) {
+                return name.substring(colonIndex + 2);
+            }
+            return name;
         }
         // Fallback: format the model ID nicely
         return modelId.split('/').pop() || modelId;
