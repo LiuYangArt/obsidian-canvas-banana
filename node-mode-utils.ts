@@ -146,6 +146,11 @@ export function sanitizeCanvasData(
             if (!node.text) {
                 node.text = '[Group]';
             }
+            
+            // Make text bold to distinguish group/title nodes
+            if (node.text && !node.text.startsWith('**') && !node.text.endsWith('**')) {
+                node.text = `**${node.text}**`;
+            }
             stats.fixedMalformedGroups++;
             console.warn(`Canvas AI Sanitize: Converted group "${node.id}" -> text node (content: "${(node.text || node.label || '').substring(0, 30)}")`);
         }

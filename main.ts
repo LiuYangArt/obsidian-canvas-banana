@@ -1713,7 +1713,7 @@ ${intent.instruction}
 
 ### 3. 层级关系表示（重要）
 如果需要表示分类或层级关系（如"类别"包含多个"子项"），请使用以下模式：
-- 创建一个"标题节点"作为分类名称
+- 创建一个"标题节点"作为分类名称（**强烈建议**对其文本使用Markdown加粗，例如"**标题**"）
 - 创建多个"内容节点"作为子项
 - 使用**edges从标题节点连向各个内容节点**来表示从属关系
 
@@ -1721,7 +1721,7 @@ ${intent.instruction}
 \`\`\`json
 {
   "nodes": [
-    {"id":"title-1","type":"text","x":200,"y":0,"width":200,"height":60,"text":"核心要素","color":"5"},
+    {"id":"title-1","type":"text","x":200,"y":0,"width":200,"height":60,"text":"**核心要素**","color":"5"},
     {"id":"item-1","type":"text","x":0,"y":150,"width":250,"height":80,"text":"子项A的内容"},
     {"id":"item-2","type":"text","x":280,"y":150,"width":250,"height":80,"text":"子项B的内容"},
     {"id":"item-3","type":"text","x":560,"y":150,"width":250,"height":80,"text":"子项C的内容"}
