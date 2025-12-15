@@ -371,7 +371,7 @@ export class CanvasConverter {
                         const buffer = await app.vault.readBinary(file);
                         node.pdfBase64 = this.arrayBufferToBase64(buffer);
                         node.mimeType = 'application/pdf';
-                        console.log(`CanvasConverter: Read PDF ${node.filePath}, base64 length: ${node.pdfBase64.length}`);
+                        console.debug(`CanvasConverter: Read PDF ${node.filePath}, base64 length: ${node.pdfBase64.length}`);
                     }
                 } catch (error) {
                     console.warn(`CanvasConverter: Failed to read PDF file ${node.filePath}`, error);
@@ -388,13 +388,13 @@ export class CanvasConverter {
      * @param maxSize 最大尺寸（宽/高都不超过此值）
      */
     static async readImageFileContents(app: App, nodes: ConvertedNode[], compressionQuality: number = 80, maxSize: number = 2048): Promise<void> {
-        console.log('CanvasConverter: readImageFileContents called, nodes:', nodes.length, 'quality:', compressionQuality, 'maxSize:', maxSize);
+        console.debug('CanvasConverter: readImageFileContents called, nodes:', nodes.length, 'quality:', compressionQuality, 'maxSize:', maxSize);
         for (const node of nodes) {
-            console.log(`CanvasConverter: Checking node ${node.id}, type=${node.type}, isImage=${node.isImage}, filePath=${node.filePath}`);
+            console.debug(`CanvasConverter: Checking node ${node.id}, type=${node.type}, isImage=${node.isImage}, filePath=${node.filePath}`);
             if (node.type === 'file' && node.filePath && node.isImage) {
                 try {
                     const file = app.vault.getAbstractFileByPath(node.filePath);
-                    console.log(`CanvasConverter: File lookup result:`, file);
+                    console.debug(`CanvasConverter: File lookup result:`, file);
                     if (file && file instanceof TFile) {
                         const buffer = await app.vault.readBinary(file);
 
@@ -403,7 +403,7 @@ export class CanvasConverter {
                         node.base64 = compressedBase64;
                         node.mimeType = 'image/webp';
 
-                        console.log(`CanvasConverter: Compressed image ${node.filePath}, base64 length: ${node.base64.length}`);
+                        console.debug(`CanvasConverter: Compressed image ${node.filePath}, base64 length: ${node.base64.length}`);
                     } else {
                         console.warn(`CanvasConverter: File not found or not TFile: ${node.filePath}`);
                     }
@@ -452,7 +452,7 @@ export class CanvasConverter {
                         const scale = Math.min(maxSize / targetWidth, maxSize / targetHeight);
                         targetWidth = Math.round(targetWidth * scale);
                         targetHeight = Math.round(targetHeight * scale);
-                        console.log(`CanvasConverter: Scaling image from ${img.width}x${img.height} to ${targetWidth}x${targetHeight}`);
+                        console.debug(`CanvasConverter: Scaling image from ${img.width}x${img.height} to ${targetWidth}x${targetHeight}`);
                     }
 
                     // Create canvas with target dimensions
@@ -478,11 +478,11 @@ export class CanvasConverter {
                     // Cleanup
                     URL.revokeObjectURL(url);
 
-                    console.log(`CanvasConverter: Compressed ${img.width}x${img.height} -> ${targetWidth}x${targetHeight} at ${quality}% quality`);
+                    console.debug(`CanvasConverter: Compressed ${img.width}x${img.height} -> ${targetWidth}x${targetHeight} at ${quality}% quality`);
                     resolve(base64);
                 } catch (error) {
                     URL.revokeObjectURL(url);
-                    reject(error);
+                    reject(error instanceof Error ? error : new Error(String(error)));
                 }
             };
 

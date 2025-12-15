@@ -113,7 +113,7 @@ export class IntentResolver {
         // 判断是否可以生成
         const canGenerate = images.length > 0 || instruction.trim().length > 0 || contextText.length > 0;
 
-        console.log('Canvas AI IntentResolver:', {
+        console.debug('Canvas AI IntentResolver:', {
             imagesCount: images.length,
             instructionLength: instruction.length,
             contextLength: contextText.length,

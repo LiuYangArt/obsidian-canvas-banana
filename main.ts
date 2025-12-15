@@ -1,9 +1,9 @@
-import { App, ItemView, Modal, Notice, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, TFile, Scope } from 'obsidian';
-import type { Canvas, CanvasNode, CanvasCoords } from './types';
+import { App, ItemView, Modal, Notice, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, TFile, Scope, requestUrl } from 'obsidian';
+import type { Canvas, CanvasNode, CanvasCoords, CanvasView, CanvasData } from './types';
 import { CanvasConverter, ConvertedNode } from './canvas-converter';
 import { ApiManager } from './api-manager';
 import { IntentResolver, ResolvedIntent } from './intent-resolver';
-import { extractCanvasJSON, remapCoordinates, regenerateIds, optimizeLayout, sanitizeCanvasData, CanvasData } from './node-mode-utils';
+import { extractCanvasJSON, remapCoordinates, regenerateIds, optimizeLayout, sanitizeCanvasData } from './node-mode-utils';
 import { t } from './lang/helpers';
 
 // ========== Plugin Settings Interfaces ==========
@@ -902,7 +902,7 @@ class FloatingPalette {
      * Generate a simple unique ID
      */
     private generateId(): string {
-        return Date.now().toString(36) + Math.random().toString(36).substr(2, 9);
+        return Date.now().toString(36) + Math.random().toString(36).substring(2, 11);
     }
 
     /**
@@ -990,9 +990,9 @@ class FloatingPalette {
      */
     private async handleGenerate(): Promise<void> {
         const prompt = this.promptInput.value.trim();
-        console.log('Canvas AI: Generate clicked');
-        console.log('Mode:', this.currentMode);
-        console.log('Prompt:', prompt || '(empty - will use fallback)');
+        console.debug('Canvas AI: Generate clicked');
+        console.debug('Mode:', this.currentMode);
+        console.debug('Prompt:', prompt || '(empty - will use fallback)');
 
         // Note: Empty prompt is now allowed - IntentResolver will handle fallback
         // No longer blocking - multiple tasks can run concurrently
@@ -1274,7 +1274,7 @@ export default class CanvasAIPlugin extends Plugin {
     private activeGhostNodeIds: Set<string> = new Set();
 
     async onload() {
-        console.log('Canvas AI: Plugin loading...');
+        console.debug('Canvas AI: Plugin loading...');
 
         await this.loadSettings();
 
@@ -1311,16 +1311,16 @@ export default class CanvasAIPlugin extends Plugin {
         // Register Canvas utility hotkeys
         this.registerCanvasUtilities();
 
-        console.log('Canvas AI: Plugin loaded');
+        console.debug('Canvas AI: Plugin loaded');
     }
 
     onunload() {
-        console.log('Canvas AI: Plugin unloading...');
+        console.debug('Canvas AI: Plugin unloading...');
 
         // 清理 DOM 组件
         this.floatingPalette?.destroy();
 
-        console.log('Canvas AI: Plugin unloaded');
+        console.debug('Canvas AI: Plugin unloaded');
     }
 
     /**
@@ -1425,7 +1425,7 @@ export default class CanvasAIPlugin extends Plugin {
             return;
         }
 
-        const canvas = (canvasView as any).canvas as Canvas | undefined;
+        const canvas = (canvasView as CanvasView).canvas;
         if (!canvas) {
             console.error('Canvas AI: Canvas not found');
             return;
@@ -1455,7 +1455,7 @@ export default class CanvasAIPlugin extends Plugin {
                 // Reinitialize API manager with new settings
                 this.apiManager = new ApiManager(this.settings);
 
-                console.log(`Canvas AI: Quick switch to ${provider}/${modelId}`);
+                console.debug(`Canvas AI: Quick switch to ${provider}/${modelId}`);
             }
         }
 
@@ -1471,7 +1471,7 @@ export default class CanvasAIPlugin extends Plugin {
                 }
                 // Reinitialize API manager with original settings
                 this.apiManager = new ApiManager(this.settings);
-                console.log('Canvas AI: Restored original settings');
+                console.debug('Canvas AI: Restored original settings');
             }
         };
 
@@ -1493,7 +1493,7 @@ export default class CanvasAIPlugin extends Plugin {
 
         // Check if generation is possible
         if (!intent.canGenerate) {
-            console.log('Canvas AI: Nothing to generate (no images, no text, no prompt)');
+            console.debug('Canvas AI: Nothing to generate (no images, no text, no prompt)');
             return;
         }
 
@@ -1514,7 +1514,7 @@ export default class CanvasAIPlugin extends Plugin {
 
         // Create Ghost Node
         const ghostNode = this.createGhostNode(canvas, nodeX, nodeY);
-        console.log('Canvas AI: Ghost Node created:', ghostNode.id);
+        console.debug('Canvas AI: Ghost Node created:', ghostNode.id);
 
         try {
             let response: string;
@@ -1530,7 +1530,7 @@ export default class CanvasAIPlugin extends Plugin {
                 // Get chat options from palette
                 const chatOptions = this.floatingPalette!.getChatOptions();
 
-                console.log('Canvas AI: Sending chat request with context');
+                console.debug('Canvas AI: Sending chat request with context');
 
                 // Build media list for multimodal request (images + PDFs)
                 const mediaList: { base64: string, mimeType: string, type: 'image' | 'pdf' }[] = [];
@@ -1565,17 +1565,17 @@ export default class CanvasAIPlugin extends Plugin {
                 } else {
                     response = await this.apiManager!.chatCompletion(intent.instruction, systemPrompt, chatOptions.temperature);
                 }
-                console.log('Canvas AI: API Response received');
+                console.debug('Canvas AI: API Response received');
                 this.updateGhostNode(ghostNode, response, false);
 
             } else if (mode === 'image') {
                 // Image Mode - use new generateImageWithRoles
                 // Get user-selected image options from palette
                 const imageOptions = this.floatingPalette!.getImageOptions();
-                console.log('Canvas AI: Sending image request with roles');
-                console.log('Canvas AI: Instruction:', intent.instruction);
-                console.log('Canvas AI: Images with roles:', intent.images.map(i => i.role));
-                console.log('Canvas AI: Image options:', imageOptions);
+                console.debug('Canvas AI: Sending image request with roles');
+                console.debug('Canvas AI: Instruction:', intent.instruction);
+                console.debug('Canvas AI: Images with roles:', intent.images.map(i => i.role));
+                console.debug('Canvas AI: Image options:', imageOptions);
 
                 const base64Image = await this.apiManager!.generateImageWithRoles(
                     intent.instruction,
@@ -1590,7 +1590,7 @@ export default class CanvasAIPlugin extends Plugin {
 
                 // Save to Vault
                 const savedFile = await this.saveImageToVault(base64Image, intent.instruction);
-                console.log('Canvas AI: Image saved to', savedFile.path);
+                console.debug('Canvas AI: Image saved to', savedFile.path);
 
                 // Replace Ghost Node with Image Node
                 this.replaceGhostWithImageNode(canvas, ghostNode, savedFile);
@@ -1598,9 +1598,9 @@ export default class CanvasAIPlugin extends Plugin {
             } else {
                 // Node Mode - Generate Canvas JSON structure
                 const nodeOptions = this.floatingPalette!.getNodeOptions();
-                console.log('Canvas AI: Sending node structure request');
-                console.log('Canvas AI: Context text length:', intent.contextText.length);
-                console.log('Canvas AI: Images count:', intent.images.length);
+                console.debug('Canvas AI: Sending node structure request');
+                console.debug('Canvas AI: Context text length:', intent.contextText.length);
+                console.debug('Canvas AI: Images count:', intent.images.length);
 
                 // Build node mode system prompt
                 const nodeSystemPrompt = this.getNodeModeSystemPrompt();
@@ -1642,7 +1642,7 @@ ${intent.instruction}
                 }
 
                 if (mediaList.length > 0) {
-                    console.log('Canvas AI: Sending node request with', mediaList.length, 'media items');
+                    console.debug('Canvas AI: Sending node request with', mediaList.length, 'media items');
                     response = await this.apiManager!.multimodalChat(
                         fullInstruction,
                         mediaList,
@@ -1657,9 +1657,9 @@ ${intent.instruction}
                     );
                 }
 
-                console.log('Canvas AI: Node structure response received');
+                console.debug('Canvas AI: Node structure response received');
                 if (this.settings.debugMode) {
-                    console.log('Canvas AI: Raw node response:', response);
+                    console.debug('Canvas AI: Raw node response:', response);
                 }
 
                 try {
@@ -1670,7 +1670,7 @@ ${intent.instruction}
                     const sanitizeResult = sanitizeCanvasData(canvasData, true);
                     canvasData = sanitizeResult.data;
                     if (sanitizeResult.stats.removedEmptyNodes > 0 || sanitizeResult.stats.removedOrphanNodes > 0 || sanitizeResult.stats.removedInvalidEdges > 0 || sanitizeResult.stats.fixedMalformedGroups > 0) {
-                        console.log(`Canvas AI: Sanitized - removed ${sanitizeResult.stats.removedEmptyNodes} empty nodes, ${sanitizeResult.stats.removedOrphanNodes} orphan nodes, ${sanitizeResult.stats.removedInvalidEdges} invalid edges, fixed ${sanitizeResult.stats.fixedMalformedGroups} malformed groups`);
+                        console.debug(`Canvas AI: Sanitized - removed ${sanitizeResult.stats.removedEmptyNodes} empty nodes, ${sanitizeResult.stats.removedOrphanNodes} orphan nodes, ${sanitizeResult.stats.removedInvalidEdges} invalid edges, fixed ${sanitizeResult.stats.fixedMalformedGroups} malformed groups`);
                     }
 
                     // Regenerate IDs to avoid collision with existing canvas elements
@@ -1689,7 +1689,7 @@ ${intent.instruction}
                     // Replace ghost node with generated structure by modifying canvas file directly
                     await this.replaceGhostWithCanvasData(canvas, ghostNode, canvasData);
 
-                    console.log(`Canvas AI: Created ${canvasData.nodes.length} nodes and ${canvasData.edges.length} edges`);
+                    console.debug(`Canvas AI: Created ${canvasData.nodes.length} nodes and ${canvasData.edges.length} edges`);
 
                 } catch (parseError: any) {
                     console.error('Canvas AI: JSON parse error:', parseError);
@@ -1825,7 +1825,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         this.activeGhostNodeIds.delete(ghostNodeId);
 
         // Get the canvas file
-        const canvasView = this.app.workspace.getActiveViewOfType(ItemView) as any;
+        const canvasView = this.app.workspace.getActiveViewOfType(ItemView) as unknown as CanvasView | null;
         const canvasFile = canvasView?.file as TFile | undefined;
 
         if (!canvasFile || canvasFile.extension !== 'canvas') {
@@ -1942,7 +1942,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         }
 
         const filePath = `${folderName}/${filename}`;
-        console.log(`Canvas AI: Saving image to ${filePath}, mimeType: ${mimeType}`);
+        console.debug(`Canvas AI: Saving image to ${filePath}, mimeType: ${mimeType}`);
         return await this.app.vault.createBinary(filePath, buffer);
     }
 
@@ -1987,10 +1987,10 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         const height = width;
 
         // Remove ghost
-        (canvas as any).removeNode(ghostNode);
+        canvas.removeNode(ghostNode);
 
         // Create file node
-        const fileNode = (canvas as any).createFileNode({
+        const fileNode = canvas.createFileNode({
             file: file,
             pos: { x, y, width, height },
             size: { x, y, width, height },
@@ -1999,7 +1999,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         });
 
         canvas.requestSave();
-        console.log(`Canvas AI: Replaced ghost node ${ghostNodeId} with image node`);
+        console.debug(`Canvas AI: Replaced ghost node ${ghostNodeId} with image node`);
     }
 
     /**
@@ -2047,7 +2047,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
 
         // Update node text content
         // Access the internal data and update
-        (node as any).setText?.(content);
+        node.setText?.(content);
 
         // Alternative: directly set text property and re-render
         if (!((node as any).setText)) {
@@ -2083,8 +2083,8 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         );
 
         // Update node dimensions
-        if ((node as any).resize) {
-            (node as any).resize({ width: 400, height: estimatedHeight });
+        if (node.resize) {
+            node.resize({ width: 400, height: estimatedHeight });
         } else {
             // Fallback: directly set dimensions
             node.width = 400;
@@ -2092,7 +2092,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         }
 
         node.canvas?.requestSave();
-        console.log(`Canvas AI: Ghost Node updated, estimated ${totalEstimatedLines} lines, height: ${estimatedHeight}px`);
+        console.debug(`Canvas AI: Ghost Node updated, estimated ${totalEstimatedLines} lines, height: ${estimatedHeight}px`);
     }
 
     /**
@@ -2228,7 +2228,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         }
 
         // 获取 Canvas 实例 (使用 any 绕过类型检查)
-        const canvas = (canvasView as any).canvas as Canvas | undefined;
+        const canvas = (canvasView as CanvasView).canvas;
         if (!canvas) {
             this.hideAllFloatingComponents();
             return;
@@ -2399,48 +2399,48 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
 
         if (!canvasView || canvasView.getViewType() !== 'canvas') {
-            console.log('Canvas AI Debug: Not in Canvas view');
+            console.debug('Canvas AI Debug: Not in Canvas view');
             return;
         }
 
-        const canvas = (canvasView as any).canvas as Canvas | undefined;
+        const canvas = (canvasView as CanvasView).canvas;
         if (!canvas) {
-            console.log('Canvas AI Debug: Canvas not found');
+            console.debug('Canvas AI Debug: Canvas not found');
             return;
         }
 
         const selection = canvas.selection;
         if (!selection || selection.size === 0) {
-            console.log('Canvas AI Debug: No nodes selected');
+            console.debug('Canvas AI Debug: No nodes selected');
             return;
         }
 
         console.group('🔍 Canvas AI Debug: Selected Nodes');
-        console.log('Current Mode:', mode);
+        console.debug('Current Mode:', mode);
 
         // 步骤 2.1：打印每个节点的原始信息
         console.group('📋 Raw Node Data');
         selection.forEach((node: CanvasNode) => {
-            console.log('---');
-            console.log('ID:', node.id);
+            console.debug('---');
+            console.debug('ID:', node.id);
 
             if (node.text !== undefined) {
-                console.log('Type: Text');
-                console.log('Content:', node.text);
+                console.debug('Type: Text');
+                console.debug('Content:', node.text);
             } else if (node.file) {
-                console.log('Type: File');
-                console.log('File Path:', node.file.path);
-                console.log('File Extension:', node.file.extension);
-                console.log('File Name:', node.file.name);
+                console.debug('Type: File');
+                console.debug('File Path:', node.file.path);
+                console.debug('File Extension:', node.file.extension);
+                console.debug('File Name:', node.file.name);
             } else if (node.url) {
-                console.log('Type: Link');
-                console.log('URL:', node.url);
+                console.debug('Type: Link');
+                console.debug('URL:', node.url);
             } else if (node.label !== undefined) {
-                console.log('Type: Group');
-                console.log('Label:', node.label);
+                console.debug('Type: Group');
+                console.debug('Label:', node.label);
             } else {
-                console.log('Type: Unknown');
-                console.log('Node Object:', node);
+                console.debug('Type: Unknown');
+                console.debug('Node Object:', node);
             }
         });
         console.groupEnd();
@@ -2449,12 +2449,12 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         console.group('📝 Converted Output');
         const result = await CanvasConverter.convert(this.app, canvas, selection);
 
-        console.log('Converted Nodes:', result.nodes);
-        console.log('Converted Edges:', result.edges);
-        console.log('\n--- Markdown Output ---\n');
-        console.log(result.markdown);
-        console.log('\n--- Mermaid Output ---\n');
-        console.log(result.mermaid);
+        console.debug('Converted Nodes:', result.nodes);
+        console.debug('Converted Edges:', result.edges);
+        console.debug('\n--- Markdown Output ---\n');
+        console.debug(result.markdown);
+        console.debug('\n--- Mermaid Output ---\n');
+        console.debug(result.mermaid);
         console.groupEnd();
 
         // ========== 新增：IntentResolver 解析输出 ==========
@@ -2472,27 +2472,27 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                 this.settings
             );
 
-            console.log('✅ canGenerate:', intent.canGenerate);
+            console.debug('✅ canGenerate:', intent.canGenerate);
 
             if (intent.images.length > 0) {
                 console.group('📷 Images with Roles');
                 intent.images.forEach((img, idx) => {
-                    console.log(`[${idx + 1}] Role: "${img.role}", MimeType: ${img.mimeType}, Base64 Length: ${img.base64.length}`);
+                    console.debug(`[${idx + 1}] Role: "${img.role}", MimeType: ${img.mimeType}, Base64 Length: ${img.base64.length}`);
                 });
                 console.groupEnd();
             } else {
-                console.log('(No images in selection)');
+                console.debug('(No images in selection)');
             }
 
             console.group('📝 Instruction');
-            console.log('Final Instruction:', intent.instruction);
+            console.debug('Final Instruction:', intent.instruction);
             console.groupEnd();
 
             console.group('📄 Context Text');
             if (intent.contextText) {
-                console.log(intent.contextText);
+                console.debug(intent.contextText);
             } else {
-                console.log('(No context text)');
+                console.debug('(No context text)');
             }
             console.groupEnd();
 
@@ -2553,7 +2553,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                 };
             }
 
-            console.log(JSON.stringify(payloadPreview, null, 2));
+            console.debug(JSON.stringify(payloadPreview, null, 2));
             console.groupEnd();
 
         } catch (e) {
@@ -2577,7 +2577,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
             if (!canvasView || canvasView.getViewType() !== 'canvas') return;
 
-            const canvas = (canvasView as any).canvas as Canvas | undefined;
+            const canvas = (canvasView as CanvasView).canvas;
             if (!canvas || canvas.selection.size === 0) return;
 
             // 获取选中节点位置
@@ -2636,7 +2636,6 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         this.addCommand({
             id: 'copy-image-to-clipboard',
             name: t('Copy Image to Clipboard'),
-            hotkeys: [{ modifiers: ['Alt'], key: 'c' }],
             checkCallback: (checking: boolean) => {
                 const canvas = this.getActiveCanvas();
                 const imageNode = this.getSelectedImageNode(canvas);
@@ -2653,7 +2652,6 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         this.addCommand({
             id: 'create-group-from-selection',
             name: t('Create Group'),
-            hotkeys: [{ modifiers: ['Alt'], key: 'g' }],
             checkCallback: (checking: boolean) => {
                 const canvas = this.getActiveCanvas();
                 if (canvas && canvas.selection.size > 0) {
@@ -2669,7 +2667,6 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         this.addCommand({
             id: 'open-ai-palette',
             name: t('Open AI Palette'),
-            hotkeys: [{ modifiers: ['Alt'], key: 'b' }],
             checkCallback: (checking: boolean) => {
                 const canvas = this.getActiveCanvas();
                 if (canvas && canvas.selection.size > 0) {
@@ -2685,7 +2682,6 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         this.addCommand({
             id: 'create-new-node',
             name: t('Create New Node'),
-            hotkeys: [{ modifiers: ['Alt'], key: 'n' }],
             checkCallback: (checking: boolean) => {
                 const canvas = this.getActiveCanvas();
                 if (canvas) {
@@ -2863,8 +2859,8 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             const groupHeight = (maxY - minY) + padding * 2;
 
             // Create group node using Canvas internal API
-            if (typeof (canvas as any).createGroupNode === 'function') {
-                const groupNode = (canvas as any).createGroupNode({
+            if (typeof canvas.createGroupNode === 'function') {
+                const groupNode = canvas.createGroupNode({
                     pos: { x: groupX, y: groupY },
                     size: { width: groupWidth, height: groupHeight },
                     label: '',
@@ -2880,8 +2876,8 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                 new Notice(t('Group created'));
             } else {
                 // Fallback: try using menu method
-                if (canvas.menu && typeof (canvas.menu as any).groupNodes === 'function') {
-                    (canvas.menu as any).groupNodes();
+                if (canvas.menu && typeof canvas.menu.groupNodes === 'function') {
+                    canvas.menu.groupNodes();
                     new Notice(t('Group created'));
                 } else {
                     console.warn('Canvas AI: No group creation API available');
@@ -3058,7 +3054,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         if (isGemini) {
             this.modelCache = this.getGeminiHardcodedModels();
             this.modelsFetched = true;
-            console.log(`Canvas AI Settings: Loaded ${this.modelCache.length} hardcoded Gemini models`);
+            console.debug(`Canvas AI Settings: Loaded ${this.modelCache.length} hardcoded Gemini models`);
             this.display();
             return;
         }
@@ -3070,7 +3066,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 : this.plugin.settings.openRouterApiKey;
 
         if (!apiKey) {
-            console.log('Canvas AI Settings: No API key, skipping model fetch');
+            console.debug('Canvas AI Settings: No API key, skipping model fetch');
             return;
         }
 
@@ -3091,26 +3087,23 @@ class CanvasAISettingTab extends PluginSettingTab {
                 headers = { 'Authorization': `Bearer ${apiKey}` };
             }
 
-            const response = await fetch(endpoint, {
+            const response = await requestUrl({
+                url: endpoint,
                 method: 'GET',
                 headers: headers
             });
 
-            if (!response.ok) {
-                throw new Error(`API returned ${response.status}`);
-            }
-
-            const data = await response.json();
+            const data = response.json;
 
             // Parse and cache model info
-            this.modelCache = (data.data || []).map((m: any) => ({
+            this.modelCache = (data.data || []).map((m: Record<string, any>) => ({
                 id: m.id || '',
                 name: m.name || m.id || '',
                 outputModalities: m.architecture?.output_modalities || ['text']
             }));
 
             this.modelsFetched = true;
-            console.log(`Canvas AI Settings: Fetched ${this.modelCache.length} models from ${isYunwu ? 'Yunwu' : 'OpenRouter'}`);
+            console.debug(`Canvas AI Settings: Fetched ${this.modelCache.length} models from ${isYunwu ? 'Yunwu' : 'OpenRouter'}`);
         } catch (error: any) {
             console.error('Canvas AI Settings: Failed to fetch models:', error.message);
             // Keep existing cache or empty
@@ -3308,12 +3301,12 @@ class CanvasAISettingTab extends PluginSettingTab {
         containerEl.empty();
         containerEl.addClass('canvas-ai-settings');
 
-        containerEl.createEl('h2', { text: t('SettingTitle') });
+        new Setting(containerEl).setHeading().setName(t('SettingTitle'));
 
 
 
         // ========== API Provider Selection ==========
-        containerEl.createEl('h3', { text: t('API Configuration') });
+        new Setting(containerEl).setHeading().setName(t('API Configuration'));
 
         new Setting(containerEl)
             .setName(t('API Provider'))
@@ -3433,7 +3426,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         }
 
         // ========== 模型配置区域 ==========
-        containerEl.createEl('h3', { text: t('Model Configuration') });
+        new Setting(containerEl).setHeading().setName(t('Model Configuration'));
 
         // Fetch models if not already fetched (Non-blocking)
         // For Gemini, use hardcoded list; for OpenRouter/Yunwu, fetch from API
@@ -3521,7 +3514,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         });
 
         // 图片优化区域
-        containerEl.createEl('h3', { text: t('Image Optimization') });
+        new Setting(containerEl).setHeading().setName(t('Image Optimization'));
 
         new Setting(containerEl)
             .setName(t('Image Compression Quality'))
@@ -3551,7 +3544,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .inputEl.addClass('canvas-ai-small-input'));
 
         // ========== Prompt Settings ==========
-        containerEl.createEl('h3', { text: t('Prompt Settings') });
+        new Setting(containerEl).setHeading().setName(t('Prompt Settings'));
 
         // Chat System Prompt
         new Setting(containerEl)
@@ -3628,7 +3621,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         }
 
         // ========== Developer Options ==========
-        containerEl.createEl('h3', { text: t('Developer Options') });
+        new Setting(containerEl).setHeading().setName(t('Developer Options'));
 
         new Setting(containerEl)
             .setName(t('Debug Mode'))

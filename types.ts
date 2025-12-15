@@ -4,11 +4,43 @@
  */
 
 import 'obsidian';
-import { TFile, View, ItemView } from 'obsidian';
+import { TFile, View, ItemView, Plugin } from 'obsidian';
 
 // Canvas 节点 ID 类型
 export type CanvasNodeID = string;
+
 export type CanvasEdgeID = string;
+
+export interface CanvasJsonNode {
+    id: string;
+    x: number;
+    y: number;
+    width: number;
+    height: number;
+    type: 'text' | 'group' | 'link' | 'file';
+    text?: string;
+    label?: string;
+    url?: string;
+    color?: string;
+    file?: string;
+}
+
+export interface CanvasJsonEdge {
+    id: string;
+    fromNode: string;
+    toNode: string;
+    fromSide?: 'top' | 'right' | 'bottom' | 'left';
+    toSide?: 'top' | 'right' | 'bottom' | 'left';
+    fromEnd?: 'arrow';
+    toEnd?: 'arrow';
+    color?: string;
+    label?: string;
+}
+
+export interface CanvasData {
+    nodes: CanvasJsonNode[];
+    edges: CanvasJsonEdge[];
+}
 
 // Canvas 坐标系统
 export interface CanvasCoords {
@@ -47,6 +79,9 @@ export interface CanvasNode {
     moveTo(pos: { x: number; y: number }): void;
     render(): void;
     startEditing(): void;
+    setText?(text: string): void;
+    resize?(size: { width: number; height: number }): void;
+    moveToBack?(): void;
 }
 
 // Canvas 边接口
@@ -61,6 +96,7 @@ export interface CanvasEdge {
         side: 'left' | 'right' | 'top' | 'bottom';
     };
     canvas: Canvas;
+    label?: string;
 }
 
 // Canvas 选中菜单
@@ -70,6 +106,7 @@ export interface CanvasMenu {
     canvas: Canvas;
     render(): void;
     updateZIndex(): void;
+    groupNodes?(): void;
 }
 
 // Canvas 主接口
@@ -86,8 +123,8 @@ export interface Canvas {
     menu: CanvasMenu;
     wrapperEl: HTMLElement;
 
-    getData(): any;
-    setData(data: any): void;
+    getData(): CanvasData;
+    setData(data: CanvasData): void;
     requestSave(save?: boolean, triggerBySelf?: boolean): void;
 
     getEdgesForNode(node: CanvasNode): CanvasEdge[];
@@ -109,6 +146,9 @@ export interface Canvas {
     }): CanvasNode;
 
     addNode(node: CanvasNode): void;
+    removeNode(node: CanvasNode): void;
+    createFileNode(options: any): CanvasNode;
+    createGroupNode(options: any): CanvasNode;
 }
 
 // Canvas 视图接口
@@ -121,7 +161,7 @@ export interface CanvasView extends ItemView {
 declare module 'obsidian' {
     interface App {
         plugins: {
-            getPlugin(name: string): any;
+            getPlugin(name: string): Plugin | undefined;
         };
     }
 }

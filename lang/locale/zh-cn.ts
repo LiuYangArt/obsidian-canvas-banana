@@ -38,7 +38,7 @@ export default {
     'Developer Options': '开发者选项',
     'Debug Mode': '调试模式',
 
-    'Data Storage': '数据存储位置: .obsidian/plugins/obsidian-canvas-ai/data.json',
+    'Data Storage': '数据存储在 Vault 配置文件夹中',
     'Test Connection': '测试连接',
     'Testing...': '正在测试...',
     'Success': '✓ 成功',

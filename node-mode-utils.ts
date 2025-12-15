@@ -4,37 +4,15 @@
  * for LLM-generated Canvas JSON structures
  */
 
+import { CanvasData, CanvasJsonNode, CanvasJsonEdge } from './types';
+
 // ========== Type Definitions ==========
 
-export interface CanvasJsonNode {
-    id: string;
-    x: number;
-    y: number;
-    width: number;
-    height: number;
-    type: 'text' | 'group' | 'link';
-    text?: string;
-    label?: string;
-    url?: string;
-    color?: string;
-}
 
-export interface CanvasJsonEdge {
-    id: string;
-    fromNode: string;
-    toNode: string;
-    fromSide?: 'top' | 'right' | 'bottom' | 'left';
-    toSide?: 'top' | 'right' | 'bottom' | 'left';
-    fromEnd?: 'arrow';
-    toEnd?: 'arrow';
-    color?: string;
-    label?: string;
-}
 
-export interface CanvasData {
-    nodes: CanvasJsonNode[];
-    edges: CanvasJsonEdge[];
-}
+
+
+
 
 // ========== JSON Extraction ==========
 
@@ -78,7 +56,8 @@ export function extractCanvasJSON(response: string): CanvasData {
  * Validate and normalize Canvas data structure
  * Ensures nodes array exists and each node has required fields
  */
-export function validateCanvasData(data: any): CanvasData {
+export function validateCanvasData(inputData: unknown): CanvasData {
+    const data = inputData as any;
     if (!data || typeof data !== 'object') {
         throw new Error('Invalid JSON: not an object');
     }
@@ -111,7 +90,7 @@ export function validateCanvasData(data: any): CanvasData {
     }
 
     // Validate edges reference existing nodes
-    const nodeIds = new Set(data.nodes.map((n: any) => n.id));
+    const nodeIds = new Set(data.nodes.map((n: CanvasJsonNode) => n.id));
     for (let i = 0; i < data.edges.length; i++) {
         const edge = data.edges[i];
         if (!edge.id) {

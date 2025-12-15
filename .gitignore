@@ -21,6 +21,7 @@ canvas_vault/
 # User-specific / temporary
 todo.md
 data.json
+*.eml
 
 # OS files
 .DS_Store

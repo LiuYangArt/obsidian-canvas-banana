@@ -3,7 +3,7 @@
  * Handles communication with LLM services
  */
 
-import { requestUrl, RequestUrlParam } from 'obsidian';
+import { requestUrl, RequestUrlParam, RequestUrlResponse } from 'obsidian';
 import type { CanvasAISettings } from './main';
 
 // ========== Timeout Helper ==========
@@ -14,7 +14,7 @@ import type { CanvasAISettings } from './main';
  * @param timeoutMs Timeout in milliseconds
  * @returns Promise that rejects with timeout error if request takes too long
  */
-async function requestUrlWithTimeout(params: RequestUrlParam, timeoutMs: number): Promise<any> {
+async function requestUrlWithTimeout(params: RequestUrlParam, timeoutMs: number): Promise<RequestUrlResponse> {
     const timeoutPromise = new Promise<never>((_, reject) => {
         setTimeout(() => {
             reject(new Error(`TIMEOUT:${timeoutMs}`));
@@ -29,7 +29,7 @@ async function requestUrlWithTimeout(params: RequestUrlParam, timeoutMs: number)
 export interface OpenRouterMessage {
     role: 'user' | 'assistant' | 'system';
     content: string | OpenRouterContentPart[];
-    reasoning_details?: any;
+    reasoning_details?: Record<string, unknown>;
 }
 
 export interface OpenRouterContentPart {
@@ -52,19 +52,20 @@ export interface OpenRouterRequest {
     image_config?: OpenRouterImageConfig;
     reasoning?: { enabled: boolean };
     temperature?: number;
-    tools?: Array<{ google_search?: {} }>;
+    tools?: Array<{ google_search?: Record<string, never> }>;
 }
 
 export interface OpenRouterChoice {
     message: {
         role: string;
-        content: string;
+        content: string | OpenRouterContentPart[]; // Allow array content
         images?: Array<{
             image_url: {
-                url: string; // Base64 data URL
+                url: string;
             };
-        }>;
-        reasoning_details?: any;
+        }> | string[]; // Allow string array for GPTGod
+        image_url?: string; // GPTGod field
+        reasoning_details?: Record<string, unknown>;
     };
     finish_reason: string;
 }
@@ -83,6 +84,60 @@ export interface OpenRouterResponse {
         type: string;
         code: string;
     };
+}
+
+export type GptGodResponse = OpenRouterResponse & {
+    images?: string[];
+    image?: string;
+    data?: any; // Allow flexible data field for GPTGod
+};
+
+export interface GeminiPart {
+    text?: string;
+    inlineData?: {
+        mimeType: string;
+        data: string;
+    };
+    file_data?: {
+        file_uri: string;
+        mime_type: string;
+    };
+    thought?: boolean;
+}
+
+export interface GeminiContent {
+    role: 'user' | 'model';
+    parts: GeminiPart[];
+}
+
+export interface GeminiRequest {
+    contents: GeminiContent[];
+    generationConfig?: {
+        temperature?: number;
+        responseModalities?: ('image' | 'text')[];
+        imageConfig?: {
+            aspectRatio?: string;
+            imageSize?: string;
+        };
+    };
+    systemInstruction?: {
+        parts: GeminiPart[];
+    };
+}
+
+export interface GeminiCandidate {
+    content?: {
+        parts?: GeminiPart[];
+    };
+    formish_reason?: string;
+}
+
+export interface GeminiResponse {
+    candidates?: GeminiCandidate[];
+    error?: {
+        message: string;
+        code: number;
+    }
 }
 
 // ========== API Manager Class ==========
@@ -222,8 +277,8 @@ export class ApiManager {
         };
 
         const providerName = provider === 'gptgod' ? 'GPTGod' : 'OpenRouter';
-        console.log(`Canvas AI: Sending chat request to ${providerName}...`);
-        console.log('Request body:', JSON.stringify(requestBody, null, 2));
+        console.debug(`Canvas AI: Sending chat request to ${providerName}...`);
+        console.debug('Request body:', JSON.stringify(requestBody, null, 2));
 
         const response = await this.sendRequest(requestBody);
 
@@ -236,9 +291,9 @@ export class ApiManager {
         }
 
         const content = response.choices[0].message.content;
-        console.log('Canvas AI: Received response:', content);
+        console.debug('Canvas AI: Received response:', typeof content === 'string' ? content : 'multimodal content');
 
-        return content;
+        return typeof content === 'string' ? content : content.map(p => p.text || '').join('');
     }
 
     /**
@@ -267,7 +322,7 @@ export class ApiManager {
         }
         parts.push({ text: prompt });
 
-        const requestBody: any = {
+        const requestBody: GeminiRequest = {
             contents: [{
                 role: 'user',
                 parts: parts
@@ -286,7 +341,7 @@ export class ApiManager {
             requestBody.contents[0].parts = [{ text: prompt }];
         }
 
-        console.log(`Canvas AI: [${provider}] Sending chat request...`);
+        console.debug(`Canvas AI: [${provider}] Sending chat request...`);
 
         const requestParams: RequestUrlParam = {
             url: endpoint,
@@ -299,7 +354,7 @@ export class ApiManager {
 
         try {
             const response = await requestUrl(requestParams);
-            const data = response.json;
+            const data = response.json as GeminiResponse;
 
             // Parse Gemini response format
             const candidates = data.candidates;
@@ -314,13 +369,13 @@ export class ApiManager {
 
             // Find text part (filter out thinking parts for thinking models)
             // Thinking models return parts with { thought: true } for internal reasoning
-            const outputParts = parts.filter((p: any) => p.text && !p.thought);
-            const textPart = outputParts.length > 0 ? outputParts[outputParts.length - 1] : parts.find((p: any) => p.text);
+            const outputParts = parts.filter((p: GeminiPart) => p.text && !p.thought);
+            const textPart = outputParts.length > 0 ? outputParts[outputParts.length - 1] : parts.find((p: GeminiPart) => p.text);
             if (!textPart?.text) {
                 throw new Error('Gemini returned no text in response');
             }
 
-            console.log(`Canvas AI: [${provider}] Received response (filtered thinking):`, textPart.text.substring(0, 100));
+            console.debug(`Canvas AI: [${provider}] Received response (filtered thinking):`, textPart.text.substring(0, 100));
             return textPart.text;
         } catch (error: any) {
             if (error.status) {
@@ -352,7 +407,7 @@ export class ApiManager {
             for (const img of inputImages) {
                 const mime = img.mimeType || 'image/png';
                 const url = `data:${mime};base64,${img.base64}`;
-                console.log(`Canvas AI: Adding input image, mimeType: ${mime}, base64 length: ${img.base64.length}, url prefix: ${url.substring(0, 50)}`);
+                console.debug(`Canvas AI: Adding input image, mimeType: ${mime}, base64 length: ${img.base64.length}, url prefix: ${url.substring(0, 50)}`);
                 contentParts.push({
                     type: 'image_url',
                     image_url: {
@@ -389,8 +444,8 @@ export class ApiManager {
             }
         }
 
-        console.log('Canvas AI: Sending image generation request to OpenRouter...');
-        console.log('Request body:', JSON.stringify(requestBody, null, 2));
+        console.debug('Canvas AI: Sending image generation request to OpenRouter...');
+        console.debug('Request body:', JSON.stringify(requestBody, null, 2));
 
         // Use timeout for image generation
         const timeoutMs = (this.settings.imageGenerationTimeout || 120) * 1000;
@@ -408,13 +463,14 @@ export class ApiManager {
 
         // Check for images in response
         if (message.images && message.images.length > 0) {
-            const imageUrl = message.images[0].image_url.url;
-            console.log('Canvas AI: Received image, length:', imageUrl.length);
+            const firstImage = message.images[0];
+            const imageUrl = typeof firstImage === 'string' ? firstImage : firstImage.image_url.url;
+            console.debug('Canvas AI: Received image, length:', imageUrl.length);
             return imageUrl;
         }
 
         // If no image, return the text content (model may have declined to generate)
-        console.log('Canvas AI: No image in response, content:', message.content);
+        console.debug('Canvas AI: No image in response, content:', message.content);
         throw new Error(`Image generation failed: ${message.content || 'No image returned'}`);
     }
 
@@ -520,8 +576,8 @@ export class ApiManager {
             }
         }
 
-        console.log('Canvas AI: [OpenRouter] Sending image generation request...');
-        console.log('Request body:', JSON.stringify(requestBody, null, 2));
+        console.debug('Canvas AI: [OpenRouter] Sending image generation request...');
+        console.debug('Request body:', JSON.stringify(requestBody, null, 2));
 
         // Use timeout for image generation
         const timeoutMs = (this.settings.imageGenerationTimeout || 120) * 1000;
@@ -538,12 +594,13 @@ export class ApiManager {
         const message = response.choices[0].message;
 
         if (message.images && message.images.length > 0) {
-            const imageUrl = message.images[0].image_url.url;
-            console.log('Canvas AI: Received image, length:', imageUrl.length);
+            const firstImage = message.images[0];
+            const imageUrl = typeof firstImage === 'string' ? firstImage : firstImage.image_url.url;
+            console.debug('Canvas AI: Received image, length:', imageUrl.length);
             return imageUrl;
         }
 
-        console.log('Canvas AI: No image in response, content:', message.content);
+        console.debug('Canvas AI: No image in response, content:', message.content);
         throw new Error(`Image generation failed: ${message.content || 'No image returned'}`);
     }
 
@@ -591,7 +648,7 @@ export class ApiManager {
         parts.push({ text: `\nINSTRUCTION: ${instruction}` });
 
         // Build request body in Gemini native format
-        const requestBody: any = {
+        const requestBody: GeminiRequest = {
             contents: [{
                 role: 'user',
                 parts: parts
@@ -603,6 +660,9 @@ export class ApiManager {
 
         // Add image config with camelCase parameter names (Yunwu/Gemini native format)
         if (aspectRatio || resolution) {
+            if (!requestBody.generationConfig) {
+                requestBody.generationConfig = {};
+            }
             requestBody.generationConfig.imageConfig = {};
             if (aspectRatio) {
                 requestBody.generationConfig.imageConfig.aspectRatio = aspectRatio;
@@ -612,8 +672,8 @@ export class ApiManager {
             }
         }
 
-        console.log(`Canvas AI: [${provider}] Sending image generation request...`);
-        console.log('Request body:', JSON.stringify(requestBody, null, 2));
+        console.debug(`Canvas AI: [${provider}] Sending image generation request...`);
+        console.debug('Request body:', JSON.stringify(requestBody, null, 2));
 
         // Build endpoint URL based on provider
         const apiKey = this.getApiKey();
@@ -638,9 +698,9 @@ export class ApiManager {
         try {
             // Use timeout for image generation (configurable, default 120s)
             const timeoutMs = (this.settings.imageGenerationTimeout || 120) * 1000;
-            console.log(`Canvas AI: Image generation timeout set to ${timeoutMs / 1000}s`);
+            console.debug(`Canvas AI: Image generation timeout set to ${timeoutMs / 1000}s`);
             const response = await requestUrlWithTimeout(requestParams, timeoutMs);
-            const data = response.json;
+            const data = response.json as GeminiResponse;
 
             // Parse Gemini response format
             return this.parseGeminiImageResponse(data);
@@ -664,7 +724,7 @@ export class ApiManager {
      * Parse Gemini image response
      * Handles both base64 and URL formats, and various MIME types
      */
-    private async parseGeminiImageResponse(data: any): Promise<string> {
+    private async parseGeminiImageResponse(data: GeminiResponse): Promise<string> {
         // Gemini response format: candidates[0].content.parts[]
         const candidates = data.candidates;
         if (!candidates || candidates.length === 0) {
@@ -685,24 +745,24 @@ export class ApiManager {
             if (part.inlineData) {
                 const mimeType = part.inlineData.mimeType || 'image/png';
                 const base64Data = part.inlineData.data;
-                console.log('Canvas AI: Gemini returned base64 image, mimeType:', mimeType);
+                console.debug('Canvas AI: Gemini returned base64 image, mimeType:', mimeType);
                 return `data:${mimeType};base64,${base64Data}`;
             }
 
             // Check for file_data (URL)
             if (part.file_data) {
                 const url = part.file_data.file_uri;
-                console.log('Canvas AI: Gemini returned URL, fetching:', url);
+                console.debug('Canvas AI: Gemini returned URL, fetching:', url);
                 return await this.fetchImageAsDataUrl(url);
             }
         }
 
         // No image found, check for text content (may contain error or refusal)
         // Filter out thinking parts when getting error message
-        const outputParts = parts.filter((p: any) => p.text && !p.thought);
-        const textPart = outputParts.length > 0 ? outputParts[outputParts.length - 1] : parts.find((p: any) => p.text);
+        const outputParts = parts.filter((p: GeminiPart) => p.text && !p.thought);
+        const textPart = outputParts.length > 0 ? outputParts[outputParts.length - 1] : parts.find((p: GeminiPart) => p.text);
         const textContent = textPart?.text || 'No image returned';
-        console.log('Canvas AI: No image in Gemini response, text:', textContent);
+        console.debug('Canvas AI: No image in Gemini response, text:', textContent);
         throw new Error(`Image generation failed: ${textContent}`);
     }
 
@@ -733,7 +793,7 @@ export class ApiManager {
             }
             const base64Data = window.btoa(binary);
 
-            console.log('Canvas AI: Fetched image, mimeType:', mimeType, 'size:', arrayBuffer.byteLength);
+            console.debug('Canvas AI: Fetched image, mimeType:', mimeType, 'size:', arrayBuffer.byteLength);
             return `data:${mimeType};base64,${base64Data}`;
         } catch (error: any) {
             console.error('Canvas AI: Failed to fetch image from URL:', error);
@@ -810,7 +870,7 @@ export class ApiManager {
             temperature: temperature
         };
 
-        console.log('Canvas AI: Sending multimodal chat request...');
+        console.debug('Canvas AI: Sending multimodal chat request...');
 
         const response = await this.sendRequest(requestBody);
 
@@ -822,7 +882,8 @@ export class ApiManager {
             throw new Error('OpenRouter returned no choices');
         }
 
-        return response.choices[0].message.content;
+        const content = response.choices[0].message.content;
+        return typeof content === 'string' ? content : content.map(p => p.text || '').join('');
     }
 
     /**
@@ -866,7 +927,7 @@ export class ApiManager {
             });
         }
 
-        const requestBody: any = {
+        const requestBody: GeminiRequest = {
             contents: [{
                 role: 'user',
                 parts: parts
@@ -883,7 +944,7 @@ export class ApiManager {
             };
         }
 
-        console.log(`Canvas AI: [${provider}] Sending multimodal chat request...`);
+        console.debug(`Canvas AI: [${provider}] Sending multimodal chat request...`);
 
         const requestParams: RequestUrlParam = {
             url: endpoint,
@@ -896,7 +957,7 @@ export class ApiManager {
 
         try {
             const response = await requestUrl(requestParams);
-            const data = response.json;
+            const data = response.json as GeminiResponse;
 
             // Parse Gemini response format
             const candidates = data.candidates;
@@ -911,13 +972,13 @@ export class ApiManager {
 
             // Find text part (filter out thinking parts for thinking models)
             // Thinking models return parts with { thought: true } for internal reasoning
-            const outputParts = responseParts.filter((p: any) => p.text && !p.thought);
-            const textPart = outputParts.length > 0 ? outputParts[outputParts.length - 1] : responseParts.find((p: any) => p.text);
+            const outputParts = responseParts.filter((p: GeminiPart) => p.text && !p.thought);
+            const textPart = outputParts.length > 0 ? outputParts[outputParts.length - 1] : responseParts.find((p: GeminiPart) => p.text);
             if (!textPart?.text) {
                 throw new Error('Gemini returned no text in response');
             }
 
-            console.log(`Canvas AI: [${provider}] Received multimodal response (filtered thinking)`);
+            console.debug(`Canvas AI: [${provider}] Received multimodal response (filtered thinking)`);
             return textPart.text;
         } catch (error: any) {
             if (error.status) {
@@ -953,7 +1014,7 @@ export class ApiManager {
         try {
             let response;
             if (timeoutMs) {
-                console.log(`Canvas AI: Request timeout set to ${timeoutMs / 1000}s`);
+                console.debug(`Canvas AI: Request timeout set to ${timeoutMs / 1000}s`);
                 response = await requestUrlWithTimeout(requestParams, timeoutMs);
             } else {
                 response = await requestUrl(requestParams);
@@ -1064,7 +1125,7 @@ export class ApiManager {
             // But we can keep it standard OpenAI chat format.
         };
 
-        console.log(`Canvas AI: [GPTGod] Sending image request (Model: ${model})...`);
+        console.debug(`Canvas AI: [GPTGod] Sending image request (Model: ${model})...`);
         const timeoutMs = (this.settings.imageGenerationTimeout || 120) * 1000;
 
         // We reuse sendRequest which calls requestUrl
@@ -1073,15 +1134,15 @@ export class ApiManager {
         // we'll cast result to any to parse flexibly.
         const responseStub = await this.sendRequest(requestBody, timeoutMs);
 
-        return await this.parseGptGodResponse(responseStub);
+        return await this.parseGptGodResponse(responseStub as GptGodResponse);
     }
 
     /**
-     * Parse GPTGod response to extract image
+     * Parse GPTGod output to extract image
      * Ported/Adapted from provided example logic
      * Converts HTTP URLs to data URLs for Canvas compatibility
      */
-    private async parseGptGodResponse(response: any): Promise<string> {
+    private async parseGptGodResponse(response: GptGodResponse): Promise<string> {
         try {
             const images: string[] = [];
 
@@ -1091,12 +1152,12 @@ export class ApiManager {
                     return url; // Already a data URL
                 }
                 if (url.startsWith('http://') || url.startsWith('https://')) {
-                    console.log('Canvas AI: [GPTGod] Fetching image from URL:', url);
+                    console.debug('Canvas AI: [GPTGod] Fetching image from URL:', url);
                     return await this.fetchImageAsDataUrl(url);
                 }
                 // If it looks like base64 without prefix, wrap it
                 if (url.match(/^[A-Za-z0-9+/=]+$/)) {
-                    console.log('Canvas AI: [GPTGod] Wrapping raw base64 as PNG');
+                    console.debug('Canvas AI: [GPTGod] Wrapping raw base64 as PNG');
                     return `data:image/png;base64,${url}`;
                 }
                 return url;
@@ -1135,9 +1196,9 @@ export class ApiManager {
                 // If no direct image part, parse text for Markdown or URLs
                 if (contentText) {
                     // Markdown image: ![...](url)
-                    const mdMatch = /!\[.*?\]\((https?:\/\/[^\)]+)\)/.exec(contentText);
+                    const mdMatch = /!\[.*?\]\((https?:\/\/[^)]+)\)/.exec(contentText);
                     if (mdMatch) {
-                        console.log('Canvas AI: [GPTGod] Found markdown image URL:', mdMatch[1]);
+                        console.debug('Canvas AI: [GPTGod] Found markdown image URL:', mdMatch[1]);
                         return await ensureDataUrl(mdMatch[1]);
                     }
 
@@ -1146,7 +1207,7 @@ export class ApiManager {
                     const urlRegex = /(https?:\/\/[^\s"')<>]+\.(?:png|jpg|jpeg|webp|gif|bmp))/i;
                     const urlMatch = urlRegex.exec(contentText);
                     if (urlMatch) {
-                        console.log('Canvas AI: [GPTGod] Found plain image URL:', urlMatch[1]);
+                        console.debug('Canvas AI: [GPTGod] Found plain image URL:', urlMatch[1]);
                         return await ensureDataUrl(urlMatch[1]);
                     }
 
@@ -1159,7 +1220,7 @@ export class ApiManager {
                     if (contentText.trim().startsWith('http')) {
                         const trimmed = contentText.trim().split(/\s/)[0];
                         if (trimmed.match(/^https?:\/\//)) {
-                            console.log('Canvas AI: [GPTGod] Found raw URL:', trimmed);
+                            console.debug('Canvas AI: [GPTGod] Found raw URL:', trimmed);
                             return await ensureDataUrl(trimmed);
                         }
                     }
@@ -1170,7 +1231,10 @@ export class ApiManager {
                     return await ensureDataUrl(firstChoice.message.image_url);
                 }
                 if (Array.isArray(firstChoice.message?.images) && firstChoice.message.images.length > 0) {
-                    return await ensureDataUrl(firstChoice.message.images[0]);
+                    const firstImg = firstChoice.message.images[0];
+                    // Handle both string[] (GPTGod) and object[] (OpenRouter standard)
+                    const url = typeof firstImg === 'string' ? firstImg : firstImg.image_url.url;
+                    return await ensureDataUrl(url);
                 }
             }
 
