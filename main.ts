@@ -1106,17 +1106,11 @@ class FloatingPalette {
             selectEl: HTMLSelectElement | null,
             models: QuickSwitchModel[],
             selectedValue: string
-        ) => {
-            if (!selectEl) return;
+        ): string => {
+            if (!selectEl) return selectedValue;
             selectEl.innerHTML = '';
 
-            // Add default option
-            const defaultOpt = document.createElement('option');
-            defaultOpt.value = '';
-            defaultOpt.textContent = '-- ' + t('Palette Model') + ' --';
-            selectEl.appendChild(defaultOpt);
-
-            // Add models from quick switch list
+            // Add models from quick switch list (no empty default option)
             for (const model of models) {
                 const opt = document.createElement('option');
                 opt.value = `${model.provider}|${model.modelId}`;
@@ -1124,25 +1118,32 @@ class FloatingPalette {
                 selectEl.appendChild(opt);
             }
 
-            selectEl.value = selectedValue;
+            // If no selection or selection not in list, default to first model
+            const validValues = models.map(m => `${m.provider}|${m.modelId}`);
+            let finalValue = selectedValue;
+            if (!selectedValue || !validValues.includes(selectedValue)) {
+                finalValue = validValues.length > 0 ? validValues[0] : '';
+            }
+            selectEl.value = finalValue;
+            return finalValue;
         };
 
         // Update text model select (chat mode)
-        populateSelect(this.textModelSelectEl, this.quickSwitchTextModels, this.selectedTextModel);
+        this.selectedTextModel = populateSelect(this.textModelSelectEl, this.quickSwitchTextModels, this.selectedTextModel);
         const textRow = this.textModelSelectEl?.closest('.canvas-ai-model-select-row') as HTMLElement;
         if (textRow) {
             textRow.style.display = hasTextModels ? 'flex' : 'none';
         }
 
         // Update node model select (node mode uses same text model list)
-        populateSelect(this.nodeModelSelectEl, this.quickSwitchTextModels, this.selectedNodeModel);
+        this.selectedNodeModel = populateSelect(this.nodeModelSelectEl, this.quickSwitchTextModels, this.selectedNodeModel);
         const nodeRow = this.nodeModelSelectEl?.closest('.canvas-ai-node-model-select-row') as HTMLElement;
         if (nodeRow) {
             nodeRow.style.display = hasTextModels ? 'flex' : 'none';
         }
 
         // Update image model select
-        populateSelect(this.imageModelSelectEl, this.quickSwitchImageModels, this.selectedImageModel);
+        this.selectedImageModel = populateSelect(this.imageModelSelectEl, this.quickSwitchImageModels, this.selectedImageModel);
         const imageRow = this.imageModelSelectEl?.closest('.canvas-ai-image-model-select-row') as HTMLElement;
         if (imageRow) {
             imageRow.style.display = hasImageModels ? 'flex' : 'none';
@@ -3712,11 +3713,93 @@ class CanvasAISettingTab extends PluginSettingTab {
     }
 
     /**
-     * Render quick switch models as compact inline tags
+     * Render quick switch models as compact inline tags with drag-and-drop reordering
      */
     private renderQuickSwitchCompact(containerEl: HTMLElement, currentProvider: string): void {
         const textModels = this.plugin.settings.quickSwitchTextModels || [];
         const imageModels = this.plugin.settings.quickSwitchImageModels || [];
+
+        // Helper to create draggable tag
+        const createDraggableTag = (
+            container: HTMLElement,
+            model: QuickSwitchModel,
+            index: number,
+            models: QuickSwitchModel[],
+            isTextModel: boolean
+        ) => {
+            const tag = container.createSpan({ cls: 'canvas-ai-quick-switch-tag' });
+            tag.setAttribute('draggable', 'true');
+            tag.dataset.index = String(index);
+
+            tag.createSpan({ text: `${model.provider}|${model.displayName}` });
+            const removeBtn = tag.createSpan({ text: ' ×', cls: 'canvas-ai-quick-switch-remove' });
+
+            // Remove button click
+            removeBtn.addEventListener('click', async (e) => {
+                e.stopPropagation();
+                models.splice(index, 1);
+                if (isTextModel) {
+                    this.plugin.settings.quickSwitchTextModels = models;
+                } else {
+                    this.plugin.settings.quickSwitchImageModels = models;
+                }
+                await this.plugin.saveSettings();
+                this.plugin.floatingPalette?.initQuickSwitchModels(
+                    this.plugin.settings.quickSwitchTextModels || [],
+                    this.plugin.settings.quickSwitchImageModels || [],
+                    this.plugin.settings.paletteTextModel || '',
+                    this.plugin.settings.paletteImageModel || '',
+                    this.plugin.settings.paletteNodeModel || ''
+                );
+                new Notice(t('Model removed'));
+                this.display();
+            });
+
+            // Drag events
+            tag.addEventListener('dragstart', (e) => {
+                tag.addClass('dragging');
+                e.dataTransfer?.setData('text/plain', String(index));
+            });
+
+            tag.addEventListener('dragend', () => {
+                tag.removeClass('dragging');
+            });
+
+            tag.addEventListener('dragover', (e) => {
+                e.preventDefault();
+                tag.addClass('drag-over');
+            });
+
+            tag.addEventListener('dragleave', () => {
+                tag.removeClass('drag-over');
+            });
+
+            tag.addEventListener('drop', async (e) => {
+                e.preventDefault();
+                tag.removeClass('drag-over');
+                const fromIndex = parseInt(e.dataTransfer?.getData('text/plain') || '-1');
+                const toIndex = index;
+                if (fromIndex >= 0 && fromIndex !== toIndex) {
+                    // Reorder array
+                    const [moved] = models.splice(fromIndex, 1);
+                    models.splice(toIndex, 0, moved);
+                    if (isTextModel) {
+                        this.plugin.settings.quickSwitchTextModels = models;
+                    } else {
+                        this.plugin.settings.quickSwitchImageModels = models;
+                    }
+                    await this.plugin.saveSettings();
+                    this.plugin.floatingPalette?.initQuickSwitchModels(
+                        this.plugin.settings.quickSwitchTextModels || [],
+                        this.plugin.settings.quickSwitchImageModels || [],
+                        this.plugin.settings.paletteTextModel || '',
+                        this.plugin.settings.paletteImageModel || '',
+                        this.plugin.settings.paletteNodeModel || ''
+                    );
+                    this.display();
+                }
+            });
+        };
 
         // Text/Node models row
         const textRow = containerEl.createDiv({ cls: 'canvas-ai-quick-switch-row' });
@@ -3726,28 +3809,9 @@ class CanvasAISettingTab extends PluginSettingTab {
         if (textModels.length === 0) {
             textTagsContainer.createSpan({ text: t('No quick switch models'), cls: 'canvas-ai-quick-switch-empty' });
         } else {
-            for (const model of textModels) {
-                const tag = textTagsContainer.createSpan({ cls: 'canvas-ai-quick-switch-tag' });
-                tag.createSpan({ text: `${model.provider}|${model.displayName}` });
-                const removeBtn = tag.createSpan({ text: ' ×', cls: 'canvas-ai-quick-switch-remove' });
-                removeBtn.addEventListener('click', async () => {
-                    const index = textModels.findIndex(m => m.provider === model.provider && m.modelId === model.modelId);
-                    if (index > -1) {
-                        textModels.splice(index, 1);
-                        this.plugin.settings.quickSwitchTextModels = textModels;
-                        await this.plugin.saveSettings();
-                        this.plugin.floatingPalette?.initQuickSwitchModels(
-                            textModels,
-                            this.plugin.settings.quickSwitchImageModels || [],
-                            this.plugin.settings.paletteTextModel || '',
-                            this.plugin.settings.paletteImageModel || '',
-                            this.plugin.settings.paletteNodeModel || ''
-                        );
-                        new Notice(t('Model removed'));
-                        this.display();
-                    }
-                });
-            }
+            textModels.forEach((model, index) => {
+                createDraggableTag(textTagsContainer, model, index, textModels, true);
+            });
         }
 
         // Image models row
@@ -3758,28 +3822,9 @@ class CanvasAISettingTab extends PluginSettingTab {
         if (imageModels.length === 0) {
             imageTagsContainer.createSpan({ text: t('No quick switch models'), cls: 'canvas-ai-quick-switch-empty' });
         } else {
-            for (const model of imageModels) {
-                const tag = imageTagsContainer.createSpan({ cls: 'canvas-ai-quick-switch-tag' });
-                tag.createSpan({ text: `${model.provider}|${model.displayName}` });
-                const removeBtn = tag.createSpan({ text: ' ×', cls: 'canvas-ai-quick-switch-remove' });
-                removeBtn.addEventListener('click', async () => {
-                    const index = imageModels.findIndex(m => m.provider === model.provider && m.modelId === model.modelId);
-                    if (index > -1) {
-                        imageModels.splice(index, 1);
-                        this.plugin.settings.quickSwitchImageModels = imageModels;
-                        await this.plugin.saveSettings();
-                        this.plugin.floatingPalette?.initQuickSwitchModels(
-                            this.plugin.settings.quickSwitchTextModels || [],
-                            imageModels,
-                            this.plugin.settings.paletteTextModel || '',
-                            this.plugin.settings.paletteImageModel || '',
-                            this.plugin.settings.paletteNodeModel || ''
-                        );
-                        new Notice(t('Model removed'));
-                        this.display();
-                    }
-                });
-            }
+            imageModels.forEach((model, index) => {
+                createDraggableTag(imageTagsContainer, model, index, imageModels, false);
+            });
         }
     }
 

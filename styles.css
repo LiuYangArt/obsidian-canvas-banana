@@ -732,6 +732,22 @@
     font-size: 11px;
     color: var(--text-normal);
     white-space: nowrap;
+    cursor: grab;
+    transition: transform 0.1s ease, opacity 0.1s ease, border-color 0.1s ease;
+}
+
+.canvas-ai-quick-switch-tag:active {
+    cursor: grabbing;
+}
+
+.canvas-ai-quick-switch-tag.dragging {
+    opacity: 0.5;
+    transform: scale(0.95);
+}
+
+.canvas-ai-quick-switch-tag.drag-over {
+    border-color: var(--interactive-accent);
+    background: var(--background-modifier-hover);
 }
 
 .canvas-ai-quick-switch-remove {
@@ -750,7 +766,7 @@
 .canvas-ai-model-select-row,
 .canvas-ai-image-model-select-row,
 .canvas-ai-node-model-select-row {
-    display: flex;
+    display: flex !important;
     width: 100%;
 }
 
@@ -761,11 +777,20 @@
     display: flex;
     align-items: center;
     gap: 8px;
+    width: 100%;
+}
+
+.canvas-ai-model-select-row label,
+.canvas-ai-image-model-select-row label,
+.canvas-ai-node-model-select-row label {
+    flex-shrink: 0;
+    min-width: 50px;
 }
 
 .canvas-ai-model-select-row select,
 .canvas-ai-image-model-select-row select,
 .canvas-ai-node-model-select-row select {
-    flex: 1;
-    min-width: 0;
+    flex: 1 !important;
+    min-width: 0 !important;
+    width: 100% !important;
 }
