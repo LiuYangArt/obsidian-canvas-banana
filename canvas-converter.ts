@@ -182,7 +182,7 @@ export class CanvasConverter {
                     id: edge.id,
                     fromId,
                     toId,
-                    label: (edge as any).label,  // label 可能存在于边对象上
+                    label: (edge as unknown as { label?: string }).label,  // label 可能存在于边对象上
                 });
             }
         });

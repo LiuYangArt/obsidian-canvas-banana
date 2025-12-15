@@ -7,6 +7,7 @@
         "version-sync": "node version-bump.mjs",
         "dev": "npm run version-sync && node esbuild.config.mjs",
         "build": "npm run version-sync && tsc -noEmit -skipLibCheck && node esbuild.config.mjs production",
+        "lint": "eslint .",
         "version": "npm run version-sync && git add manifest.json versions.json"
     },
     "keywords": [
@@ -19,8 +20,8 @@
     "license": "GPL-3.0",
     "devDependencies": {
         "@types/node": "^16.11.6",
-        "@typescript-eslint/eslint-plugin": "5.29.0",
-        "@typescript-eslint/parser": "5.29.0",
+        "@typescript-eslint/eslint-plugin": "^5.29.0",
+        "@typescript-eslint/parser": "^5.29.0",
         "builtin-modules": "3.3.0",
         "esbuild": "0.17.3",
         "obsidian": "latest",

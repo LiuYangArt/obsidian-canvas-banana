@@ -591,7 +591,7 @@ export class ApiManager {
         if (aspectRatio || resolution) {
             requestBody.image_config = {};
             if (aspectRatio) {
-                requestBody.image_config.aspect_ratio = aspectRatio as any;
+                requestBody.image_config.aspect_ratio = aspectRatio as '1:1' | '16:9' | '4:3' | '9:16';
             }
             if (resolution) {
                 requestBody.image_config.image_size = resolution;
@@ -1080,7 +1080,6 @@ export class ApiManager {
         }
 
         const contentParts: OpenRouterContentPart[] = [];
-        const configLabels: string[] = [];
 
         // System context from settings
         contentParts.push({
@@ -1171,7 +1170,6 @@ export class ApiManager {
      */
     private async parseGptGodResponse(response: GptGodResponse): Promise<string> {
         try {
-            const images: string[] = [];
 
             // Helper to convert URL to data URL if needed
             const ensureDataUrl = async (url: string): Promise<string> => {

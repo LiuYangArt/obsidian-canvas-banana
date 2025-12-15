@@ -404,7 +404,7 @@ class FloatingPalette {
     /**
      * Set version info text dynamically
      */
-    setVersion(version: string): void {
+    setVersion(_version: string): void {
     }
 
 
@@ -1835,7 +1835,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
      * Save base64 image to vault
      * Detects MIME type from data URL and uses correct file extension
      */
-    private async saveImageToVault(base64Data: string, prompt: string): Promise<TFile> {
+    private async saveImageToVault(base64Data: string, _prompt: string): Promise<TFile> {
         // Extract MIME type and base64 data
         let mimeType = 'image/png';
         let base64 = base64Data;
@@ -1993,8 +1993,8 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         node.setText?.(content);
 
         // Alternative: directly set text property and re-render
-        if (!((node as any).setText)) {
-            (node as any).text = content;
+        if (!((node as unknown as { setText?: (text: string) => void }).setText)) {
+            (node as unknown as { text: string }).text = content;
             node.render?.();
         }
 
@@ -2190,7 +2190,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                 // 明确的关闭意图：快速关闭
                 this.hideTimer = window.setTimeout(() => {
                     // 二次确认：计时器结束时，如果真的还是 0 选中，才关闭
-                    const currentSelection = (canvas as any).selection;
+                    const currentSelection = (canvas as CanvasView['canvas']).selection;
                     if (!currentSelection || currentSelection.size === 0) {
                         this.floatingPalette?.hide();
                         this.lastSelectedIds.clear();
@@ -2303,7 +2303,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         // Get canvas for expanding groups
         const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
         const canvas = canvasView?.getViewType() === 'canvas'
-            ? (canvasView as any).canvas as Canvas | undefined
+            ? (canvasView as CanvasView).canvas as Canvas | undefined
             : undefined;
 
         // Expand group nodes to include their children
@@ -2312,7 +2312,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             : selection;
 
         expandedSelection.forEach(node => {
-            if ((node as any).label !== undefined) {
+            if ((node as unknown as { label?: string }).label !== undefined) {
                 // Group 节点（有 label 属性）
                 groupCount++;
             } else if (node.file) {
@@ -2634,7 +2634,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
     private getActiveCanvas(): Canvas | null {
         const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
         if (!canvasView || canvasView.getViewType() !== 'canvas') return null;
-        return (canvasView as any).canvas as Canvas | null;
+        return (canvasView as CanvasView).canvas as Canvas | null;
     }
 
     /**
@@ -3029,7 +3029,12 @@ class CanvasAISettingTab extends PluginSettingTab {
             const data = response.json;
 
             // Parse and cache model info
-            this.modelCache = (data.data || []).map((m: Record<string, any>) => ({
+            interface ModelData {
+                id?: string;
+                name?: string;
+                architecture?: { output_modalities?: string[] };
+            }
+            this.modelCache = (data.data || []).map((m: ModelData) => ({
                 id: m.id || '',
                 name: m.name || m.id || '',
                 outputModalities: m.architecture?.output_modalities || ['text']
@@ -3174,7 +3179,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         const isGemini = provider === 'gemini';
         const isGptGod = provider === 'gptgod';
 
-        let filtered = this.modelCache.filter(m => {
+        const filtered = this.modelCache.filter(m => {
             const idLower = m.id.toLowerCase();
 
             // For OpenRouter/Yunwu/GPTGod, must support text output; for Gemini, skip this check (hardcoded)
@@ -3211,7 +3216,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         const isGemini = provider === 'gemini';
         const isGptGod = provider === 'gptgod';
 
-        let filtered = this.modelCache.filter(m => {
+        const filtered = this.modelCache.filter(m => {
             const idLower = m.id.toLowerCase();
 
             // For OpenRouter/Yunwu/GPTGod, must support image output; for Gemini, skip this check
@@ -3643,7 +3648,7 @@ class CanvasAISettingTab extends PluginSettingTab {
     /**
      * Render quick switch models as compact inline tags with drag-and-drop reordering
      */
-    private renderQuickSwitchCompact(containerEl: HTMLElement, currentProvider: string): void {
+    private renderQuickSwitchCompact(containerEl: HTMLElement, _currentProvider: string): void {
         const textModels = this.plugin.settings.quickSwitchTextModels || [];
         const imageModels = this.plugin.settings.quickSwitchImageModels || [];
 
