@@ -9,6 +9,12 @@ import { t } from './lang/helpers';
 // ========== Plugin Settings Interfaces ==========
 export type ApiProvider = 'openrouter' | 'yunwu' | 'gemini' | 'gptgod';
 
+export interface QuickSwitchModel {
+    provider: ApiProvider;
+    modelId: string;
+    displayName: string;
+}
+
 export interface CanvasAISettings {
     // API Provider selection
     apiProvider: ApiProvider;
@@ -78,6 +84,13 @@ export interface CanvasAISettings {
 
     // Image generation timeout (seconds)
     imageGenerationTimeout: number;
+
+    // Quick switch models
+    quickSwitchTextModels: QuickSwitchModel[];
+    quickSwitchImageModels: QuickSwitchModel[];
+    paletteTextModel: string;
+    paletteImageModel: string;
+    paletteNodeModel: string;
 }
 
 const DEFAULT_SETTINGS: CanvasAISettings = {
@@ -131,7 +144,14 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
     nodePresets: [],
     defaultNodeTemperature: 0.5,
 
-    imageGenerationTimeout: 120  // Default 120 seconds
+    imageGenerationTimeout: 120,  // Default 120 seconds
+
+    // Quick switch models
+    quickSwitchTextModels: [],
+    quickSwitchImageModels: [],
+    paletteTextModel: '',
+    paletteImageModel: '',
+    paletteNodeModel: ''
 };
 
 
@@ -294,6 +314,16 @@ class FloatingPalette {
     private app: App;
     private scope: Scope;
 
+    // Quick switch model selection
+    private textModelSelectEl: HTMLSelectElement | null = null;
+    private imageModelSelectEl: HTMLSelectElement | null = null;
+    private quickSwitchTextModels: QuickSwitchModel[] = [];
+    private quickSwitchImageModels: QuickSwitchModel[] = [];
+    private selectedTextModel: string = '';  // Format: "provider|modelId"
+    private selectedImageModel: string = '';
+    private selectedNodeModel: string = '';
+    private onModelChange: ((mode: PaletteMode, modelKey: string) => void) | null = null;
+
     constructor(app: App, apiManager: ApiManager, onDebugCallback?: (mode: PaletteMode) => void) {
         this.app = app;
         this.apiManager = apiManager;
@@ -445,6 +475,12 @@ class FloatingPalette {
                             </select>
                         </span>
                     </div>
+                    <div class="canvas-ai-option-row canvas-ai-image-model-select-row" style="display: none;">
+                        <span class="canvas-ai-option-group">
+                            <label>${t('Palette Model')}</label>
+                            <select class="canvas-ai-image-model-select dropdown"></select>
+                        </span>
+                    </div>
                 </div>
                 <div class="canvas-ai-chat-options">
                     <div class="canvas-ai-option-row">
@@ -453,12 +489,24 @@ class FloatingPalette {
                             <input type="number" class="canvas-ai-temp-input" min="0" max="2" step="0.1" value="0.5">
                         </span>
                     </div>
+                    <div class="canvas-ai-option-row canvas-ai-model-select-row" style="display: none;">
+                        <span class="canvas-ai-option-group">
+                            <label>${t('Palette Model')}</label>
+                            <select class="canvas-ai-text-model-select dropdown"></select>
+                        </span>
+                    </div>
                 </div>
                 <div class="canvas-ai-node-options" style="display: none;">
                     <div class="canvas-ai-option-row">
                         <span class="canvas-ai-option-group">
                             <label>${t('Temperature')}</label>
                             <input type="number" class="canvas-ai-node-temp-input" min="0" max="2" step="0.1" value="0.5">
+                        </span>
+                    </div>
+                    <div class="canvas-ai-option-row canvas-ai-node-model-select-row" style="display: none;">
+                        <span class="canvas-ai-option-group">
+                            <label>${t('Palette Model')}</label>
+                            <select class="canvas-ai-node-model-select dropdown"></select>
                         </span>
                     </div>
                 </div>
@@ -486,6 +534,37 @@ class FloatingPalette {
         this.resolutionSelect = container.querySelector('.canvas-ai-resolution-select');
         this.tempInput = container.querySelector('.canvas-ai-temp-input');
         this.nodeTempInput = container.querySelector('.canvas-ai-node-temp-input');
+
+        // Get model select DOM references
+        this.textModelSelectEl = container.querySelector('.canvas-ai-text-model-select');
+        this.imageModelSelectEl = container.querySelector('.canvas-ai-image-model-select');
+        // Note: node-model-select uses the same list as text models
+
+        // Bind text model select change events
+        this.textModelSelectEl?.addEventListener('change', () => {
+            const value = this.textModelSelectEl!.value;
+            if (this.currentMode === 'chat') {
+                this.selectedTextModel = value;
+            } else if (this.currentMode === 'node') {
+                this.selectedNodeModel = value;
+            }
+            this.onModelChange?.(this.currentMode, value);
+        });
+
+        // Bind image model select change events
+        this.imageModelSelectEl?.addEventListener('change', () => {
+            const value = this.imageModelSelectEl!.value;
+            this.selectedImageModel = value;
+            this.onModelChange?.('image', value);
+        });
+
+        // Get and bind node model select (shares the same model list as text)
+        const nodeModelSelectEl = container.querySelector('.canvas-ai-node-model-select') as HTMLSelectElement;
+        nodeModelSelectEl?.addEventListener('change', () => {
+            const value = nodeModelSelectEl.value;
+            this.selectedNodeModel = value;
+            this.onModelChange?.('node', value);
+        });
 
         // Bind temperature input events
         this.tempInput?.addEventListener('input', () => {
@@ -1002,6 +1081,104 @@ class FloatingPalette {
     }
 
     /**
+     * Initialize quick switch models from settings
+     */
+    initQuickSwitchModels(
+        textModels: QuickSwitchModel[],
+        imageModels: QuickSwitchModel[],
+        selectedTextModel: string,
+        selectedImageModel: string,
+        selectedNodeModel: string
+    ): void {
+        this.quickSwitchTextModels = textModels;
+        this.quickSwitchImageModels = imageModels;
+        this.selectedTextModel = selectedTextModel;
+        this.selectedImageModel = selectedImageModel;
+        this.selectedNodeModel = selectedNodeModel;
+        this.updateModelSelects();
+    }
+
+    /**
+     * Update model select dropdowns based on current mode
+     */
+    updateModelSelects(): void {
+        // Update text model select (shared by chat and node modes)
+        if (this.textModelSelectEl) {
+            this.textModelSelectEl.innerHTML = '';
+            // Add default option
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = '';
+            defaultOpt.textContent = t('Select prompt preset');
+            this.textModelSelectEl.appendChild(defaultOpt);
+
+            // Add models from quick switch list
+            for (const model of this.quickSwitchTextModels) {
+                const opt = document.createElement('option');
+                opt.value = `${model.provider}|${model.modelId}`;
+                opt.textContent = `${model.provider.charAt(0).toUpperCase() + model.provider.slice(1)} | ${model.displayName}`;
+                this.textModelSelectEl.appendChild(opt);
+            }
+
+            // Set selected value based on current mode
+            const selectedValue = this.currentMode === 'chat' ? this.selectedTextModel : this.selectedNodeModel;
+            this.textModelSelectEl.value = selectedValue;
+
+            // Show/hide based on whether there are models
+            const row = this.textModelSelectEl.closest('.canvas-ai-model-select-row') as HTMLElement;
+            if (row) {
+                row.style.display = this.quickSwitchTextModels.length > 0 ? 'flex' : 'none';
+            }
+        }
+
+        // Update image model select
+        if (this.imageModelSelectEl) {
+            this.imageModelSelectEl.innerHTML = '';
+            const defaultOpt = document.createElement('option');
+            defaultOpt.value = '';
+            defaultOpt.textContent = t('Select prompt preset');
+            this.imageModelSelectEl.appendChild(defaultOpt);
+
+            for (const model of this.quickSwitchImageModels) {
+                const opt = document.createElement('option');
+                opt.value = `${model.provider}|${model.modelId}`;
+                opt.textContent = `${model.provider.charAt(0).toUpperCase() + model.provider.slice(1)} | ${model.displayName}`;
+                this.imageModelSelectEl.appendChild(opt);
+            }
+
+            this.imageModelSelectEl.value = this.selectedImageModel;
+
+            const row = this.imageModelSelectEl.closest('.canvas-ai-model-select-row') as HTMLElement;
+            if (row) {
+                row.style.display = this.quickSwitchImageModels.length > 0 ? 'flex' : 'none';
+            }
+        }
+    }
+
+    /**
+     * Set the callback for model change
+     */
+    setOnModelChange(callback: (mode: PaletteMode, modelKey: string) => void): void {
+        this.onModelChange = callback;
+    }
+
+    /**
+     * Get the currently selected model for a given mode
+     * @returns Format: "provider|modelId" or empty string if using default
+     */
+    getSelectedModel(mode: PaletteMode): string {
+        switch (mode) {
+            case 'chat':
+                return this.selectedTextModel;
+            case 'image':
+                return this.selectedImageModel;
+            case 'node':
+                return this.selectedNodeModel;
+            default:
+                return '';
+        }
+    }
+
+    /**
      * 显示面板并定位
      * @param x 屏幕 X 坐标
      * @param y 屏幕 Y 坐标
@@ -1204,6 +1381,27 @@ export default class CanvasAIPlugin extends Plugin {
         // Initialize debug mode from settings
         this.floatingPalette.setDebugMode(this.settings.debugMode);
 
+        // Initialize quick switch models from settings
+        this.floatingPalette.initQuickSwitchModels(
+            this.settings.quickSwitchTextModels || [],
+            this.settings.quickSwitchImageModels || [],
+            this.settings.paletteTextModel || '',
+            this.settings.paletteImageModel || '',
+            this.settings.paletteNodeModel || ''
+        );
+
+        // Set up model change callback for persisting selected models
+        this.floatingPalette.setOnModelChange((mode, modelKey) => {
+            if (mode === 'chat') {
+                this.settings.paletteTextModel = modelKey;
+            } else if (mode === 'image') {
+                this.settings.paletteImageModel = modelKey;
+            } else if (mode === 'node') {
+                this.settings.paletteNodeModel = modelKey;
+            }
+            this.saveSettings();
+        });
+
         // Set version from manifest
         this.floatingPalette.setVersion(this.manifest.version);
     }
@@ -1226,6 +1424,48 @@ export default class CanvasAIPlugin extends Plugin {
         }
 
         const selection = canvas.selection;
+
+        // ========== Temporary settings override for quick switch model ==========
+        const selectedModel = this.floatingPalette?.getSelectedModel(mode) || '';
+        let originalProvider: ApiProvider | null = null;
+        let originalTextModel: string | null = null;
+        let originalImageModel: string | null = null;
+
+        if (selectedModel) {
+            const [provider, modelId] = selectedModel.split('|');
+            if (provider && modelId) {
+                // Backup original settings
+                originalProvider = this.settings.apiProvider;
+                originalTextModel = this.getCurrentTextModel();
+                originalImageModel = this.getCurrentImageModel();
+
+                // Override settings temporarily
+                this.settings.apiProvider = provider as ApiProvider;
+                this.setCurrentTextModel(modelId);
+                this.setCurrentImageModel(modelId);
+
+                // Reinitialize API manager with new settings
+                this.apiManager = new ApiManager(this.settings);
+
+                console.log(`Canvas AI: Quick switch to ${provider}/${modelId}`);
+            }
+        }
+
+        // Restoration function to call in finally block
+        const restoreSettings = () => {
+            if (originalProvider !== null) {
+                this.settings.apiProvider = originalProvider;
+                if (originalTextModel !== null) {
+                    this.setCurrentTextModel(originalTextModel);
+                }
+                if (originalImageModel !== null) {
+                    this.setCurrentImageModel(originalImageModel);
+                }
+                // Reinitialize API manager with original settings
+                this.apiManager = new ApiManager(this.settings);
+                console.log('Canvas AI: Restored original settings');
+            }
+        };
 
         // ========== Use IntentResolver for intelligent parsing ==========
         let intent: ResolvedIntent;
@@ -1451,6 +1691,9 @@ ${intent.instruction}
         } catch (error: any) {
             console.error('Canvas AI: API Error:', error.message || error);
             this.updateGhostNode(ghostNode, `❗ Error: ${error.message || 'Unknown error'}`, true);
+        } finally {
+            // Restore original settings if they were overridden
+            restoreSettings();
         }
     }
 
@@ -2692,6 +2935,82 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         await this.saveData(this.settings);
         // Update ApiManager settings reference
         this.apiManager?.updateSettings(this.settings);
+    }
+
+    /**
+     * Get current text model based on selected provider
+     */
+    private getCurrentTextModel(): string {
+        switch (this.settings.apiProvider) {
+            case 'openrouter':
+                return this.settings.openRouterTextModel;
+            case 'yunwu':
+                return this.settings.yunwuTextModel;
+            case 'gemini':
+                return this.settings.geminiTextModel;
+            case 'gptgod':
+                return this.settings.gptGodTextModel;
+            default:
+                return '';
+        }
+    }
+
+    /**
+     * Set current text model based on selected provider
+     */
+    private setCurrentTextModel(modelId: string): void {
+        switch (this.settings.apiProvider) {
+            case 'openrouter':
+                this.settings.openRouterTextModel = modelId;
+                break;
+            case 'yunwu':
+                this.settings.yunwuTextModel = modelId;
+                break;
+            case 'gemini':
+                this.settings.geminiTextModel = modelId;
+                break;
+            case 'gptgod':
+                this.settings.gptGodTextModel = modelId;
+                break;
+        }
+    }
+
+    /**
+     * Get current image model based on selected provider
+     */
+    private getCurrentImageModel(): string {
+        switch (this.settings.apiProvider) {
+            case 'openrouter':
+                return this.settings.openRouterImageModel;
+            case 'yunwu':
+                return this.settings.yunwuImageModel;
+            case 'gemini':
+                return this.settings.geminiImageModel;
+            case 'gptgod':
+                return this.settings.gptGodImageModel;
+            default:
+                return '';
+        }
+    }
+
+    /**
+     * Set current image model based on selected provider
+     */
+    private setCurrentImageModel(modelId: string): void {
+        switch (this.settings.apiProvider) {
+            case 'openrouter':
+                this.settings.openRouterImageModel = modelId;
+                break;
+            case 'yunwu':
+                this.settings.yunwuImageModel = modelId;
+                break;
+            case 'gemini':
+                this.settings.geminiImageModel = modelId;
+                break;
+            case 'gptgod':
+                this.settings.gptGodImageModel = modelId;
+                break;
+        }
     }
 }
 

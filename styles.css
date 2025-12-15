@@ -609,3 +609,95 @@
     min-width: 120px;
     max-width: 200px;
 }
+
+/* ========== Quick Switch Model Tags ========== */
+.canvas-ai-quick-switch-container {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-bottom: 8px;
+    min-height: 28px;
+}
+
+.canvas-ai-model-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 4px 8px;
+    background: var(--background-secondary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--text-muted);
+}
+
+.canvas-ai-model-tag-remove {
+    width: 14px;
+    height: 14px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    opacity: 0.6;
+    transition: opacity 0.15s, color 0.15s;
+    border-radius: 2px;
+}
+
+.canvas-ai-model-tag-remove:hover {
+    opacity: 1;
+    color: var(--text-error);
+}
+
+.canvas-ai-model-tag-remove svg {
+    width: 12px;
+    height: 12px;
+}
+
+/* Add to quick switch button */
+.canvas-ai-add-quick-switch-btn {
+    margin-left: 8px;
+    padding: 4px 10px;
+    font-size: 12px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-primary);
+    color: var(--text-muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
+    white-space: nowrap;
+}
+
+.canvas-ai-add-quick-switch-btn:hover {
+    background: var(--background-modifier-hover);
+    color: var(--text-normal);
+    border-color: var(--text-muted);
+}
+
+/* Model quick switch section in settings */
+.canvas-ai-quick-switch-section {
+    margin-bottom: 16px;
+    padding: 8px 12px;
+    background: var(--background-secondary);
+    border-radius: 8px;
+    border: 1px solid var(--background-modifier-border);
+}
+
+.canvas-ai-quick-switch-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.canvas-ai-quick-switch-empty {
+    font-size: 12px;
+    color: var(--text-faint);
+    font-style: italic;
+}
+
+/* Model select dropdown in floating palette */
+.canvas-ai-model-select {
+    flex: 1;
+    min-width: 100px;
+    max-width: none;
+}

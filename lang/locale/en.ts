@@ -110,6 +110,15 @@ export default {
     // Timeout
     'Image Generation Timeout': 'Image Generation Timeout',
     'Image Generation Timeout Desc': 'Maximum wait time (in seconds) for image generation requests. Increase if you experience timeouts on slow connections.',
-    'Image generation timed out': 'Image generation timed out after {seconds} seconds. Please try again.'
-};
+    'Image generation timed out': 'Image generation timed out after {seconds} seconds. Please try again.',
 
+    // Quick Switch Models
+    'Quick Switch Text Models': 'Quick Switch Text/Node Models',
+    'Quick Switch Image Models': 'Quick Switch Image Models',
+    'Add to Quick Switch': 'Add to Quick Switch',
+    'Model added': 'Model added to quick switch list',
+    'Model already exists': 'Model already in quick switch list',
+    'Model removed': 'Model removed from quick switch list',
+    'Palette Model': 'Model',
+    'No quick switch models': 'No quick switch models configured'
+};

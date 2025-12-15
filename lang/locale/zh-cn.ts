@@ -110,6 +110,15 @@ export default {
     // Timeout
     'Image Generation Timeout': '图像生成超时',
     'Image Generation Timeout Desc': '图像生成请求的最大等待时间（秒）。如果连接较慢可适当增加。',
-    'Image generation timed out': '图像生成超时，已等待 {seconds} 秒。请重试。'
-};
+    'Image generation timed out': '图像生成超时，已等待 {seconds} 秒。请重试。',
 
+    // Quick Switch Models
+    'Quick Switch Text Models': '快捷切换 文本/节点 模型',
+    'Quick Switch Image Models': '快捷切换 图像 模型',
+    'Add to Quick Switch': '添加到快捷切换',
+    'Model added': '模型已添加到快捷切换列表',
+    'Model already exists': '模型已存在于快捷切换列表',
+    'Model removed': '模型已从快捷切换列表移除',
+    'Palette Model': '模型',
+    'No quick switch models': '未配置快捷切换模型'
+};
