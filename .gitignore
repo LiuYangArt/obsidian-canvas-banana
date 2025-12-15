@@ -16,7 +16,6 @@ canvas_vault/
 !publish_release.bat
 
 # Agent/AI tools
-.agent/
 .qoder/
 
 # User-specific / temporary
