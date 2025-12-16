@@ -1,46 +1,51 @@
-import typescriptEslint from "@typescript-eslint/eslint-plugin";
 import typescriptParser from "@typescript-eslint/parser";
+import tseslint from "@typescript-eslint/eslint-plugin";
+import obsidianmd from "eslint-plugin-obsidianmd";
 
 export default [
+    // 忽略非 TypeScript 文件
+    {
+        ignores: ["node_modules/**", "main.js", "*.d.ts", "*.json", "*.mjs"]
+    },
     {
         files: ["**/*.ts"],
-        ignores: ["node_modules/**", "main.js", "*.d.ts"],
         languageOptions: {
             parser: typescriptParser,
             parserOptions: {
                 ecmaVersion: "latest",
-                sourceType: "module"
+                sourceType: "module",
+                project: "./tsconfig.json"
             }
         },
         plugins: {
-            "@typescript-eslint": typescriptEslint
+            "@typescript-eslint": tseslint,
+            "obsidianmd": obsidianmd,
         },
         rules: {
-            // ========== Obsidian Plugin Audit Rules ==========
+            // ========== Obsidian 官方审核规则 ==========
+            ...obsidianmd.configs.recommended,
             
-            // Type Safety - NO 'any' types
+            // ========== TypeScript 规则 ==========
             "@typescript-eslint/no-explicit-any": "error",
-            
-            // Unused variables (allow underscore prefix)
             "@typescript-eslint/no-unused-vars": ["warn", { 
                 "argsIgnorePattern": "^_",
                 "varsIgnorePattern": "^_" 
             }],
+            "@typescript-eslint/no-floating-promises": "error",
+            "@typescript-eslint/require-await": "warn",
+            "@typescript-eslint/no-unnecessary-type-assertion": "error",
+            "@typescript-eslint/no-misused-promises": ["error", {
+                "checksVoidReturn": true
+            }],
             
-            // Console restrictions - only debug/warn/error allowed
+            // ========== Console 限制 ==========
             "no-console": ["error", { 
                 "allow": ["debug", "warn", "error"] 
             }],
             
-            // Code quality
+            // ========== 代码质量 ==========
             "no-var": "error",
             "prefer-const": "warn",
-            
-            // Async/Await best practices
-            "require-await": "warn",
-            
-            // No innerHTML for XSS prevention (custom check via comments)
-            // Note: This needs manual review as ESLint doesn't have a built-in rule
         }
     }
 ];

@@ -17,7 +17,7 @@ canvas_vault/
 
 # Agent/AI tools
 .qoder/
-!agent/rules/canvasprojectrule.md
+!.agent/rules/canvasprojectrule.md
 
 # User-specific / temporary
 todo.md
