@@ -1788,7 +1788,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
 
         // Get the canvas file
         const canvasView = this.app.workspace.getActiveViewOfType(ItemView) as unknown as CanvasView | null;
-        const canvasFile = canvasView?.file as TFile | undefined;
+        const canvasFile = canvasView?.file;
 
         if (!canvasFile || canvasFile.extension !== 'canvas') {
             throw new Error('Cannot find canvas file');
@@ -2210,7 +2210,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                 // 明确的关闭意图：快速关闭
                 this.hideTimer = window.setTimeout(() => {
                     // 二次确认：计时器结束时，如果真的还是 0 选中，才关闭
-                    const currentSelection = (canvas as CanvasView['canvas']).selection;
+                    const currentSelection = (canvas).selection;
                     if (!currentSelection || currentSelection.size === 0) {
                         this.floatingPalette?.hide();
                         this.lastSelectedIds.clear();
@@ -3602,9 +3602,9 @@ class CanvasAISettingTab extends PluginSettingTab {
                 const inputEl = setting.controlEl.querySelector('input');
                 if (inputEl) {
                     inputEl.addClass('canvas-ai-timeout-input');
-                    (inputEl as HTMLInputElement).type = 'number';
-                    (inputEl as HTMLInputElement).min = '10';
-                    (inputEl as HTMLInputElement).max = '600';
+                    (inputEl).type = 'number';
+                    (inputEl).min = '10';
+                    (inputEl).max = '600';
                 }
             });
 
