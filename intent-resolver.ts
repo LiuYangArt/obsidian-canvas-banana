@@ -292,7 +292,7 @@ export class IntentResolver {
             // 优先级 3: Group 标题（如果节点是 Group 成员）
             if (role === DEFAULT_ROLE && node.isGroupMember) {
                 // 找到包含此节点的 Group
-                for (const [_groupId, label] of groupLabels) {
+                for (const [, label] of groupLabels) {
                     if (label && label.trim()) {
                         role = this.truncateRole(label);
                         break;

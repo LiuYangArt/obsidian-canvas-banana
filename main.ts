@@ -194,8 +194,8 @@ class InputModal extends Modal {
             value: this.defaultValue
         });
         inputEl.addClass('canvas-ai-modal-input');
-        inputEl.style.width = '100%';
-        inputEl.style.marginBottom = '16px';
+        inputEl.addClass('canvas-ai-modal-input-full');
+
         this.result = this.defaultValue;
 
         inputEl.addEventListener('input', (e) => {
@@ -397,7 +397,11 @@ class FloatingPalette {
      */
     setDebugMode(enabled: boolean): void {
         if (this.debugBtnEl) {
-            this.debugBtnEl.style.display = enabled ? 'block' : 'none';
+            if (enabled) {
+                this.debugBtnEl.removeClass('is-hidden');
+            } else {
+                this.debugBtnEl.addClass('is-hidden');
+            }
         }
     }
 
@@ -414,7 +418,7 @@ class FloatingPalette {
     private createPaletteDOM(): HTMLElement {
         const container = document.createElement('div');
         container.addClass('canvas-ai-palette');
-        // Visibility handled by CSS/classes
+        container.addClass('is-hidden'); // Start hidden, show() will remove this
 
         container.addEventListener('mousedown', (e) => e.stopPropagation());
         container.addEventListener('click', (e) => e.stopPropagation());
@@ -464,8 +468,7 @@ class FloatingPalette {
         });
 
         // Image Options
-        this.imageOptionsEl = body.createDiv({ cls: 'canvas-ai-image-options' });
-        this.imageOptionsEl.style.display = 'none';
+        this.imageOptionsEl = body.createDiv({ cls: 'canvas-ai-image-options is-hidden' });
 
         const imgRow = this.imageOptionsEl.createDiv('canvas-ai-option-row');
         const resGrp = imgRow.createEl('span', 'canvas-ai-option-group');
@@ -478,8 +481,7 @@ class FloatingPalette {
         this.ratioSelect = ratioGrp.createEl('select', 'canvas-ai-ratio-select dropdown');
         ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'].forEach(v => this.ratioSelect!.createEl('option', { value: v, text: v }));
 
-        const imgModelRow = this.imageOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-image-model-select-row' });
-        imgModelRow.style.display = 'none';
+        const imgModelRow = this.imageOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-image-model-select-row is-hidden' });
         const imgModelGrp = imgModelRow.createEl('span', 'canvas-ai-option-group');
         imgModelGrp.createEl('label', { text: t('Palette Model') });
         this.imageModelSelectEl = imgModelGrp.createEl('select', 'canvas-ai-image-model-select dropdown');
@@ -491,22 +493,19 @@ class FloatingPalette {
         chatRow.createEl('label', { cls: 'canvas-ai-temp-label', text: t('Temperature') });
         this.tempInput = chatRow.createEl('input', { cls: 'canvas-ai-temp-input', type: 'number', attr: { min: '0', max: '2', step: '0.1', value: '0.5' } });
 
-        const chatModelRow = this.chatOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-model-select-row' });
-        chatModelRow.style.display = 'none';
+        const chatModelRow = this.chatOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-model-select-row is-hidden' });
         const chatModelGrp = chatModelRow.createEl('span', 'canvas-ai-option-group');
         chatModelGrp.createEl('label', { text: t('Palette Model') });
         this.textModelSelectEl = chatModelGrp.createEl('select', 'canvas-ai-text-model-select dropdown');
 
         // Node Options
-        this.nodeOptionsEl = body.createDiv({ cls: 'canvas-ai-node-options' });
-        this.nodeOptionsEl.style.display = 'none';
+        this.nodeOptionsEl = body.createDiv({ cls: 'canvas-ai-node-options is-hidden' });
 
         const nodeRow = this.nodeOptionsEl.createDiv('canvas-ai-option-row canvas-ai-temp-row');
         nodeRow.createEl('label', { cls: 'canvas-ai-temp-label', text: t('Temperature') });
         this.nodeTempInput = nodeRow.createEl('input', { cls: 'canvas-ai-node-temp-input', type: 'number', attr: { min: '0', max: '2', step: '0.1', value: '0.5' } });
 
-        const nodeModelRow = this.nodeOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-node-model-select-row' });
-        nodeModelRow.style.display = 'none';
+        const nodeModelRow = this.nodeOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-node-model-select-row is-hidden' });
         const nodeModelGrp = nodeModelRow.createEl('span', 'canvas-ai-option-group');
         nodeModelGrp.createEl('label', { text: t('Palette Model') });
         this.nodeModelSelectEl = nodeModelGrp.createEl('select', 'canvas-ai-node-model-select dropdown');
@@ -514,8 +513,7 @@ class FloatingPalette {
         // Action Row
         const actionRow = body.createDiv('canvas-ai-action-row');
         const generateBtn = actionRow.createEl('button', { cls: 'canvas-ai-generate-btn', text: t('Generate') });
-        this.debugBtnEl = actionRow.createEl('button', { cls: 'canvas-ai-debug-btn', text: t('Debug') });
-        this.debugBtnEl.style.display = 'none';
+        this.debugBtnEl = actionRow.createEl('button', { cls: 'canvas-ai-debug-btn is-hidden', text: t('Debug') });
 
         // Footer
         const footer = container.createDiv('canvas-ai-palette-footer');
@@ -637,13 +635,25 @@ class FloatingPalette {
      */
     private updateOptionsVisibility(): void {
         if (this.imageOptionsEl) {
-            this.imageOptionsEl.style.display = this.currentMode === 'image' ? 'flex' : 'none';
+            if (this.currentMode === 'image') {
+                this.imageOptionsEl.removeClass('is-hidden');
+            } else {
+                this.imageOptionsEl.addClass('is-hidden');
+            }
         }
         if (this.chatOptionsEl) {
-            this.chatOptionsEl.style.display = this.currentMode === 'chat' ? 'flex' : 'none';
+            if (this.currentMode === 'chat') {
+                this.chatOptionsEl.removeClass('is-hidden');
+            } else {
+                this.chatOptionsEl.addClass('is-hidden');
+            }
         }
         if (this.nodeOptionsEl) {
-            this.nodeOptionsEl.style.display = this.currentMode === 'node' ? 'flex' : 'none';
+            if (this.currentMode === 'node') {
+                this.nodeOptionsEl.removeClass('is-hidden');
+            } else {
+                this.nodeOptionsEl.addClass('is-hidden');
+            }
         }
     }
 
@@ -926,7 +936,7 @@ class FloatingPalette {
     /**
      * 处理生成按钮点击
      */
-    private async handleGenerate(): Promise<void> {
+    private handleGenerate(): void {
         const prompt = this.promptInput.value.trim();
         console.debug('Canvas Banana: Generate clicked');
         console.debug('Mode:', this.currentMode);
@@ -953,8 +963,8 @@ class FloatingPalette {
             // Hide palette
             this.hide();
 
-            // Fire-and-forget: don't await, let task run in background
-            this.onGenerate(currentPrompt, currentMode)
+            // Fire-and-forget: explicitly marked void
+            void this.onGenerate(currentPrompt, currentMode)
                 .finally(() => {
                     this.decrementTaskCount();
                 });
@@ -1082,21 +1092,33 @@ class FloatingPalette {
         this.selectedTextModel = populateSelect(this.textModelSelectEl, this.quickSwitchTextModels, this.selectedTextModel);
         const textRow = this.textModelSelectEl?.closest('.canvas-ai-model-select-row') as HTMLElement;
         if (textRow) {
-            textRow.style.display = hasTextModels ? 'flex' : 'none';
+            if (hasTextModels) {
+                textRow.removeClass('is-hidden');
+            } else {
+                textRow.addClass('is-hidden');
+            }
         }
 
         // Update node model select (node mode uses same text model list)
         this.selectedNodeModel = populateSelect(this.nodeModelSelectEl, this.quickSwitchTextModels, this.selectedNodeModel);
         const nodeRow = this.nodeModelSelectEl?.closest('.canvas-ai-node-model-select-row') as HTMLElement;
         if (nodeRow) {
-            nodeRow.style.display = hasTextModels ? 'flex' : 'none';
+            if (hasTextModels) {
+                nodeRow.removeClass('is-hidden');
+            } else {
+                nodeRow.addClass('is-hidden');
+            }
         }
 
         // Update image model select
         this.selectedImageModel = populateSelect(this.imageModelSelectEl, this.quickSwitchImageModels, this.selectedImageModel);
         const imageRow = this.imageModelSelectEl?.closest('.canvas-ai-image-model-select-row') as HTMLElement;
         if (imageRow) {
-            imageRow.style.display = hasImageModels ? 'flex' : 'none';
+            if (hasImageModels) {
+                imageRow.removeClass('is-hidden');
+            } else {
+                imageRow.addClass('is-hidden');
+            }
         }
     }
 
@@ -1134,7 +1156,7 @@ class FloatingPalette {
     show(x: number, y: number, canvasContainer: HTMLElement, onCloseCallback?: () => void): void {
         // 先挂载到容器（如需要），但保持隐藏
         if (this.currentParent !== canvasContainer) {
-            this.containerEl.style.display = 'none';
+            this.containerEl.addClass('is-hidden');
             this.containerEl.remove();
             canvasContainer.appendChild(this.containerEl);
             this.currentParent = canvasContainer;
@@ -1151,7 +1173,7 @@ class FloatingPalette {
 
         // 使用 requestAnimationFrame 确保位置生效后再显示
         requestAnimationFrame(() => {
-            this.containerEl.style.display = 'flex';
+            this.containerEl.removeClass('is-hidden');
             this.isVisible = true;
             this.onClose = onCloseCallback || null;
 
@@ -1180,7 +1202,7 @@ class FloatingPalette {
      * 隐藏面板
      */
     hide(): void {
-        this.containerEl.style.display = 'none';
+        this.containerEl.addClass('is-hidden');
         this.isVisible = false;
     }
 
@@ -1269,7 +1291,7 @@ export default class CanvasAIPlugin extends Plugin {
         this.apiManager = new ApiManager(this.settings);
 
         this.floatingPalette = new FloatingPalette(this.app, this.apiManager, (mode) => {
-            this.debugSelectedNodes(mode);
+            void this.debugSelectedNodes(mode);
         });
 
         // Set up generate callback for Ghost Node creation
@@ -1288,7 +1310,7 @@ export default class CanvasAIPlugin extends Plugin {
             } else if (key === 'nodeTemperature') {
                 this.settings.defaultNodeTemperature = value as number;
             }
-            this.saveSettings();
+            void this.saveSettings();
         });
 
         // Set up preset change callback for persisting presets
@@ -1300,7 +1322,7 @@ export default class CanvasAIPlugin extends Plugin {
             } else {
                 this.settings.nodePresets = presets;
             }
-            this.saveSettings();
+            void this.saveSettings();
         });
 
         // Initialize palette with saved settings
@@ -1345,7 +1367,7 @@ export default class CanvasAIPlugin extends Plugin {
             } else if (mode === 'node') {
                 this.settings.paletteNodeModel = modelKey;
             }
-            this.saveSettings();
+            void this.saveSettings();
         });
 
         // Set version from manifest
@@ -2986,7 +3008,7 @@ class CanvasAISettingTab extends PluginSettingTab {
             this.modelCache = this.getGeminiHardcodedModels();
             this.modelsFetched = true;
             console.debug(`Canvas Banana Settings: Loaded ${this.modelCache.length} hardcoded Gemini models`);
-            this.display();
+            void this.display();
             return;
         }
 
@@ -3048,7 +3070,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         } finally {
             this.isFetching = false;
             // Update UI after fetch completes (success or error)
-            this.display();
+            void this.display();
         }
     }
 
@@ -3233,7 +3255,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         return this.sortModels(filtered);
     }
 
-    async display(): Promise<void> {
+    display(): void {
         const { containerEl } = this;
         containerEl.empty();
         containerEl.addClass('canvas-ai-settings');
@@ -3260,10 +3282,10 @@ class CanvasAISettingTab extends PluginSettingTab {
 
                     // Auto-refresh models when switching provider (Non-blocking)
                     this.modelsFetched = false;
-                    this.fetchModels(); // Fire and forget
+                    void this.fetchModels(); // Fire and forget
 
                     // Re-render immediately to show/hide provider-specific settings
-                    this.display();
+                    void this.display();
                 }));
 
         const provider = this.plugin.settings.apiProvider;
@@ -3579,7 +3601,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 // Make the input narrower
                 const inputEl = setting.controlEl.querySelector('input');
                 if (inputEl) {
-                    (inputEl as HTMLInputElement).style.width = '80px';
+                    inputEl.addClass('canvas-ai-timeout-input');
                     (inputEl as HTMLInputElement).type = 'number';
                     (inputEl as HTMLInputElement).min = '10';
                     (inputEl as HTMLInputElement).max = '600';
@@ -3598,13 +3620,13 @@ class CanvasAISettingTab extends PluginSettingTab {
             cls: 'canvas-ai-test-btn'
         });
 
-        const testResultEl = resultContainer.createDiv({ cls: 'canvas-ai-test-result' });
-        testResultEl.style.display = 'none';
+        const testResultEl = resultContainer.createDiv({ cls: 'canvas-ai-test-result is-hidden' });
 
-        testBtn.addEventListener('click', async () => {
-            testBtn.textContent = t('Testing...');
+        testBtn.addEventListener('click', () => {
+            void (async () => {
+                testBtn.textContent = t('Testing...');
             testBtn.disabled = true;
-            testResultEl.style.display = 'none';
+            testResultEl.addClass('is-hidden');
 
             try {
                 const apiManager = new ApiManager(this.plugin.settings);
@@ -3618,7 +3640,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 testResultEl.textContent = `✓ ${t('Connection successful')}: ${response.substring(0, 50)}...`;
                 testResultEl.removeClass('error');
                 testResultEl.addClass('success');
-                testResultEl.style.display = 'block';
+                testResultEl.removeClass('is-hidden');
 
                 setTimeout(() => {
                     testBtn.textContent = t('Test Connection');
@@ -3631,15 +3653,14 @@ class CanvasAISettingTab extends PluginSettingTab {
                 testResultEl.textContent = `✗ ${t('Connection failed')}: ${message}`;
                 testResultEl.removeClass('success');
                 testResultEl.addClass('error');
-                testResultEl.style.display = 'block';
+                testResultEl.removeClass('is-hidden');
 
                 setTimeout(() => {
                     testBtn.textContent = t('Test Connection');
                     testBtn.removeClass('error');
                 }, 3000);
-            } finally {
-                testBtn.disabled = false;
-            }
+                }
+            })();
         });
     }
 
@@ -3678,8 +3699,9 @@ class CanvasAISettingTab extends PluginSettingTab {
             const removeBtn = tag.createSpan({ text: ' ×', cls: 'canvas-ai-quick-switch-remove' });
 
             // Remove button click
-            removeBtn.addEventListener('click', async (e) => {
+            removeBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
+                void (async () => {
                 models.splice(index, 1);
                 if (isTextModel) {
                     this.plugin.settings.quickSwitchTextModels = models;
@@ -3695,7 +3717,8 @@ class CanvasAISettingTab extends PluginSettingTab {
                     this.plugin.settings.paletteNodeModel || ''
                 );
                 new Notice(t('Model removed'));
-                this.display();
+                    void this.display();
+                })();
             });
 
             // Drag events
@@ -3717,12 +3740,13 @@ class CanvasAISettingTab extends PluginSettingTab {
                 tag.removeClass('drag-over');
             });
 
-            tag.addEventListener('drop', async (e) => {
+            tag.addEventListener('drop', (e) => {
                 e.preventDefault();
                 tag.removeClass('drag-over');
                 const fromIndex = parseInt(e.dataTransfer?.getData('text/plain') || '-1');
                 const toIndex = index;
                 if (fromIndex >= 0 && fromIndex !== toIndex) {
+                    void (async () => {
                     // Reorder array
                     const [moved] = models.splice(fromIndex, 1);
                     models.splice(toIndex, 0, moved);
@@ -3739,7 +3763,8 @@ class CanvasAISettingTab extends PluginSettingTab {
                         this.plugin.settings.paletteImageModel || '',
                         this.plugin.settings.paletteNodeModel || ''
                     );
-                    this.display();
+                    void this.display();
+                    })();
                 }
             });
         };

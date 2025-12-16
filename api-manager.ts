@@ -492,8 +492,13 @@ export class ApiManager {
         }
 
         // If no image, return the text content (model may have declined to generate)
-        console.debug('Canvas AI: No image in response, content:', message.content);
-        throw new Error(`Image generation failed: ${message.content || 'No image returned'}`);
+        const textContent = typeof message.content === 'string'
+            ? message.content
+            : Array.isArray(message.content)
+                ? message.content.map(p => p.text || '').join('')
+                : 'No image returned';
+        console.debug('Canvas AI: No image in response, content:', textContent);
+        throw new Error(`Image generation failed: ${textContent || 'No image returned'}`);
     }
 
     /**
@@ -622,8 +627,13 @@ export class ApiManager {
             return imageUrl;
         }
 
-        console.debug('Canvas AI: No image in response, content:', message.content);
-        throw new Error(`Image generation failed: ${message.content || 'No image returned'}`);
+        const textContent = typeof message.content === 'string'
+            ? message.content
+            : Array.isArray(message.content)
+                ? message.content.map(p => p.text || '').join('')
+                : 'No image returned';
+        console.debug('Canvas AI: No image in response, content:', textContent);
+        throw new Error(`Image generation failed: ${textContent || 'No image returned'}`);
     }
 
     /**

@@ -19,7 +19,7 @@
     border: 1px solid var(--background-modifier-border);
     border-radius: 12px;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.2);
-    display: none;
+    display: flex;
     flex-direction: column;
     overflow: hidden;
     animation: canvas-ai-fade-in 0.1s ease;
@@ -820,3 +820,21 @@
     max-width: none !important;
     width: 100% !important;
 }
+
+/* ========== Utility Classes for ESLint Compliance ========== */
+/* Hidden state - replaces element.style.display = 'none' */
+.is-hidden {
+    display: none !important;
+}
+
+/* Modal input full width - replaces element.style.width = '100%' */
+.canvas-ai-modal-input-full {
+    width: 100%;
+    margin-bottom: 16px;
+}
+
+/* Timeout input narrow - replaces element.style.width = '80px' */
+.canvas-ai-timeout-input {
+    width: 80px;
+}
+
