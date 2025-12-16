@@ -1800,7 +1800,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
 
         try {
             canvasJson = JSON.parse(fileContent);
-        } catch (_e) {
+        } catch {
             throw new Error('Failed to parse canvas file');
         }
 
