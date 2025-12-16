@@ -2594,7 +2594,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                 const imageNode = this.getSelectedImageNode(canvas);
                 if (imageNode?.file) {
                     if (!checking) {
-                        this.copyImageToClipboard(imageNode.file);
+                        void this.copyImageToClipboard(imageNode.file);
                     }
                     return true;
                 }
@@ -3271,9 +3271,12 @@ class CanvasAISettingTab extends PluginSettingTab {
             .setName(t('API Provider'))
             .setDesc(t('Select API Provider'))
             .addDropdown(dropdown => dropdown
+                // eslint-disable-next-line obsidianmd/ui/sentence-case -- Brand names
                 .addOption('gemini', 'Google Gemini')
+                // eslint-disable-next-line obsidianmd/ui/sentence-case -- Brand names
                 .addOption('openrouter', 'OpenRouter')
                 .addOption('yunwu', 'Yunwu')
+                // eslint-disable-next-line obsidianmd/ui/sentence-case -- Brand names
                 .addOption('gptgod', 'GPTGod')
                 .setValue(this.plugin.settings.apiProvider)
                 .onChange(async (value) => {
@@ -3301,6 +3304,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .setName(t('OpenRouter API Key'))
                 .setDesc(t('Enter your OpenRouter API Key'))
                 .addText(text => text
+                    // eslint-disable-next-line obsidianmd/ui/sentence-case -- API key format
                     .setPlaceholder('sk-or-v1-...')
                     .setValue(this.plugin.settings.openRouterApiKey)
                     .onChange(async (value) => {
@@ -3325,6 +3329,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .setName(t('Yunwu API Key'))
                 .setDesc(t('Enter your Yunwu API Key'))
                 .addText(text => text
+                    // eslint-disable-next-line obsidianmd/ui/sentence-case -- API key format
                     .setPlaceholder('sk-...')
                     .setValue(this.plugin.settings.yunwuApiKey)
                     .onChange(async (value) => {
@@ -3349,6 +3354,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .setName(t('Gemini API Key'))
                 .setDesc(t('Enter your Gemini API Key'))
                 .addText(text => text
+                    // eslint-disable-next-line obsidianmd/ui/sentence-case -- API key format
                     .setPlaceholder('AIza...')
                     .setValue(this.plugin.settings.geminiApiKey)
                     .onChange(async (value) => {
@@ -3362,6 +3368,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .setName(t('GPTGod API Key'))
                 .setDesc(t('Enter your GPTGod API Key'))
                 .addText(text => text
+                    // eslint-disable-next-line obsidianmd/ui/sentence-case -- API key format
                     .setPlaceholder('sk-...')
                     .setValue(this.plugin.settings.gptGodApiKey)
                     .onChange(async (value) => {
@@ -3375,6 +3382,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .setName(t('API Base URL'))
                 .setDesc(t('API Base URL'))
                 .addText(text => text
+                    // eslint-disable-next-line obsidianmd/ui/sentence-case -- URL format
                     .setPlaceholder('https://api.gptgod.online')
                     .setValue(this.plugin.settings.gptGodBaseUrl)
                     .onChange(async (value) => {
@@ -3397,7 +3405,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                     ? this.plugin.settings.gptGodApiKey
                     : this.plugin.settings.openRouterApiKey;
         if (!this.modelsFetched && apiKey && !this.isFetching) {
-            this.fetchModels();
+            void this.fetchModels();
         }
 
         // Refresh button - show status for all providers
@@ -3427,11 +3435,11 @@ class CanvasAISettingTab extends PluginSettingTab {
 
             refreshBtn.disabled = this.isFetching;
 
-            refreshBtn.addEventListener('click', async () => {
+            refreshBtn.addEventListener('click', () => {
                 refreshBtn.textContent = 'Fetching...';
                 refreshBtn.disabled = true;
                 this.modelsFetched = false; // Force refresh
-                this.fetchModels(); // Fire and forget
+                void this.fetchModels(); // Fire and forget
                 // UI will be updated by fetchModels finally block
             });
         }
@@ -3528,6 +3536,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .setName(t('Node System Prompt'))
                 .setDesc(t('System prompt for node mode (leave empty to use default built-in prompt)'))
                 .addTextArea(text => text
+                    // eslint-disable-next-line obsidianmd/ui/sentence-case -- Multi-word placeholder
                     .setPlaceholder('Leave empty to use default Canvas JSON generation prompt...')
                     .setValue(this.plugin.settings.nodeSystemPrompt)
                     .onChange(async (value) => {

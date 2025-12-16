@@ -1,0 +1,24 @@
+
+> canvas-banana@0.10.3 lint
+> eslint .
+
+
+E:\SF_ActiveDocs\MyPlugins\ObsidianCanvasAI\main.ts
+  1803:18  warning  '_e' is defined but never used                                                                                                                                      @typescript-eslint/no-unused-vars
+  2597:25  error    Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  3274:38  error    Use sentence case for UI text                                                                                                                                       obsidianmd/ui/sentence-case
+  3275:42  error    Use sentence case for UI text                                                                                                                                       obsidianmd/ui/sentence-case
+  3277:38  error    Use sentence case for UI text                                                                                                                                       obsidianmd/ui/sentence-case
+  3304:37  error    Use sentence case for UI text                                                                                                                                       obsidianmd/ui/sentence-case
+  3328:37  error    Use sentence case for UI text                                                                                                                                       obsidianmd/ui/sentence-case
+  3352:37  error    Use sentence case for UI text                                                                                                                                       obsidianmd/ui/sentence-case
+  3365:37  error    Use sentence case for UI text                                                                                                                                       obsidianmd/ui/sentence-case
+  3378:37  error    Use sentence case for UI text                                                                                                                                       obsidianmd/ui/sentence-case
+  3400:13  error    Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  3430:50  error    Promise returned in function argument where a void return was expected                                                                                              @typescript-eslint/no-misused-promises
+  3430:59  warning  Async arrow function has no 'await' expression                                                                                                                      @typescript-eslint/require-await
+  3434:17  error    Promises must be awaited, end with a call to .catch, end with a call to .then with a rejection handler or be explicitly marked as ignored with the `void` operator  @typescript-eslint/no-floating-promises
+  3531:37  error    Use sentence case for UI text                                                                                                                                       obsidianmd/ui/sentence-case
+
+✖ 15 problems (13 errors, 2 warnings)
+
