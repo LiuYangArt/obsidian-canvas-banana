@@ -2877,7 +2877,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         // and wrapper dimensions give viewport size
         const wrapperEl = canvas.wrapperEl;
         if (wrapperEl) {
-            const _rect = wrapperEl.getBoundingClientRect();
+            wrapperEl.getBoundingClientRect();
             // canvas.x and canvas.y represent the center of the viewport in canvas coords
             return { x: canvas.x, y: canvas.y };
         }
@@ -3265,19 +3265,19 @@ class CanvasAISettingTab extends PluginSettingTab {
 
 
         // ========== API Provider Selection ==========
-        new Setting(containerEl).setHeading().setName(t('API Configuration'));
+        new Setting(containerEl).setHeading().setName(t('API configuration'));
 
         new Setting(containerEl)
-            .setName(t('API Provider'))
-            .setDesc(t('Select API Provider'))
+            .setName(t('API provider'))
+            .setDesc(t('Select API provider'))
             .addDropdown(dropdown => dropdown
-                // eslint-disable-next-line obsidianmd/ui/sentence-case -- Brand names
-                .addOption('gemini', 'Google Gemini')
-                // eslint-disable-next-line obsidianmd/ui/sentence-case -- Brand names
-                .addOption('openrouter', 'OpenRouter')
-                .addOption('yunwu', 'Yunwu')
-                // eslint-disable-next-line obsidianmd/ui/sentence-case -- Brand names
-                .addOption('gptgod', 'GPTGod')
+
+                .addOption('gemini', t('Google Gemini'))
+
+                .addOption('openrouter', t('OpenRouter'))
+                .addOption('yunwu', t('Yunwu'))
+
+                .addOption('gptgod', t('GPTGod'))
                 .setValue(this.plugin.settings.apiProvider)
                 .onChange(async (value) => {
                     this.plugin.settings.apiProvider = value as ApiProvider;
@@ -3301,11 +3301,11 @@ class CanvasAISettingTab extends PluginSettingTab {
         if (provider === 'openrouter') {
             // API Key with Test Button
             const apiKeySetting = new Setting(containerEl)
-                .setName(t('OpenRouter API Key'))
-                .setDesc(t('Enter your OpenRouter API Key'))
+                .setName(t('OpenRouter API key'))
+                .setDesc(t('Enter your OpenRouter API key'))
                 .addText(text => text
-                    // eslint-disable-next-line obsidianmd/ui/sentence-case -- API key format
-                    .setPlaceholder('sk-or-v1-...')
+
+                    .setPlaceholder(t('Placeholder API Key OpenRouter'))
                     .setValue(this.plugin.settings.openRouterApiKey)
                     .onChange(async (value) => {
                         this.plugin.settings.openRouterApiKey = value;
@@ -3315,10 +3315,10 @@ class CanvasAISettingTab extends PluginSettingTab {
             this.addTestButton(apiKeySetting.controlEl, containerEl);
 
             new Setting(containerEl)
-                .setName(t('API Base URL'))
-                .setDesc(t('API Base URL'))
+                .setName(t('API base URL'))
+                .setDesc(t('API base URL'))
                 .addText(text => text
-                    .setPlaceholder('https://openrouter.ai/api/v1/chat/completions')
+                    .setPlaceholder(t('Placeholder URL OpenRouter'))
                     .setValue(this.plugin.settings.openRouterBaseUrl)
                     .onChange(async (value) => {
                         this.plugin.settings.openRouterBaseUrl = value;
@@ -3326,11 +3326,11 @@ class CanvasAISettingTab extends PluginSettingTab {
                     }));
         } else if (provider === 'yunwu') {
             const yunwuKeySetting = new Setting(containerEl)
-                .setName(t('Yunwu API Key'))
-                .setDesc(t('Enter your Yunwu API Key'))
+                .setName(t('Yunwu API key'))
+                .setDesc(t('Enter your Yunwu API key'))
                 .addText(text => text
-                    // eslint-disable-next-line obsidianmd/ui/sentence-case -- API key format
-                    .setPlaceholder('sk-...')
+
+                    .setPlaceholder(t('Placeholder API Key'))
                     .setValue(this.plugin.settings.yunwuApiKey)
                     .onChange(async (value) => {
                         this.plugin.settings.yunwuApiKey = value;
@@ -3340,10 +3340,10 @@ class CanvasAISettingTab extends PluginSettingTab {
             this.addTestButton(yunwuKeySetting.controlEl, containerEl);
 
             new Setting(containerEl)
-                .setName(t('Yunwu Base URL'))
-                .setDesc(t('Yunwu Base URL'))
+                .setName(t('Yunwu base URL'))
+                .setDesc(t('Yunwu base URL'))
                 .addText(text => text
-                    .setPlaceholder('https://yunwu.ai')
+                    .setPlaceholder(t('Placeholder URL Yunwu'))
                     .setValue(this.plugin.settings.yunwuBaseUrl)
                     .onChange(async (value) => {
                         this.plugin.settings.yunwuBaseUrl = value;
@@ -3351,11 +3351,11 @@ class CanvasAISettingTab extends PluginSettingTab {
                     }));
         } else if (provider === 'gemini') {
             const geminiKeySetting = new Setting(containerEl)
-                .setName(t('Gemini API Key'))
-                .setDesc(t('Enter your Gemini API Key'))
+                .setName(t('Gemini API key'))
+                .setDesc(t('Enter your Gemini API key'))
                 .addText(text => text
-                    // eslint-disable-next-line obsidianmd/ui/sentence-case -- API key format
-                    .setPlaceholder('AIza...')
+
+                    .setPlaceholder(t('Placeholder API Key Gemini'))
                     .setValue(this.plugin.settings.geminiApiKey)
                     .onChange(async (value) => {
                         this.plugin.settings.geminiApiKey = value;
@@ -3365,11 +3365,11 @@ class CanvasAISettingTab extends PluginSettingTab {
             this.addTestButton(geminiKeySetting.controlEl, containerEl);
         } else if (provider === 'gptgod') {
             const gptGodKeySetting = new Setting(containerEl)
-                .setName(t('GPTGod API Key'))
-                .setDesc(t('Enter your GPTGod API Key'))
+                .setName(t('GPTGod API key'))
+                .setDesc(t('Enter your GPTGod API key'))
                 .addText(text => text
-                    // eslint-disable-next-line obsidianmd/ui/sentence-case -- API key format
-                    .setPlaceholder('sk-...')
+
+                    .setPlaceholder(t('Placeholder API Key'))
                     .setValue(this.plugin.settings.gptGodApiKey)
                     .onChange(async (value) => {
                         this.plugin.settings.gptGodApiKey = value;
@@ -3379,11 +3379,11 @@ class CanvasAISettingTab extends PluginSettingTab {
             this.addTestButton(gptGodKeySetting.controlEl, containerEl);
 
             new Setting(containerEl)
-                .setName(t('API Base URL'))
-                .setDesc(t('API Base URL'))
+                .setName(t('API base URL'))
+                .setDesc(t('API base URL'))
                 .addText(text => text
-                    // eslint-disable-next-line obsidianmd/ui/sentence-case -- URL format
-                    .setPlaceholder('https://api.gptgod.online')
+
+                    .setPlaceholder(t('Placeholder URL GPTGod'))
                     .setValue(this.plugin.settings.gptGodBaseUrl)
                     .onChange(async (value) => {
                         this.plugin.settings.gptGodBaseUrl = value;
@@ -3393,7 +3393,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         }
 
         // ========== 模型配置区域 ==========
-        new Setting(containerEl).setHeading().setName(t('Model Configuration'));
+        new Setting(containerEl).setHeading().setName(t('Model configuration'));
 
         // Fetch models if not already fetched (Non-blocking)
         // For Gemini, use hardcoded list; for OpenRouter/Yunwu, fetch from API
@@ -3423,13 +3423,13 @@ class CanvasAISettingTab extends PluginSettingTab {
         }
 
         const refreshSetting = new Setting(containerEl)
-            .setName(t('Model List'))
+            .setName(t('Model list'))
             .setDesc(statusText);
 
         // Only show refresh button for OpenRouter/Yunwu (not Gemini)
         if (!isGemini) {
             const refreshBtn = refreshSetting.controlEl.createEl('button', {
-                text: this.isFetching ? t('Refreshing...') : t('Refresh Model List'),
+                text: this.isFetching ? t('Refreshing...') : t('Refresh model list'),
                 cls: 'canvas-ai-refresh-btn'
             });
 
@@ -3456,8 +3456,8 @@ class CanvasAISettingTab extends PluginSettingTab {
 
 
         this.renderModelSetting(containerEl, {
-            name: t('Text Generation Model'),
-            desc: t('Text Generation Model'), // Reusing key as desc
+            name: t('Text generation model'),
+            desc: t('Text generation model'), // Reusing key as desc
             modelKey: textModelKey,
             customKey: textCustomKey,
             placeholder: textPlaceholder,
@@ -3471,8 +3471,8 @@ class CanvasAISettingTab extends PluginSettingTab {
         const imagePlaceholder = isGemini ? 'gemini-3-pro-image-preview' : isYunwu ? 'gemini-3-pro-image-preview' : isGptGod ? 'gemini-3-pro-image-preview' : 'google/gemini-3-pro-image-preview';
 
         this.renderModelSetting(containerEl, {
-            name: t('Image Generation Model'),
-            desc: t('Image Generation Model'),
+            name: t('Image generation model'),
+            desc: t('Image generation model'),
             modelKey: imageModelKey,
             customKey: imageCustomKey,
             placeholder: imagePlaceholder,
@@ -3483,12 +3483,12 @@ class CanvasAISettingTab extends PluginSettingTab {
         // 图片优化区域
         new Setting(containerEl)
             .setHeading()
-            .setName(t('Image Optimization'))
-            .setDesc(t('Image Optimization Desc'));
+            .setName(t('Image optimization'))
+            .setDesc(t('Image optimization desc'));
 
         new Setting(containerEl)
-            .setName(t('Image Compression Quality'))
-            .setDesc(t('Image Compression Quality'))
+            .setName(t('Image compression quality'))
+            .setDesc(t('Image compression quality'))
             .addSlider(slider => slider
                 .setLimits(1, 100, 1)
                 .setValue(this.plugin.settings.imageCompressionQuality)
@@ -3499,8 +3499,8 @@ class CanvasAISettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
-            .setName(t('Image Max Size'))
-            .setDesc(t('Image Max Size'))
+            .setName(t('Image max size'))
+            .setDesc(t('Image max size'))
             .addText(text => text
                 .setPlaceholder('2048')
                 .setValue(String(this.plugin.settings.imageMaxSize))
@@ -3514,12 +3514,12 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .inputEl.addClass('canvas-ai-small-input'));
 
         // ========== Prompt Settings ==========
-        new Setting(containerEl).setHeading().setName(t('Prompt Settings'));
+        new Setting(containerEl).setHeading().setName(t('Prompt settings'));
 
         // Chat System Prompt
         new Setting(containerEl)
             .setClass('canvas-ai-block-setting')
-            .setName(t('Chat System Prompt'))
+            .setName(t('Chat system prompt'))
             .setDesc(t('System prompt for text chat mode'))
             .addTextArea(text => text
                 .setPlaceholder('You are a helpful AI assistant...')
@@ -3533,11 +3533,11 @@ class CanvasAISettingTab extends PluginSettingTab {
         if (this.plugin.settings.debugMode) {
             new Setting(containerEl)
                 .setClass('canvas-ai-block-setting')
-                .setName(t('Node System Prompt'))
+                .setName(t('Node system prompt'))
                 .setDesc(t('System prompt for node mode (leave empty to use default built-in prompt)'))
                 .addTextArea(text => text
-                    // eslint-disable-next-line obsidianmd/ui/sentence-case -- Multi-word placeholder
-                    .setPlaceholder('Leave empty to use default Canvas JSON generation prompt...')
+
+                    .setPlaceholder(t('Placeholder Node Prompt'))
                     .setValue(this.plugin.settings.nodeSystemPrompt)
                     .onChange(async (value) => {
                         this.plugin.settings.nodeSystemPrompt = value;
@@ -3548,7 +3548,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         // Image System Prompt
         new Setting(containerEl)
             .setClass('canvas-ai-block-setting')
-            .setName(t('Image System Prompt'))
+            .setName(t('Image system prompt'))
             .setDesc(t('System prompt for image generation mode'))
             .addTextArea(text => text
                 .setPlaceholder('You are an expert creator...')
@@ -3560,7 +3560,7 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         // Node Default Color
         new Setting(containerEl)
-            .setName(t('Node Default Color'))
+            .setName(t('Node default color'))
             .setDesc(t('Override color for generated nodes (1-6, leave empty to use LLM suggested colors)'))
             .addDropdown(dropdown => dropdown
                 .addOption('', t('Use LLM colors'))
@@ -3577,11 +3577,11 @@ class CanvasAISettingTab extends PluginSettingTab {
                 }));
 
         // ========== Developer Options ==========
-        new Setting(containerEl).setHeading().setName(t('Developer Options'));
+        new Setting(containerEl).setHeading().setName(t('Developer options'));
 
         new Setting(containerEl)
-            .setName(t('Debug Mode'))
-            .setDesc(t('Debug Mode'))
+            .setName(t('Debug mode'))
+            .setDesc(t('Debug mode'))
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.debugMode)
                 .onChange(async (value) => {
@@ -3625,7 +3625,7 @@ class CanvasAISettingTab extends PluginSettingTab {
      */
     private addTestButton(parentEl: HTMLElement, resultContainer: HTMLElement) {
         const testBtn = parentEl.createEl('button', {
-            text: t('Test Connection'),
+            text: t('Test connection'),
             cls: 'canvas-ai-test-btn'
         });
 
@@ -3652,7 +3652,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 testResultEl.removeClass('is-hidden');
 
                 setTimeout(() => {
-                    testBtn.textContent = t('Test Connection');
+                    testBtn.textContent = t('Test connection');
                     testBtn.removeClass('success');
                 }, 3000);
             } catch (error: unknown) {
@@ -3665,7 +3665,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 testResultEl.removeClass('is-hidden');
 
                 setTimeout(() => {
-                    testBtn.textContent = t('Test Connection');
+                    testBtn.textContent = t('Test connection');
                     testBtn.removeClass('error');
                 }, 3000);
                 }
@@ -3780,7 +3780,7 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         // Text/Node models row
         const textRow = containerEl.createDiv({ cls: 'canvas-ai-quick-switch-row' });
-        textRow.createSpan({ text: `${t('Quick Switch Text Models')}: `, cls: 'canvas-ai-quick-switch-label' });
+        textRow.createSpan({ text: `${t('Quick switch text models')}: `, cls: 'canvas-ai-quick-switch-label' });
         const textTagsContainer = textRow.createSpan({ cls: 'canvas-ai-quick-switch-tags' });
 
         if (textModels.length === 0) {
@@ -3793,7 +3793,7 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         // Image models row
         const imageRow = containerEl.createDiv({ cls: 'canvas-ai-quick-switch-row' });
-        imageRow.createSpan({ text: `${t('Quick Switch Image Models')}: `, cls: 'canvas-ai-quick-switch-label' });
+        imageRow.createSpan({ text: `${t('Quick switch image models')}: `, cls: 'canvas-ai-quick-switch-label' });
         const imageTagsContainer = imageRow.createSpan({ cls: 'canvas-ai-quick-switch-tags' });
 
         if (imageModels.length === 0) {
@@ -3932,7 +3932,7 @@ class CanvasAISettingTab extends PluginSettingTab {
         const currentModelId = this.plugin.settings[modelKey] as string;
         if (currentModelId) {
             modelSetting.addButton(btn => btn
-                .setButtonText(t('Add to Quick Switch'))
+                .setButtonText(t('Add to quick switch'))
                 .onClick(async () => {
                     const targetList = isImageModel
                         ? (this.plugin.settings.quickSwitchImageModels || [])
@@ -3971,8 +3971,8 @@ class CanvasAISettingTab extends PluginSettingTab {
 
         // 2. Manual Input Toggle + Add to Quick Switch Button (Same Line)
         new Setting(containerEl)
-            .setName(t('Manually Enter Model Name'))
-            .setDesc(isManualMode ? t('Disable Manual Model') : t('Enable Manual Model'))
+            .setName(t('Manually enter model name'))
+            .setDesc(isManualMode ? t('Disable manual model') : t('Enable manual model'))
             .addToggle(toggle => toggle
                 .setValue(useCustom || false)
                 .onChange(async (value) => {
