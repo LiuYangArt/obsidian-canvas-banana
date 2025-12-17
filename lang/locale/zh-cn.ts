@@ -38,6 +38,8 @@ export default {
     'System prompt for image generation mode': '图像生成模式的系统提示词',
     'Developer options': '开发者选项',
     'Debug mode': '调试模式',
+    'Double click image to open': '双击图片打开窗口',
+    'Double click image to open desc': '双击图片节点在新窗口中打开',
 
     'Data storage': '数据存储在 Vault 配置文件夹中',
     'Test connection': '测试连接',

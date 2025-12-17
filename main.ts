@@ -67,6 +67,9 @@ export interface CanvasAISettings {
     // Debug mode
     debugMode: boolean;
 
+    // Double-click image to open in new window
+    doubleClickImageOpen: boolean;
+
     // System prompts for different modes
     chatSystemPrompt: string;
     nodeSystemPrompt: string;
@@ -132,6 +135,7 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
     defaultChatTemperature: 0.5,
 
     debugMode: false,
+    doubleClickImageOpen: true,  // Enable by default
 
     chatSystemPrompt: 'You are a helpful AI assistant embedded in an Obsidian Canvas. Answer concisely and use Markdown formatting.',
     nodeSystemPrompt: '',  // Empty means use default built-in prompt
@@ -2578,7 +2582,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             if (!canvas) return;
 
             const imageNode = this.getSelectedImageNode(canvas);
-            if (imageNode?.file) {
+            if (imageNode?.file && this.settings.doubleClickImageOpen) {
                 evt.preventDefault();
                 evt.stopPropagation();
                 await this.openImageInNewWindow(imageNode.file);
@@ -3691,6 +3695,16 @@ class CanvasAISettingTab extends PluginSettingTab {
                     this.plugin.floatingPalette?.setDebugMode(value);
                     // Re-render settings to show/hide experimental options
                     this.display();
+                }));
+
+        new Setting(containerEl)
+            .setName(t('Double click image to open'))
+            .setDesc(t('Double click image to open desc'))
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.doubleClickImageOpen)
+                .onChange(async (value) => {
+                    this.plugin.settings.doubleClickImageOpen = value;
+                    await this.plugin.saveSettings();
                 }));
 
         new Setting(containerEl)

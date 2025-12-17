@@ -39,6 +39,8 @@ export default {
     'System prompt for image generation mode': 'System prompt for image generation mode',
     'Developer options': 'Developer options',
     'Debug mode': 'Debug mode',
+    'Double click image to open': 'Double-click image to open window',
+    'Double click image to open desc': 'Double-click an image node to open it in a new popout window',
 
     'Data storage': 'Data is stored in your vault config folder',
     'Test connection': 'Test connection',
