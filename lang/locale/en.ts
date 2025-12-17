@@ -41,6 +41,8 @@ export default {
     'Debug mode': 'Debug mode',
     'Double click image to open': 'Double-click image to open window',
     'Double click image to open desc': 'Double-click an image node to open it in a new popout window',
+    'Single window mode': 'Reuse single window',
+    'Single window mode desc': 'Reuse the same popup window when opening images instead of creating new windows',
 
     'Data storage': 'Data is stored in your vault config folder',
     'Test connection': 'Test connection',

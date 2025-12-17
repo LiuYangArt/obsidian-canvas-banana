@@ -40,6 +40,8 @@ export default {
     'Debug mode': '调试模式',
     'Double click image to open': '双击图片打开窗口',
     'Double click image to open desc': '双击图片节点在新窗口中打开',
+    'Single window mode': '复用单一窗口',
+    'Single window mode desc': '打开图片时复用同一个弹出窗口，而不是每次创建新窗口',
 
     'Data storage': '数据存储在 Vault 配置文件夹中',
     'Test connection': '测试连接',

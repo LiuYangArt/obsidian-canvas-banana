@@ -1,4 +1,4 @@
-import { App, ItemView, Modal, Notice, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, TFile, Scope, requestUrl } from 'obsidian';
+import { App, ItemView, Modal, Notice, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, TFile, Scope, requestUrl, WorkspaceLeaf } from 'obsidian';
 import type { Canvas, CanvasNode, CanvasCoords, CanvasView, CanvasData } from './types';
 import { CanvasConverter } from './canvas-converter';
 import { ApiManager } from './api-manager';
@@ -69,6 +69,8 @@ export interface CanvasAISettings {
 
     // Double-click image to open in new window
     doubleClickImageOpen: boolean;
+    // Reuse single window for images
+    singleWindowMode: boolean;
 
     // System prompts for different modes
     chatSystemPrompt: string;
@@ -136,6 +138,7 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
 
     debugMode: false,
     doubleClickImageOpen: true,  // Enable by default
+    singleWindowMode: true,  // Reuse single window by default
 
     chatSystemPrompt: 'You are a helpful AI assistant embedded in an Obsidian Canvas. Answer concisely and use Markdown formatting.',
     nodeSystemPrompt: '',  // Empty means use default built-in prompt
@@ -1236,6 +1239,8 @@ export default class CanvasAIPlugin extends Plugin {
     public apiManager: ApiManager | null = null;
     // Track active ghost nodes to prevent race conditions during concurrent image generations
     private activeGhostNodeIds: Set<string> = new Set();
+    // Track the popout leaf for single window mode
+    private imagePopoutLeaf: WorkspaceLeaf | null = null;
 
     async onload() {
         console.debug('Canvas Banana: Plugin loading...');
@@ -2734,11 +2739,27 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
 
     /**
      * Open image file in a new popout window
+     * If singleWindowMode is enabled, reuse the existing popout window
      */
     private async openImageInNewWindow(file: TFile): Promise<void> {
         try {
+            if (this.settings.singleWindowMode && this.imagePopoutLeaf) {
+                // Check if the leaf is still valid (window not closed)
+                const leaves = this.app.workspace.getLeavesOfType('image');
+                const allLeaves = this.app.workspace.getLeavesOfType('');
+                // Check if our tracked leaf still exists in workspace
+                if (leaves.includes(this.imagePopoutLeaf) || allLeaves.includes(this.imagePopoutLeaf)) {
+                    await this.imagePopoutLeaf.openFile(file);
+                    return;
+                }
+            }
+            // Create new popout window
             const leaf = this.app.workspace.openPopoutLeaf();
             await leaf.openFile(file);
+            // Track the leaf for reuse
+            if (this.settings.singleWindowMode) {
+                this.imagePopoutLeaf = leaf;
+            }
         } catch (e) {
             console.error('Canvas Banana: Failed to open image in new window:', e);
         }
@@ -3704,6 +3725,16 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.doubleClickImageOpen)
                 .onChange(async (value) => {
                     this.plugin.settings.doubleClickImageOpen = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
+            .setName(t('Single window mode'))
+            .setDesc(t('Single window mode desc'))
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.singleWindowMode)
+                .onChange(async (value) => {
+                    this.plugin.settings.singleWindowMode = value;
                     await this.plugin.saveSettings();
                 }));
 
