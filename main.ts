@@ -3305,7 +3305,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .setDesc(t('Enter your OpenRouter API key'))
                 .addText(text => text
 
-                    .setPlaceholder(t('Placeholder API Key OpenRouter'))
+                    .setPlaceholder(t('Placeholder API key OpenRouter'))
                     .setValue(this.plugin.settings.openRouterApiKey)
                     .onChange(async (value) => {
                         this.plugin.settings.openRouterApiKey = value;
@@ -3330,7 +3330,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .setDesc(t('Enter your Yunwu API key'))
                 .addText(text => text
 
-                    .setPlaceholder(t('Placeholder API Key'))
+                    .setPlaceholder(t('Placeholder API key'))
                     .setValue(this.plugin.settings.yunwuApiKey)
                     .onChange(async (value) => {
                         this.plugin.settings.yunwuApiKey = value;
@@ -3355,7 +3355,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .setDesc(t('Enter your Gemini API key'))
                 .addText(text => text
 
-                    .setPlaceholder(t('Placeholder API Key Gemini'))
+                    .setPlaceholder(t('Placeholder API key Gemini'))
                     .setValue(this.plugin.settings.geminiApiKey)
                     .onChange(async (value) => {
                         this.plugin.settings.geminiApiKey = value;
@@ -3369,7 +3369,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .setDesc(t('Enter your GPTGod API key'))
                 .addText(text => text
 
-                    .setPlaceholder(t('Placeholder API Key'))
+                    .setPlaceholder(t('Placeholder API key'))
                     .setValue(this.plugin.settings.gptGodApiKey)
                     .onChange(async (value) => {
                         this.plugin.settings.gptGodApiKey = value;
@@ -3383,7 +3383,7 @@ class CanvasAISettingTab extends PluginSettingTab {
                 .setDesc(t('API base URL'))
                 .addText(text => text
 
-                    .setPlaceholder(t('Placeholder URL GPTGod'))
+                    .setPlaceholder(t('Placeholder URL'))
                     .setValue(this.plugin.settings.gptGodBaseUrl)
                     .onChange(async (value) => {
                         this.plugin.settings.gptGodBaseUrl = value;
@@ -3561,9 +3561,9 @@ class CanvasAISettingTab extends PluginSettingTab {
         // Node Default Color
         new Setting(containerEl)
             .setName(t('Node default color'))
-            .setDesc(t('Override color for generated nodes (1-6, leave empty to use LLM suggested colors)'))
+            .setDesc(t('Override color for generated nodes (1-6, leave empty to use AI suggested colors)'))
             .addDropdown(dropdown => dropdown
-                .addOption('', t('Use LLM colors'))
+                .addOption('', t('Use AI colors'))
                 .addOption('1', '1 - red')
                 .addOption('2', '2 - orange')
                 .addOption('3', '3 - yellow')
