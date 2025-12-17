@@ -2646,6 +2646,38 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                 return false;
             }
         });
+
+        // 选择相连节点命令
+        this.addCommand({
+            id: 'select-connected-nodes',
+            name: t('Select Connected Nodes'),
+            checkCallback: (checking: boolean) => {
+                const canvas = this.getActiveCanvas();
+                if (canvas && canvas.selection.size > 0) {
+                    if (!checking) {
+                        this.selectConnectedNodes(canvas, false);
+                    }
+                    return true;
+                }
+                return false;
+            }
+        });
+
+        // 选择子节点命令（只选择下游方向的节点）
+        this.addCommand({
+            id: 'select-child-nodes',
+            name: t('Select Child Nodes'),
+            checkCallback: (checking: boolean) => {
+                const canvas = this.getActiveCanvas();
+                if (canvas && canvas.selection.size > 0) {
+                    if (!checking) {
+                        this.selectConnectedNodes(canvas, true);
+                    }
+                    return true;
+                }
+                return false;
+            }
+        });
     }
 
     /**
@@ -2882,6 +2914,74 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             return { x: canvas.x, y: canvas.y };
         }
         return { x: 0, y: 0 };
+    }
+
+    /**
+     * 选择连接的节点
+     * @param canvas Canvas 实例
+     * @param childOnly 如果为 true，只选择下游子节点（按边的 from→to 方向）；否则选择所有相连节点
+     */
+    private selectConnectedNodes(canvas: Canvas, childOnly: boolean): void {
+        const selection = canvas.selection;
+        if (selection.size === 0) return;
+
+        // 使用 BFS 遍历所有连接的节点
+        const visited = new Set<string>();
+        const queue: CanvasNode[] = [];
+
+        // 初始化：将当前选中的节点加入队列
+        selection.forEach(node => {
+            visited.add(node.id);
+            queue.push(node);
+        });
+
+        // BFS 遍历
+        while (queue.length > 0) {
+            const currentNode = queue.shift();
+            if (!currentNode) continue;
+
+            // 获取当前节点的所有边
+            const edges = canvas.getEdgesForNode(currentNode);
+
+            for (const edge of edges) {
+                let targetNode: CanvasNode | undefined;
+
+                if (childOnly) {
+                    // 只选择子节点：当前节点是 from 端时，to 端是子节点
+                    if (edge.from?.node?.id === currentNode.id && edge.to?.node) {
+                        targetNode = edge.to.node;
+                    }
+                } else {
+                    // 选择所有相连节点：双向都考虑
+                    if (edge.from?.node?.id === currentNode.id && edge.to?.node) {
+                        targetNode = edge.to.node;
+                    } else if (edge.to?.node?.id === currentNode.id && edge.from?.node) {
+                        targetNode = edge.from.node;
+                    }
+                }
+
+                // 如果找到新节点，加入队列
+                if (targetNode && !visited.has(targetNode.id)) {
+                    visited.add(targetNode.id);
+                    queue.push(targetNode);
+                }
+            }
+        }
+
+        // 获取所有需要选中的节点（通过 ID 从 canvas.nodes 查找）
+        const nodesToSelect: CanvasNode[] = [];
+        visited.forEach(nodeId => {
+            const node = canvas.nodes.get(nodeId);
+            if (node) {
+                nodesToSelect.push(node);
+            }
+        });
+
+        // 更新选择：先取消全选，再逐个添加
+        canvas.deselectAll();
+        nodesToSelect.forEach(node => {
+            canvas.select(node);
+        });
     }
 
     async loadSettings() {
