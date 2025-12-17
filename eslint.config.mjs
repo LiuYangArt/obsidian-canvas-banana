@@ -88,7 +88,33 @@ export default [
             "obsidianmd": obsidianmd,
         },
         rules: {
-            "obsidianmd/ui/sentence-case-locale-module": "warn",
+            "obsidianmd/ui/sentence-case-locale-module": ["error", {
+                // 品牌名和产品名（允许大写）
+                brands: [
+                    "Gemini",
+                    "Google",
+                    "OpenRouter",
+                    "Yunwu",
+                    "GPTGod",
+                    "AI",
+                    "API",
+                    "URL",
+                    "JSON"
+                ],
+                // 忽略特定词（技术术语）
+                ignoreWords: [
+                    "sk",
+                    "or",
+                    "v1",
+                    "AIza"
+                ],
+                // 忽略匹配这些正则的值（URL、API key 占位符等）
+                ignoreRegex: [
+                    "^sk-",
+                    "^AIza",
+                    "^https?://"
+                ]
+            }],
         }
     }
 ];

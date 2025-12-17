@@ -8,7 +8,6 @@ export default {
     'Enter your OpenRouter API key': 'Enter your OpenRouter API key (Get at: openrouter.ai/keys)',
     'API base URL': 'API base URL',
     'Yunwu API key': 'Yunwu API key',
-    // eslint-disable-next-line obsidianmd/ui/sentence-case-locale-module -- API key is proper noun
     'Enter your Yunwu API key': 'Enter your Yunwu API key',
     'Yunwu base URL': 'Yunwu base URL',
     'Gemini API key': 'Gemini API key',
@@ -57,17 +56,13 @@ export default {
     'No models available': 'No models available, please refresh or enter manually',
 
     // Brands & Placeholders
-    // eslint-disable-next-line obsidianmd/ui/sentence-case-locale-module -- Brand name
     'Google Gemini': 'Gemini (Google)',
     'OpenRouter': 'OpenRouter',
     'Yunwu': 'Yunwu',
     'GPTGod': 'GPTGod',
-    // eslint-disable-next-line obsidianmd/ui/sentence-case-locale-module -- Technical placeholder
     'Placeholder API key': 'sk-...',
-    // eslint-disable-next-line obsidianmd/ui/sentence-case-locale-module -- Technical placeholder
     'Placeholder API key OpenRouter': 'sk-or-v1-...',
     'Placeholder API key Gemini': 'AIza...',
-    // eslint-disable-next-line obsidianmd/ui/sentence-case-locale-module -- URL
     'Placeholder URL': 'https://api.gptgod.online',
     'Placeholder URL OpenRouter': 'https://openrouter.ai/api/v1/chat/completions',
     'Placeholder URL Yunwu': 'https://yunwu.ai',
