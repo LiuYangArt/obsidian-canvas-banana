@@ -3,7 +3,7 @@ import tseslint from "@typescript-eslint/eslint-plugin";
 import obsidianmd from "eslint-plugin-obsidianmd";
 
 export default [
-    // 忽略非 TypeScript 文件
+    // 忽略非 TypeScript 文件和构建产物
     {
         ignores: ["node_modules/**", "main.js", "*.d.ts", "*.json", "*.mjs"]
     },
@@ -22,8 +22,7 @@ export default [
             "obsidianmd": obsidianmd,
         },
         rules: {
-            // ========== Obsidian 官方审核规则 ==========
-            // 从 obsidianmd.configs.recommended 手动提取（因为插件内部使用了不兼容的 extends 语法）
+            // ========== Obsidian 官方审核规则（与 Review Bot 一致）==========
             "obsidianmd/commands/no-command-in-command-id": "error",
             "obsidianmd/commands/no-command-in-command-name": "error",
             "obsidianmd/commands/no-default-hotkeys": "error",
@@ -48,7 +47,7 @@ export default [
             "obsidianmd/sample-names": "error",
             "obsidianmd/validate-manifest": "error",
             "obsidianmd/validate-license": "error",
-            // UI Sentence Case - 检查代码中的 UI 文本
+            // UI Sentence Case - 与 Review Bot 一致：enforceCamelCaseLower: true
             "obsidianmd/ui/sentence-case": ["error", { enforceCamelCaseLower: true }],
             
             // ========== TypeScript 规则 ==========
@@ -74,47 +73,29 @@ export default [
             "prefer-const": "warn",
         }
     },
-    // ========== 专门针对英文语言文件的 Sentence Case 检查 ==========
-    // 这是 Review Bot 用来检查语言包的规则
+    // ========== 英文 locale 文件 Sentence Case 检查（与 Review Bot 完全一致）==========
+    // Review Bot 使用 warn 级别，无自定义 options
     {
         files: [
             "**/en.ts",
+            "**/en.js",
+            "**/en.cjs",
+            "**/en.mjs",
             "**/en-*.ts",
+            "**/en-*.js",
             "**/en_*.ts",
+            "**/en_*.js",
             "**/en/*.ts",
+            "**/en/*.js",
             "**/en/**/*.ts",
+            "**/en/**/*.js",
         ],
         plugins: {
             "obsidianmd": obsidianmd,
         },
         rules: {
-            "obsidianmd/ui/sentence-case-locale-module": ["error", {
-                // 品牌名和产品名（允许大写）
-                brands: [
-                    "Gemini",
-                    "Google",
-                    "OpenRouter",
-                    "Yunwu",
-                    "GPTGod",
-                    "AI",
-                    "API",
-                    "URL",
-                    "JSON"
-                ],
-                // 忽略特定词（技术术语）
-                ignoreWords: [
-                    "sk",
-                    "or",
-                    "v1",
-                    "AIza"
-                ],
-                // 忽略匹配这些正则的值（URL、API key 占位符等）
-                ignoreRegex: [
-                    "^sk-",
-                    "^AIza",
-                    "^https?://"
-                ]
-            }],
+            // 与 Review Bot 完全一致：无自定义 options（无 brands, 无 ignoreRegex）
+            "obsidianmd/ui/sentence-case-locale-module": "error",
         }
     }
 ];
