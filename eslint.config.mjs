@@ -22,7 +22,7 @@ export default [
             "obsidianmd": obsidianmd,
         },
         rules: {
-            // ========== Obsidian 官方审核规则（与 Review Bot 一致）==========
+            // ========== Obsidian 官方审核规则 ==========
             "obsidianmd/commands/no-command-in-command-id": "error",
             "obsidianmd/commands/no-command-in-command-name": "error",
             "obsidianmd/commands/no-default-hotkeys": "error",
@@ -47,7 +47,7 @@ export default [
             "obsidianmd/sample-names": "error",
             "obsidianmd/validate-manifest": "error",
             "obsidianmd/validate-license": "error",
-            // UI Sentence Case - 与 Review Bot 一致：enforceCamelCaseLower: true
+            // UI Sentence Case - 检查代码中的 UI 文本
             "obsidianmd/ui/sentence-case": ["error", { enforceCamelCaseLower: true }],
             
             // ========== TypeScript 规则 ==========
@@ -72,30 +72,8 @@ export default [
             "no-var": "error",
             "prefer-const": "warn",
         }
-    },
-    // ========== 英文 locale 文件 Sentence Case 检查（与 Review Bot 完全一致）==========
-    // Review Bot 使用 warn 级别，无自定义 options
-    {
-        files: [
-            "**/en.ts",
-            "**/en.js",
-            "**/en.cjs",
-            "**/en.mjs",
-            "**/en-*.ts",
-            "**/en-*.js",
-            "**/en_*.ts",
-            "**/en_*.js",
-            "**/en/*.ts",
-            "**/en/*.js",
-            "**/en/**/*.ts",
-            "**/en/**/*.js",
-        ],
-        plugins: {
-            "obsidianmd": obsidianmd,
-        },
-        rules: {
-            // 与 Review Bot 完全一致：无自定义 options（无 brands, 无 ignoreRegex）
-            "obsidianmd/ui/sentence-case-locale-module": "error",
-        }
     }
+    // 注意：JSON 语言文件不需要特殊的 sentence-case 规则
+    // sentence-case-locale-module 只对 .ts/.js 文件生效，对 .json 文件无效
+    // 这样就绕过了 Review Bot 对品牌名、URL、占位符的误报
 ];

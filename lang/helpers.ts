@@ -1,6 +1,6 @@
 import { moment } from 'obsidian';
-import en from './locale/en';
-import zhCN from './locale/zh-cn';
+import en from './locale/en.json';
+import zhCN from './locale/zh-cn.json';
 
 // Define the type of our keys based on the English file (source of truth)
 export type LocaleKeys = keyof typeof en;
