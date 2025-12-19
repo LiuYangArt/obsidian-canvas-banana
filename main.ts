@@ -2653,7 +2653,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
 
         // Register Canvas context menu items for node selection
         this.registerEvent(
-            this.app.workspace.on('canvas:node-menu', (menu: Menu, node: CanvasNode) => {
+            this.app.workspace.on('canvas:node-menu', (menu: Menu, _node: CanvasNode) => {
                 const canvas = this.getActiveCanvas();
                 if (!canvas) return;
                 
