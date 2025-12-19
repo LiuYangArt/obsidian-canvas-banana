@@ -493,24 +493,16 @@ class FloatingPalette {
         imgModelGrp.createEl('label', { text: t('Palette Model') });
         this.imageModelSelectEl = imgModelGrp.createEl('select', 'canvas-ai-image-model-select dropdown');
 
-        // Chat Options
+        // Chat Options (only model selection, temperature is fixed at 1)
         this.chatOptionsEl = body.createDiv('canvas-ai-chat-options');
-        const chatRow = this.chatOptionsEl.createDiv('canvas-ai-option-row canvas-ai-temp-row');
-
-        chatRow.createEl('label', { cls: 'canvas-ai-temp-label', text: t('Temperature') });
-        this.tempInput = chatRow.createEl('input', { cls: 'canvas-ai-temp-input', type: 'number', attr: { min: '0', max: '2', step: '0.1', value: '0.5' } });
 
         const chatModelRow = this.chatOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-model-select-row is-hidden' });
         const chatModelGrp = chatModelRow.createEl('span', 'canvas-ai-option-group');
         chatModelGrp.createEl('label', { text: t('Palette Model') });
         this.textModelSelectEl = chatModelGrp.createEl('select', 'canvas-ai-text-model-select dropdown');
 
-        // Node Options
+        // Node Options (only model selection, temperature is fixed at 1)
         this.nodeOptionsEl = body.createDiv({ cls: 'canvas-ai-node-options is-hidden' });
-
-        const nodeRow = this.nodeOptionsEl.createDiv('canvas-ai-option-row canvas-ai-temp-row');
-        nodeRow.createEl('label', { cls: 'canvas-ai-temp-label', text: t('Temperature') });
-        this.nodeTempInput = nodeRow.createEl('input', { cls: 'canvas-ai-node-temp-input', type: 'number', attr: { min: '0', max: '2', step: '0.1', value: '0.5' } });
 
         const nodeModelRow = this.nodeOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-node-model-select-row is-hidden' });
         const nodeModelGrp = nodeModelRow.createEl('span', 'canvas-ai-option-group');
@@ -577,38 +569,7 @@ class FloatingPalette {
             this.onModelChange?.('node', value);
         });
 
-        // Replicating original temp logic precisely
-        this.tempInput?.addEventListener('input', () => {
-            const val = parseFloat(this.tempInput!.value);
-            if (!isNaN(val)) this.chatTemperature = val;
-        });
-        this.tempInput?.addEventListener('change', () => {
-            const val = parseFloat(this.tempInput!.value);
-            if (!isNaN(val)) {
-                const clamped = Math.max(0, Math.min(2, val));
-                this.chatTemperature = clamped;
-                this.tempInput!.value = String(clamped);
-                this.onSettingsChange?.('chatTemperature', clamped);
-            } else {
-                this.tempInput!.value = String(this.chatTemperature);
-            }
-        });
-
-        this.nodeTempInput?.addEventListener('input', () => {
-            const val = parseFloat(this.nodeTempInput!.value);
-            if (!isNaN(val)) this.nodeTemperature = val;
-        });
-        this.nodeTempInput?.addEventListener('change', () => {
-            const val = parseFloat(this.nodeTempInput!.value);
-            if (!isNaN(val)) {
-                const clamped = Math.max(0, Math.min(2, val));
-                this.nodeTemperature = clamped;
-                this.nodeTempInput!.value = String(clamped);
-                this.onSettingsChange?.('nodeTemperature', clamped);
-            } else {
-                this.nodeTempInput!.value = String(this.nodeTemperature);
-            }
-        });
+        // Temperature is now fixed at 1, no UI controls needed
 
         this.presetSelect?.addEventListener('change', () => {
             const selectedId = this.presetSelect!.value;
@@ -1007,8 +968,9 @@ class FloatingPalette {
      * Get current chat options
      */
     getChatOptions(): { temperature: number } {
+        // Temperature is fixed at 1 for optimal results
         return {
-            temperature: this.chatTemperature
+            temperature: 1
         };
     }
 
@@ -1016,8 +978,9 @@ class FloatingPalette {
      * Get current node mode options
      */
     getNodeOptions(): { temperature: number } {
+        // Temperature is fixed at 1 for optimal results
         return {
-            temperature: this.nodeTemperature
+            temperature: 1
         };
     }
 
