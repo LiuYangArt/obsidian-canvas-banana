@@ -1,7 +1,7 @@
 {
     "id": "canvas-banana",
     "name": "Canvas Banana",
-    "version": "0.10.11",
+    "version": "0.10.12",
     "minAppVersion": "1.8.0",
     "description": "Canvas AI Plugin - use Gemini AI in Canvas view, support text / image / node generation.",
     "author": "LiuYang",
