@@ -1,4 +1,4 @@
-import { App, ItemView, Modal, Notice, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, TFile, Scope, requestUrl, WorkspaceLeaf } from 'obsidian';
+import { App, ItemView, Modal, Notice, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, TFile, Scope, requestUrl, WorkspaceLeaf, Menu, MenuItem } from 'obsidian';
 import type { Canvas, CanvasNode, CanvasCoords, CanvasView, CanvasData } from './types';
 import { CanvasConverter } from './canvas-converter';
 import { ApiManager } from './api-manager';
@@ -2687,6 +2687,30 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                 return false;
             }
         });
+
+        // Register Canvas context menu items for node selection
+        this.registerEvent(
+            this.app.workspace.on('canvas:node-menu', (menu: Menu, node: CanvasNode) => {
+                const canvas = this.getActiveCanvas();
+                if (!canvas) return;
+                
+                menu.addSeparator();
+                menu.addItem((item: MenuItem) => {
+                    item.setTitle(t('Select Connected Nodes'))
+                        .setIcon('network')
+                        .onClick(() => {
+                            this.selectConnectedNodes(canvas, false);
+                        });
+                });
+                menu.addItem((item: MenuItem) => {
+                    item.setTitle(t('Select Child Nodes'))
+                        .setIcon('arrow-down-right')
+                        .onClick(() => {
+                            this.selectConnectedNodes(canvas, true);
+                        });
+                });
+            })
+        );
     }
 
     /**

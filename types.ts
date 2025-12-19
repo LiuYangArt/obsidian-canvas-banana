@@ -4,7 +4,7 @@
  */
 
 import 'obsidian';
-import { TFile, View, ItemView, Plugin } from 'obsidian';
+import { TFile, View, ItemView, Plugin, Menu, EventRef } from 'obsidian';
 
 // Canvas 节点 ID 类型
 export type CanvasNodeID = string;
@@ -175,5 +175,8 @@ declare module 'obsidian' {
         plugins: {
             getPlugin(name: string): Plugin | undefined;
         };
+    }
+    interface Workspace {
+        on(name: 'canvas:node-menu', callback: (menu: Menu, node: CanvasNode) => void, ctx?: unknown): EventRef;
     }
 }
