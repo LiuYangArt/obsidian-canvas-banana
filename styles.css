@@ -1066,3 +1066,51 @@
   font-weight: bold;
   border-radius: 2px;
 }
+
+/* ========== Notes AI Floating Button ========== */
+#notes-ai-floating-button,
+.notes-ai-floating-button {
+  position: fixed;
+  z-index: 999;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: var(--interactive-accent);
+  color: white;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+  transition: transform 0.15s ease, opacity 0.15s ease;
+}
+
+#notes-ai-floating-button:hover,
+.notes-ai-floating-button:hover {
+  transform: scale(1.1);
+}
+
+#notes-ai-floating-button.is-hidden,
+.notes-ai-floating-button.is-hidden {
+  display: none;
+}
+
+/* ========== Notes AI Palette ========== */
+.notes-ai-palette {
+  position: fixed;
+  z-index: 1000;
+}
+
+.notes-ai-palette-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.notes-ai-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-normal);
+}

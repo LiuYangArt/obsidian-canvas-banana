@@ -131,19 +131,33 @@ function applyPatches(docContent: string, patches: TextChange[]) {
 
 ## 实施路线图
 
+> **2025-12-30 更新**: Canvas 项目中已完成以下组件，可直接复用。
+
+### ✅ 可复用的 Canvas 组件
+
+| 组件 | 位置 | 备注 |
+|------|------|------|
+| **DiffModal** | `src/ui/modals.ts` | Diff 预览 UI，支持 Before/After 高亮 |
+| **Edit Mode JSON 格式** | `src/prompts/edit-mode.ts` | AI 返回 `{"replacement": "..."}` 格式 |
+| **内嵌图片解析** | `src/canvas/intent-resolver.ts` | `extractEmbeddedImages()` + `resolveImagePath()` |
+| **图片压缩** | `src/canvas/canvas-converter.ts` | `readSingleImageFile()` + `compressImageToWebP()` |
+| **ApiManager** | `src/api/api-manager.ts` | 多 Provider 支持 + multimodal 调用 |
+| **PresetManager** | `main.ts` + Settings | 已支持按 Mode 分离预设 |
+| **FloatingPalette** | `src/ui/floating-palette.ts` | 可适配为 Notes 版本 |
+
 ### Phase 1: 基础编辑器集成
-- [ ] 实现 `NoteFloatingPalette` (复用 UI)。
+- [ ] 实现 `NoteFloatingPalette` (复用 FloatingPalette UI)。
 - [ ] 实现 `NoteContextManager` (获取选区 + 可选的全文)。
-- [ ] 实现基础的 "Replace Selection" 功能。
+- [x] ~~实现基础的 "Replace Selection" 功能。~~ → **复用 DiffModal + Edit Mode**
 
 ### Phase 2: 预设与侧边栏
-- [ ] 分离 Preset 系统 (Canvas vs Notes)。
+- [x] ~~分离 Preset 系统 (Canvas vs Notes)。~~ → **架构已就绪，需扩展 settings**
 - [ ] 开发 `SideBarCoPilotView`。
-- [ ] 实现 "Review Changes" 弹窗 (Diff View)。
+- [x] ~~实现 "Review Changes" 弹窗 (Diff View)。~~ → **DiffModal 可直接使用**
 
 ### Phase 3: 高级智能 (Smart Features)
 - [ ] **Global Update Implementation**: 实现两阶段 Prompt (Modification -> Impact Analysis)。
-- [ ] **Note Image Support**: 解析 markdown 图片引用并传入 LLM。
+- [x] ~~**Note Image Support**: 解析 markdown 图片引用并传入 LLM。~~ → **`extractEmbeddedImages()` 已完成**
 
 ### Phase 4: 稳定性与优化
 - [ ] **Diff Algorithm**: 完善 `applyPatches` 逻辑，处理 AI 返回的 "original" 文本与实际文本存在细微差异的情况 (Fuzzy matching)。

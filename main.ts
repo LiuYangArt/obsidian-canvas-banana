@@ -11,6 +11,7 @@ import { debugSelectedNodes } from './src/utils/debug';
 import { CanvasAISettingTab } from './src/settings/settings-tab';
 import { DiffModal } from './src/ui/modals';
 import { FloatingPalette, PaletteMode } from './src/ui/floating-palette';
+import { NotesSelectionHandler } from './src/notes';
 
 
 // Re-export for backward compatibility
@@ -36,6 +37,8 @@ export default class CanvasAIPlugin extends Plugin {
     private imagePopoutLeaf: WorkspaceLeaf | null = null;
     // Flag to track if user has interacted with non-AI elements (potentially changing selection)
     private selectionInteractionFlag: boolean = false;
+    // Notes AI handler
+    private notesHandler: NotesSelectionHandler | null = null;
 
 
     async onload() {
@@ -88,6 +91,9 @@ export default class CanvasAIPlugin extends Plugin {
 
         // Register Canvas utility hotkeys
         this.registerCanvasUtilities();
+
+        // Initialize Notes AI handler
+        this.notesHandler = new NotesSelectionHandler(this);
 
         console.debug('Canvas Banana: Plugin loaded');
     }
