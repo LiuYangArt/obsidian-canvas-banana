@@ -1297,6 +1297,8 @@ class FloatingPalette {
                 return this.selectedImageModel;
             case 'node':
                 return this.selectedNodeModel;
+            case 'edit':
+                return this.selectedEditModel;
             default:
                 return '';
         }
