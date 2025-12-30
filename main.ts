@@ -1336,14 +1336,13 @@ ${intent.instruction}
 
         // 更新上下文预览
         if (this.floatingPalette?.visible) {
-            const { imageCount, textCount, groupCount, mdFileCount } = this.countNodeTypes(selection);
+            const { imageCount, textCount, groupCount } = this.countNodeTypes(selection);
             this.floatingPalette.updateContextPreview(selectionSize, imageCount, textCount, groupCount);
             
-            // Enable Edit tab for: single Text Node OR single File Node (.md)
-            // No other types (images/groups/links) should be mixed in
-            const isSingleTextNode = selectionSize === 1 && textCount === 1 && imageCount === 0 && groupCount === 0 && mdFileCount === 0;
-            const isSingleMdFileNode = selectionSize === 1 && mdFileCount === 1 && textCount === 0 && imageCount === 0 && groupCount === 0;
-            this.floatingPalette.setEditTabEnabled(isSingleTextNode || isSingleMdFileNode);
+            // Enable Edit tab ONLY for single Text Node
+            // File Node (.md) editing is disabled due to lack of undo support
+            const isSingleTextNode = selectionSize === 1 && textCount === 1 && imageCount === 0 && groupCount === 0;
+            this.floatingPalette.setEditTabEnabled(isSingleTextNode);
         }
 
         // 更新状态记录
