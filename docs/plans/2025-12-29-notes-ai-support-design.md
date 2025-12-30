@@ -37,15 +37,30 @@
     *   弹出一个 **Diff Popover** (类似 Git Diff)，显示 `Last Name: Adam -> David`。
     *   用户点击 `[Confirm]` 后应用。
 
-### 2. 全局实体更新 (The "Ripple Effect")
+### 2. 全局实体更新 (The "Ripple Effect") - 优化方案
+
+> **2025-12-31 优化**: 原多步 AI 调用方案已重构为**一次性处理**，大幅提升用户体验。
 
 *   **场景**: 用户选中 "Adam is the main character..." 并改为 "David is..."。
-*   **后台逻辑**:
-    1.  AI 执行修改。
-    2.  AI 后台任务 (Chain of Thought): "User changed entity name 'Adam' to 'David'. Check for other occurrences?"
-    3.  如果发现其他引用，前端弹出提示: *"Found 15 other references to 'Adam'. Update all?"*
-*   **操作**:
-    *   点击 `[Update All]` -> AI 生成全局 Patch -> 应用。
+*   **优化后流程** (单次 AI 调用):
+    1.  发送全文上下文 + 选区 + 用户指令给 AI
+    2.  AI 返回 JSON: `{ replacement: "选区修改", globalChanges: [其他位置的修改] }`
+    3.  DiffModal 预览选区修改
+    4.  用户确认后，同时应用选区修改和所有全局变更
+*   **AI Prompt 格式** (`src/prompts/edit-mode-prompt.ts`):
+    ```json
+    {
+      "replacement": "David is the main character...",
+      "globalChanges": [
+        { "original": "Adam said hello", "new": "David said hello" },
+        { "original": "Adam's house", "new": "David's house" }
+      ]
+    }
+    ```
+*   **优点**:
+    *   单次 API 调用，无延迟
+    *   代码简洁，删除了 `global-update.ts`
+    *   用户体验流畅
 
 ### 3. 侧边栏协作 (Sidebar Co-pilot)
 
@@ -157,7 +172,10 @@ function applyPatches(docContent: string, patches: TextChange[]) {
 - [x] ~~实现 "Review Changes" 弹窗 (Diff View)。~~ → **DiffModal 可直接使用**
 
 ### Phase 3: 高级智能 (Smart Features)
-- [x] **Global Update Implementation**: 实现两阶段 Prompt (Modification -> Impact Analysis)。→ **`src/notes/global-update.ts`**
+- [x] **Global Update Implementation**: ~~原两阶段 Prompt 方案~~ → **优化为一次性处理，集成到 Edit Mode Prompt 中**
+    - AI 返回 `{ replacement, globalChanges }` 格式
+    - 通过 `applyPatches()` 应用全局变更
+    - 删除了 `src/notes/global-update.ts`
 - [x] ~~**Note Image Support**: 解析 markdown 图片引用并传入 LLM。~~ → **`extractEmbeddedImages()` 已完成**
 
 ### Phase 4: 稳定性与优化

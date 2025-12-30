@@ -11,7 +11,8 @@ import { SelectionContext } from '../types';
 import { DiffModal } from '../ui/modals';
 import { buildEditModeSystemPrompt } from '../prompts/edit-mode-prompt';
 import { CanvasConverter } from '../canvas/canvas-converter';
-import { handleGlobalUpdate } from './global-update';
+import { applyPatches, TextChange } from './text-patcher';
+import { t } from '../../lang/helpers';
 
 export interface NotesSelectionContext extends SelectionContext {
     editor: Editor;
@@ -230,20 +231,29 @@ export class NotesSelectionHandler {
 
         const context = this.lastContext;
         const { editor, selectedText, preText, postText } = context;
+        const enableGlobal = this.plugin.settings.enableGlobalConsistency !== false;
 
         // 保存选区位置（在异步操作前保存）
         const savedFromCursor = editor.getCursor('from');
         const savedToCursor = editor.getCursor('to');
 
         try {
-            // System Prompt for Editing - 固定格式指令 + 用户配置
-            const systemPrompt = buildEditModeSystemPrompt(this.plugin.settings.editSystemPrompt);
+            // System Prompt - 根据是否开启全局一致性选择格式
+            const systemPrompt = buildEditModeSystemPrompt(
+                this.plugin.settings.editSystemPrompt,
+                enableGlobal
+            );
 
             // 提取文档中的内嵌图片 ![[image.png]]
             const images = await this.extractDocumentImages(context.fullText, context.file.path);
 
-            // 构建用户消息 - 与 Edit Mode prompt 格式匹配
-            const userMessage = `Target text to edit:\n\`\`\`\n${selectedText}\n\`\`\`\n\nInstruction: ${prompt}`;
+            // 构建用户消息 - 如果开启全局一致性，包含全文
+            let userMessage: string;
+            if (enableGlobal) {
+                userMessage = `Full document context:\n\`\`\`\n${context.fullText}\n\`\`\`\n\nTarget text to edit (marked selection):\n\`\`\`\n${selectedText}\n\`\`\`\n\nInstruction: ${prompt}`;
+            } else {
+                userMessage = `Target text to edit:\n\`\`\`\n${selectedText}\n\`\`\`\n\nInstruction: ${prompt}`;
+            }
 
             // 使用 multimodalChat 或 chatCompletion
             let response: string;
@@ -265,6 +275,8 @@ export class NotesSelectionHandler {
 
             // 解析 JSON 响应
             let replacementText = response;
+            let globalChanges: TextChange[] = [];
+
             try {
                 // 清理可能的 markdown 代码块
                 let jsonStr = response.trim();
@@ -282,6 +294,13 @@ export class NotesSelectionHandler {
                 const parsed = JSON.parse(jsonStr);
                 if (parsed.replacement) {
                     replacementText = parsed.replacement;
+                }
+                // 解析全局变更
+                if (enableGlobal && Array.isArray(parsed.globalChanges)) {
+                    globalChanges = parsed.globalChanges.filter(
+                        (c: { original?: string; new?: string }) => c.original && c.new !== undefined
+                    );
+                    console.debug(`Notes AI: Found ${globalChanges.length} global changes`);
                 }
             } catch {
                 console.debug('Notes AI: Failed to parse JSON response, using raw text');
@@ -302,37 +321,23 @@ export class NotesSelectionHandler {
                 diffContext,
                 replacementText,
                 () => {
-                    // 应用修改 - 使用保存的选区位置
+                    // 先替换选区
                     editor.replaceRange(replacementText, savedFromCursor, savedToCursor);
 
-                    // 检测并处理全局实体更新 (如果 API 可用且设置开启)
-                    if (this.plugin.apiManager && this.plugin.settings.enableGlobalConsistency !== false) {
-                        // 计算选区在全文中的偏移量
-                        const doc = editor.getDoc();
-                        let fromOffset = 0;
-                        for (let i = 0; i < savedFromCursor.line; i++) {
-                            fromOffset += doc.getLine(i).length + 1;
-                        }
-                        fromOffset += savedFromCursor.ch;
+                    // 如果有全局变更，应用它们
+                    if (globalChanges.length > 0) {
+                        // 获取更新后的全文
+                        const currentFullText = editor.getValue();
+                        const result = applyPatches(currentFullText, globalChanges);
 
-                        let toOffset = 0;
-                        for (let i = 0; i < savedToCursor.line; i++) {
-                            toOffset += doc.getLine(i).length + 1;
+                        if (result.appliedCount > 0) {
+                            editor.setValue(result.text);
+                            new Notice(t('Global update completed') + ` (${result.appliedCount})`);
                         }
-                        toOffset += savedToCursor.ch;
 
-                        void handleGlobalUpdate(
-                            this.app,
-                            this.plugin.apiManager,
-                            context.fullText,
-                            selectedText,
-                            replacementText,
-                            { start: fromOffset, end: toOffset },
-                            (newFullText) => {
-                                // 应用全局更新 - 替换整个文档
-                                editor.setValue(newFullText);
-                            }
-                        );
+                        if (result.failedPatches.length > 0) {
+                            console.warn('Notes AI: Some global patches failed:', result.failedPatches);
+                        }
                     }
                 },
                 () => {
