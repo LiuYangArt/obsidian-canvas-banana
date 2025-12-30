@@ -10,6 +10,7 @@ import { CanvasAISettingTab } from './src/settings/settings-tab';
 import { DiffModal } from './src/ui/modals';
 import { FloatingPalette, PaletteMode } from './src/ui/floating-palette';
 
+
 // Re-export for backward compatibility
 export type { ApiProvider, QuickSwitchModel, PromptPreset, CanvasAISettings };
 
