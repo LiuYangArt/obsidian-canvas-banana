@@ -29,7 +29,7 @@
     "Text system prompt": "Text system prompt",
     "System prompt for text chat mode": "System prompt for text chat mode",
     "Edit system prompt": "Edit system prompt",
-    "System prompt for edit mode": "System prompt for edit mode",
+    "System prompt for edit mode": "Role and style settings for edit mode. JSON output format is handled automatically.",
     "Node system prompt": "Node system prompt",
     "System prompt for node mode (leave empty to use default built-in prompt)": "System prompt for node mode (leave empty to use default built-in prompt)",
     "Node default color": "Node default color",

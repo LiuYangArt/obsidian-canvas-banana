@@ -9,7 +9,7 @@ import { NotesFloatingButton } from './notes-floating-button';
 import { NotesEditPalette } from './notes-edit-palette';
 import { SelectionContext } from '../types';
 import { DiffModal } from '../ui/modals';
-import { DEFAULT_EDIT_MODE_PROMPT } from '../prompts/edit-mode-prompt';
+import { buildEditModeSystemPrompt } from '../prompts/edit-mode-prompt';
 import { CanvasConverter } from '../canvas/canvas-converter';
 
 export interface NotesSelectionContext extends SelectionContext {
@@ -235,8 +235,8 @@ export class NotesSelectionHandler {
         const savedToCursor = editor.getCursor('to');
 
         try {
-            // 构建系统提示
-            const systemPrompt = this.plugin.settings.editSystemPrompt?.trim() || DEFAULT_EDIT_MODE_PROMPT;
+            // System Prompt for Editing - 固定格式指令 + 用户配置
+            const systemPrompt = buildEditModeSystemPrompt(this.plugin.settings.editSystemPrompt);
 
             // 提取文档中的内嵌图片 ![[image.png]]
             const images = await this.extractDocumentImages(context.fullText, context.file.path);

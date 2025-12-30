@@ -6,7 +6,7 @@ import { IntentResolver, ResolvedIntent, NodeEditIntent } from './src/canvas/int
 import { extractCanvasJSON, remapCoordinates, regenerateIds, optimizeLayout, sanitizeCanvasData } from './src/canvas/node-mode-utils';
 import { t } from './lang/helpers';
 import { ApiProvider, QuickSwitchModel, PromptPreset, CanvasAISettings, DEFAULT_SETTINGS } from './src/settings/settings';
-import { DEFAULT_NODE_MODE_PROMPT, DEFAULT_EDIT_MODE_PROMPT } from './src/prompts';
+import { DEFAULT_NODE_MODE_PROMPT, buildEditModeSystemPrompt } from './src/prompts';
 import { debugSelectedNodes } from './src/utils/debug';
 import { CanvasAISettingTab } from './src/settings/settings-tab';
 import { DiffModal } from './src/ui/modals';
@@ -298,8 +298,8 @@ export default class CanvasAIPlugin extends Plugin {
             try {
                 const editOptions = this.floatingPalette!.getEditOptions();
                 
-                // System Prompt for Editing - Request JSON
-                const systemPrompt = this.settings.editSystemPrompt || DEFAULT_EDIT_MODE_PROMPT;
+                // System Prompt for Editing - 固定格式指令 + 用户配置
+                const systemPrompt = buildEditModeSystemPrompt(this.settings.editSystemPrompt);
                 
                 // Construct User Message with Context
                 let userMsg = `Target Text:\n${editIntent.targetText}`;
