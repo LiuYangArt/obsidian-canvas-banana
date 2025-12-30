@@ -357,7 +357,7 @@ export class CanvasAISettingTab extends PluginSettingTab {
                 .setName(t('API base URL'))
                 .setDesc(t('API base URL'))
                 .addText(text => text
-                    .setPlaceholder(t('Placeholder URL OpenRouter'))
+                    .setPlaceholder('https://openrouter.ai')
                     .setValue(this.plugin.settings.openRouterBaseUrl)
                     .onChange(async (value) => {
                         this.plugin.settings.openRouterBaseUrl = value;
@@ -379,8 +379,8 @@ export class CanvasAISettingTab extends PluginSettingTab {
             this.addTestButton(yunwuKeySetting.controlEl, containerEl);
 
             new Setting(containerEl)
-                .setName(t('Yunwu base URL'))
-                .setDesc(t('Yunwu base URL'))
+                .setName(t('API base URL'))
+                .setDesc(t('API base URL'))
                 .addText(text => text
                     .setPlaceholder(t('Placeholder URL Yunwu'))
                     .setValue(this.plugin.settings.yunwuBaseUrl)

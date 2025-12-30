@@ -203,7 +203,7 @@ export class ApiManager {
 
     /**
      * Get the chat endpoint URL based on active provider
-     * Both OpenRouter and Yunwu use OpenAI-compatible format for chat
+     * All providers use base URL + path format for consistency
      */
     private getChatEndpoint(): string {
         if (this.getActiveProvider() === 'yunwu') {
@@ -214,7 +214,9 @@ export class ApiManager {
             const base = this.settings.gptGodBaseUrl || 'https://api.gptgod.online';
             return `${base}/v1/chat/completions`;
         }
-        return this.settings.openRouterBaseUrl || 'https://openrouter.ai/api/v1/chat/completions';
+        // OpenRouter uses /api/v1 path
+        const base = this.settings.openRouterBaseUrl || 'https://openrouter.ai';
+        return `${base}/api/v1/chat/completions`;
     }
 
     /**

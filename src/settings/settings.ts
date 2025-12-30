@@ -117,7 +117,7 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
     apiProvider: 'openrouter',
 
     openRouterApiKey: '',
-    openRouterBaseUrl: 'https://openrouter.ai/api/v1/chat/completions',
+    openRouterBaseUrl: 'https://openrouter.ai',
     openRouterTextModel: 'google/gemini-2.5-flash',
     openRouterImageModel: 'google/gemini-3-pro-image-preview',
     openRouterUseCustomTextModel: false,
