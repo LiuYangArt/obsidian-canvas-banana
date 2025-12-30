@@ -63,13 +63,13 @@
 *   **实现**: 重构 `FloatingPalette` 为通用组件，支持 `mode: 'canvas-chat' | 'canvas-node' | 'note-edit'`。
 *   **共享功能**: 预设选择器、Prompt 输入框、Context Toggle 开关。
 
-### 4.3 预设系统对齐 (Aligned Presets)
-*   **架构**: 扩展 `data.json` 结构，明确区分 `canvasPresets`, `canvasNodePresets`, 和 `notePresets`。
-*   **独立性**: 确保 Node Mode 拥有独立的 System Prompt 设置（如 "You are a succinct flowchart node editor"），避免与通用的 Chat 或长文写作混淆。
+### 4.3 预设系统对齐 (Aligned Presets) - [x] Implemented
+*   **架构**: 扩展 `data.json` 结构，明确区分 `chatPresets`, `imagePresets`, `nodePresets`, 和 `editPresets`。
+*   **独立性**: 确保 Edit Mode 拥有独立的 System Prompt 和预设存储，避免与 Node/Chat 模式混淆。
 *   **Prompt 组合策略 (Prompt Composition)**:
     *   **User System Prompt**: 用户定义的角色、语言偏好 (如 "Always answer in Chinese")。
     *   **Functional Constraints (Hardcoded)**: 插件强制的格式要求 (Diff/JSON Patch)。
-    *   **合并逻辑**: 最终发送给 LLM 的 System Prompt 将是 `User_System_Prompt + "\n\n" + Functional_Constraints`。这确保了既遵守用户的语言/语气设定，又严格执行技术上的格式要求。
+    *   **合并逻辑**: 最终发送给 LLM 的 System Prompt 将是 `User_System_Prompt + "\n\n" + Functional_Constraints`。
 
 ## 5. 技术实现方案 (Implementation)
 
@@ -145,8 +145,8 @@ function getTextSelectionContext(): SelectionContext | null {
 ```
 
 
-### 4.2 IntentResolver 扩展
-扩展 `IntentResolver.resolve` 方法，增加 `selectionContext` 参数：
+### 4.2 IntentResolver 扩展 - [x] Implemented
+扩展 `IntentResolver` 类，增加 `resolveForNodeEdit` 方法：
 
 ```typescript
 interface SelectionContext {
@@ -154,12 +154,14 @@ interface SelectionContext {
     selectedText: string;
     preText: string;
     postText: string;
+    fullText: string;  // 新增：完整节点文本
 }
 
-// 在 resolve 时，除了 nodes 和 edges，额外注入 selection 信息
+// 新增方法：专门处理 Edit 模式的上下文解析
+static async resolveForNodeEdit(app, canvas, context, prompt, settings): Promise<NodeEditIntent>
 ```
 
-### 4.3 Prompt Engineering (Text Mode)
+### 4.3 Prompt Engineering (Text Mode) - [x] Implemented
 
 **System Prompt (Template)**:
 ```markdown
@@ -181,17 +183,18 @@ Input Format:
 Instruction: {user_instruction}
 
 Output:
-Return ONLY the replaced text. Do not output markdown fences or explanations unless asked.
+Return ONLY the replaced text in JSON format: {"replacement": "your text here"}
 ```
 
 ## 5. 限制与边界 (Constraints)
 
-1.  **Scope**: 初期仅支持 Text Node 的内部文本编辑。File Node (MD) 暂不支持（因涉及文件读写权限和视图同步，较复杂）。
-2.  **Token Limit & Pruning Strategy**:
+1.  **Scope**: 初期仅支持 Text Node 的内部文本编辑。File Node (MD) 暂不支持（因涉及文件读写权限和视图同步，较复杂）。 ✅
+2.  **Token Limit & Pruning Strategy**: ⏳ (Future Enhancement)
     *   **问题**: 上游节点过多可能导致 Context 爆炸或超出模型窗口。
     *   **策略**: 实施 **Distance-based Context Pruning** (基于距离的剪枝)。
         *   **算法**: 使用 BFS (广度优先搜索) 遍历上游节点。
         *   **权重**: defining `weight = 1 / (distance + 1)`. 优先保留直接相连的节点 (distance 1)。
         *   **截断**: 当达到 `MAX_TOKENS` 或 `MAX_NODE_COUNT` 时，丢弃距离最远的节点。
         *   **关键路**: 始终保留带有强 Label（如 "Critical Context"）的路径，即使距离较远。
-3.  **Image Inputs**: 必须正确处理上游图片节点，将其作为 `inline_data` 或 `image_url` 传入给支持 Vision 的模型 (Gemini 3 Pro)。
+    *   **当前状态**: 暂未实现，作为后续优化项。
+3.  **Image Inputs**: 必须正确处理上游图片节点，将其作为 `inline_data` 或 `image_url` 传入给支持 Vision 的模型 (Gemini 3 Pro)。 ✅
