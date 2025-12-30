@@ -168,7 +168,7 @@ export class FloatingPalette {
         ['chat', 'image', 'node', 'edit'].forEach(mode => {
             const btn = tabsDiv.createEl('button', {
                 cls: `canvas-ai-tab${mode === 'chat' ? ' active' : ''}`,
-                text: mode === 'chat' ? t('Text') : mode === 'image' ? t('Image') : mode === 'node' ? t('Node') : 'Edit'
+                text: mode === 'chat' ? t('Text') : mode === 'image' ? t('Image') : mode === 'node' ? t('Node') : t('Edit')
             });
             btn.dataset.mode = mode;
         });
@@ -243,7 +243,7 @@ export class FloatingPalette {
         // Edit Options (only model selection, temperature is fixed at 1)
         this.editOptionsEl = body.createDiv({ cls: 'canvas-ai-edit-options is-hidden' });
 
-        const editModelRow = this.editOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-edit-model-select-row is-hidden' });
+        const editModelRow = this.editOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-model-select-row canvas-ai-edit-model-select-row is-hidden' });
         const editModelGrp = editModelRow.createEl('span', 'canvas-ai-option-group');
         editModelGrp.createEl('label', { text: t('Palette Model') });
         this.editModelSelectEl = editModelGrp.createEl('select', 'canvas-ai-edit-model-select dropdown');

@@ -599,6 +599,17 @@
   border: 1px solid var(--background-modifier-border);
 }
 
+.canvas-ai-edit-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 4px 12px;
+  background: var(--background-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+}
+
 .canvas-ai-node-temp-input {
   flex: 1;
   min-width: 60px;
@@ -787,7 +798,8 @@
 /* Model select row - full width */
 .canvas-ai-model-select-row,
 .canvas-ai-image-model-select-row,
-.canvas-ai-node-model-select-row {
+.canvas-ai-node-model-select-row,
+.canvas-ai-edit-model-select-row {
   display: flex !important;
   width: 100%;
 }
