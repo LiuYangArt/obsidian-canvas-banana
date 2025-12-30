@@ -959,7 +959,7 @@ class FloatingPalette {
         } else if (this.currentMode === 'node') {
             this.promptInput.placeholder = t('Describe structure');
         } else {
-            this.promptInput.placeholder = 'Edit selection...';
+            this.promptInput.placeholder = t('Enter instructions');
         }
     }
 
@@ -1017,9 +1017,14 @@ class FloatingPalette {
             generateBtn.addClass('generating');
         }
 
-        // Fool-proof: disable when no text content and no prompt
+        // FOOLPROOF: disable when no text content AND no prompt
         const hasPrompt = this.promptInput.value.trim().length > 0;
         const hasTextContent = this.currentTextCount > 0;
+        
+        // In Edit mode, we always have "content" (implicit or explicit) if the tab is enabled
+        // So we really just need to ensure we aren't completely empty-handed
+        // But mainly rely on pendingTasks
+        
         const shouldDisable = !hasPrompt && !hasTextContent && this.pendingTaskCount === 0;
 
         generateBtn.disabled = shouldDisable;
@@ -1027,6 +1032,25 @@ class FloatingPalette {
             generateBtn.addClass('disabled');
         } else {
             generateBtn.removeClass('disabled');
+        }
+    }
+
+    /**
+     * Disable/Enable Edit Tab
+     */
+    setEditTabEnabled(enabled: boolean): void {
+        const editTab = this.containerEl.querySelector('.canvas-ai-tab[data-mode="edit"]');
+        if (editTab) {
+            if (enabled) {
+                editTab.removeClass('disabled');
+            } else {
+                editTab.addClass('disabled');
+                // If currently on edit tab and it gets disabled, switch to chat
+                if (this.currentMode === 'edit') {
+                    const chatTab = this.containerEl.querySelector('.canvas-ai-tab[data-mode="chat"]') as HTMLElement;
+                    chatTab?.click();
+                }
+            }
         }
     }
 
@@ -1460,8 +1484,10 @@ export default class CanvasAIPlugin extends Plugin {
                 this.settings.chatPresets = presets;
             } else if (mode === 'image') {
                 this.settings.imagePresets = presets;
-            } else {
+            } else if (mode === 'node') {
                 this.settings.nodePresets = presets;
+            } else {
+                this.settings.editPresets = presets;
             }
             void this.saveSettings();
         });
@@ -2623,86 +2649,93 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             );
         }
 
-        if (selection && !selection.isCollapsed && selection.toString().trim()) {
-            let nodeId: string | null = null;
+        // Check if we have a valid selection OR a valid fallback node
+        let validNodeId: string | null = null;
+        let validSelection: Selection | null = null;
 
-            // 尝试反向查找 Node ID
+        if (selection && !selection.isCollapsed && selection.toString().trim()) {
+            validSelection = selection;
+        }
+
+        // 尝试确定 Node ID
+        if (validSelection) {
+            // Case A: User selected text
             if (containerIframe) {
                 const nodeEl = containerIframe.closest('.canvas-node');
-                nodeId = nodeEl?.getAttribute('data-node-id') || null;
-                
-                if (this.settings.debugMode && !nodeId) {
-                    console.debug('Canvas Banana Debug: Failed to find nodeId from iframe', containerIframe, 'closest .canvas-node:', nodeEl);
-                }
-            } else if (selection.anchorNode) {
-                // 普通 DOM 选区
-                const nodeEl = selection.anchorNode.parentElement?.closest('.canvas-node');
-                nodeId = nodeEl?.getAttribute('data-node-id') || null;
+                validNodeId = nodeEl?.getAttribute('data-node-id') || null;
+            } else if (validSelection.anchorNode) {
+                const nodeEl = validSelection.anchorNode.parentElement?.closest('.canvas-node');
+                validNodeId = nodeEl?.getAttribute('data-node-id') || null;
             }
-
-            // Fallback: Use single selected node from Canvas if available
-            if (!nodeId) {
-                const canvas = this.getActiveCanvas();
-                if (canvas && canvas.selection.size === 1) {
-                    const selectedNode = canvas.selection.values().next().value;
-                    if (selectedNode) {
-                        nodeId = selectedNode.id;
-                        if (this.settings.debugMode) {
-                            console.debug('Canvas Banana Debug: Fallback to canvas selection for nodeId:', nodeId);
-                        }
+        } 
+        
+        // Case B: No text selected (or failed to find ID), try fallback to single valid Text Node
+        if (!validNodeId) {
+            const canvas = this.getActiveCanvas();
+            if (canvas && canvas.selection.size === 1) {
+                const selectedNode = canvas.selection.values().next().value;
+                // Only treat as fallback if it's a Text Node (has text property and no file/url/label)
+                if (selectedNode && selectedNode.text !== undefined && !selectedNode.file && !selectedNode.url && selectedNode.label === undefined) {
+                    validNodeId = selectedNode.id;
+                    if (this.settings.debugMode) {
+                        console.debug('Canvas Banana Debug: Fallback to canvas selection for nodeId via implicit selection:', validNodeId);
                     }
                 }
             }
+        }
 
-            if (nodeId) {
-                const canvas = this.getActiveCanvas();
-                const node = (canvas as Canvas)?.nodes.get(nodeId);
-                
-                if (node && node.text) {
-                    const selectedText = selection.toString();
+        if (validNodeId) {
+            const canvas = this.getActiveCanvas();
+            const node = (canvas as Canvas)?.nodes.get(validNodeId);
+            
+            if (node && node.text) {
+                let context: SelectionContext;
+
+                if (validSelection) {
+                    // Explicit text selection
+                    const selectedText = validSelection.toString();
                     const fullText = node.text;
-
-                    // 简易定位：使用 indexOf
                     const index = fullText.indexOf(selectedText);
                     
                     if (index === -1) {
                          if (this.settings.debugMode) {
                             console.debug('Canvas Banana Debug: Selected text not found in node text (likely formatting mismatch)', selectedText);
                          }
-                         // Mismatch: Don't return corrupted context that would replace the whole text
                          return null;
                     }
 
-                    const context: SelectionContext = {
-                        nodeId,
+                    context = {
+                        nodeId: validNodeId,
                         selectedText,
                         preText: fullText.substring(0, index),
                         postText: fullText.substring(index + selectedText.length),
                         fullText
                     };
-
-                    if (this.settings.debugMode) {
-                        console.debug('Canvas Banana Debug: Captured context:', context);
-                    }
-
-                    if (updateCache) {
-                        this.lastTextSelectionContext = context;
-                    }
-                    return context;
                 } else {
-                     if (this.settings.debugMode) {
-                        console.debug('Canvas Banana Debug: Node not found or no text', nodeId, node);
-                     }
+                    // Implicit full node selection
+                    context = {
+                        nodeId: validNodeId,
+                        selectedText: node.text, // Whole text is selected
+                        preText: '',
+                        postText: '',
+                        fullText: node.text
+                    };
+                    if (this.settings.debugMode) {
+                        console.debug('Canvas Banana Debug: Using implicit full node context');
+                    }
                 }
-            } else {
+
                 if (this.settings.debugMode) {
-                     console.debug('Canvas Banana Debug: Could not determine nodeId');
+                    console.debug('Canvas Banana Debug: Captured context:', context);
                 }
+
+                if (updateCache) {
+                    this.lastTextSelectionContext = context;
+                }
+                return context;
             }
         }
 
-        // 如果没有获取到有效的新选区，且 updateCache 为 false，则返回缓存（如果调用者希望获取最佳猜测）
-        // 但这里为了语义清晰，如果没捕获到就返回 null
         return null; 
     }
 
@@ -2780,9 +2813,21 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         if (this.floatingPalette?.visible) {
             const { imageCount, textCount, groupCount } = this.countNodeTypes(selection);
             this.floatingPalette.updateContextPreview(selectionSize, imageCount, textCount, groupCount);
+            
+            // Foolproof: Enable Edit tab ONLY if exactly 1 text node is selected (implicit or explicit)
+            // And NO other types (images/groups/files/links) are mixed in
+            const isSingleTextNode = selectionSize === 1 && textCount === 1 && imageCount === 0 && groupCount === 0;
+            this.floatingPalette.setEditTabEnabled(isSingleTextNode);
         }
 
         // 更新状态记录
+        this.updateStateRecord(selectionSize, currentIds);
+    }
+
+    /**
+     * 更新状态记录
+     */
+    updateStateRecord(selectionSize: number, currentIds: Set<string>) {
         this.lastSelectionSize = selectionSize;
         this.lastSelectedIds = currentIds;
     }

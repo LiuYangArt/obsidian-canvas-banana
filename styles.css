@@ -63,13 +63,19 @@
 }
 
 .canvas-ai-tab:hover {
-  background: var(--background-modifier-hover);
+  background-color: var(--background-modifier-hover);
   color: var(--text-normal);
 }
 
 .canvas-ai-tab.active {
-  background: var(--interactive-accent);
-  color: white;
+  background-color: var(--interactive-accent);
+  color: var(--text-on-accent);
+}
+
+.canvas-ai-tab.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
 }
 
 .canvas-ai-close-btn {
