@@ -1297,6 +1297,7 @@ export default class CanvasAIPlugin extends Plugin {
     private activeGhostNodeIds: Set<string> = new Set();
     // Track the popout leaf for single window mode
     private imagePopoutLeaf: WorkspaceLeaf | null = null;
+    private iframeObserver: MutationObserver | null = null;
 
     async onload() {
         console.debug('Canvas Banana: Plugin loading...');
@@ -1333,6 +1334,9 @@ export default class CanvasAIPlugin extends Plugin {
         // 注册 Canvas 选中状态监听
         this.registerCanvasSelectionListener();
 
+        // Setup MutationObserver for iframes
+        this.setupIframeObserver();
+
         // Register Canvas utility hotkeys
         this.registerCanvasUtilities();
 
@@ -1343,6 +1347,7 @@ export default class CanvasAIPlugin extends Plugin {
         console.debug('Canvas Banana: Plugin unloading...');
 
         // 清理 DOM 组件
+        this.iframeObserver?.disconnect();
         this.floatingPalette?.destroy();
 
         console.debug('Canvas Banana: Plugin unloaded');
@@ -2386,6 +2391,51 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                 // 忽略 SecurityError
             }
         });
+    }
+
+    /**
+     * Setup MutationObserver to watch for new iframes
+     */
+    private setupIframeObserver(): void {
+        this.iframeObserver = new MutationObserver((mutations) => {
+            let potentialIframeAdded = false;
+            for (const mutation of mutations) {
+                if (mutation.type === 'childList') {
+                    mutation.addedNodes.forEach(node => {
+                        if (node instanceof HTMLElement) {
+                            if (node.tagName === 'IFRAME' && node.classList.contains('embed-iframe')) {
+                                potentialIframeAdded = true;
+                            } else if (node.querySelector && node.querySelector('iframe.embed-iframe')) {
+                                potentialIframeAdded = true;
+                            }
+                        }
+                    });
+                }
+            }
+            if (potentialIframeAdded) {
+                this.monitorIframeSelection();
+            }
+        });
+
+        const config = { childList: true, subtree: true };
+
+        // Handle view switching
+        this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
+            this.iframeObserver?.disconnect();
+            if (leaf?.view.getViewType() === 'canvas') {
+                const canvasView = leaf.view as ItemView;
+                this.iframeObserver?.observe(canvasView.contentEl, config);
+                // Initial scan when switching to canvas
+                this.monitorIframeSelection();
+            }
+        }));
+        
+        // Initial setup
+        const activeLeaf = this.app.workspace.getActiveViewOfType(ItemView);
+        if (activeLeaf && activeLeaf.getViewType() === 'canvas') {
+             this.iframeObserver.observe(activeLeaf.contentEl, config);
+             this.monitorIframeSelection();
+        }
     }
 
     /**
