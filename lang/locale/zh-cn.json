@@ -140,5 +140,12 @@
     "Apply": "应用",
     "Text updated": "文本已更新",
     "File updated": "文件已更新",
-    "Failed to update file": "文件更新失败"
+    "Failed to update file": "文件更新失败",
+    "Global entity update": "全局实体更新",
+    "Found entity changes. Update all references?": "检测到实体名称变更。是否更新所有引用？",
+    "occurrences": "处引用",
+    "Skip": "跳过",
+    "Update all": "全部更新",
+    "Updating global references...": "正在更新全局引用...",
+    "Global update completed": "全局更新完成"
 }

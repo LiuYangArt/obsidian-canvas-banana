@@ -110,6 +110,9 @@ export interface CanvasAISettings {
     paletteImageModel: string;
     paletteNodeModel: string;
     paletteEditModel: string;
+
+    // Notes AI settings
+    enableGlobalConsistency: boolean;  // 全局实体一致性检测
 }
 
 // ========== Default Settings ==========
@@ -174,7 +177,9 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
     paletteTextModel: '',
     paletteImageModel: '',
     paletteNodeModel: '',
-    paletteEditModel: ''
+    paletteEditModel: '',
+
+    enableGlobalConsistency: true
 };
 
 // ========== Provider Utility Functions ==========

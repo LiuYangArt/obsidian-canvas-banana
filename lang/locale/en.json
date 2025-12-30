@@ -140,5 +140,12 @@
     "Apply": "Apply",
     "Text updated": "Text updated",
     "File updated": "File updated",
-    "Failed to update file": "Failed to update file"
+    "Failed to update file": "Failed to update file",
+    "Global entity update": "Global entity update",
+    "Found entity changes. Update all references?": "Found entity changes. Update all references?",
+    "occurrences": "occurrences",
+    "Skip": "Skip",
+    "Update all": "Update all",
+    "Updating global references...": "Updating global references...",
+    "Global update completed": "Global update completed"
 }

@@ -157,10 +157,10 @@ function applyPatches(docContent: string, patches: TextChange[]) {
 - [x] ~~实现 "Review Changes" 弹窗 (Diff View)。~~ → **DiffModal 可直接使用**
 
 ### Phase 3: 高级智能 (Smart Features)
-- [ ] **Global Update Implementation**: 实现两阶段 Prompt (Modification -> Impact Analysis)。
+- [x] **Global Update Implementation**: 实现两阶段 Prompt (Modification -> Impact Analysis)。→ **`src/notes/global-update.ts`**
 - [x] ~~**Note Image Support**: 解析 markdown 图片引用并传入 LLM。~~ → **`extractEmbeddedImages()` 已完成**
 
 ### Phase 4: 稳定性与优化
-- [ ] **Diff Algorithm**: 完善 `applyPatches` 逻辑，处理 AI 返回的 "original" 文本与实际文本存在细微差异的情况 (Fuzzy matching)。
+- [x] **Diff Algorithm**: 完善 `applyPatches` 逻辑，处理 AI 返回的 "original" 文本与实际文本存在细微差异的情况 (Fuzzy matching)。→ **`src/notes/text-patcher.ts`**
 - [ ] 性能测试：处理 10k+ 字长文档。
 

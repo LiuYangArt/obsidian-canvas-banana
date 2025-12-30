@@ -11,6 +11,7 @@ import { SelectionContext } from '../types';
 import { DiffModal } from '../ui/modals';
 import { buildEditModeSystemPrompt } from '../prompts/edit-mode-prompt';
 import { CanvasConverter } from '../canvas/canvas-converter';
+import { handleGlobalUpdate } from './global-update';
 
 export interface NotesSelectionContext extends SelectionContext {
     editor: Editor;
@@ -303,6 +304,36 @@ export class NotesSelectionHandler {
                 () => {
                     // 应用修改 - 使用保存的选区位置
                     editor.replaceRange(replacementText, savedFromCursor, savedToCursor);
+
+                    // 检测并处理全局实体更新 (如果 API 可用且设置开启)
+                    if (this.plugin.apiManager && this.plugin.settings.enableGlobalConsistency !== false) {
+                        // 计算选区在全文中的偏移量
+                        const doc = editor.getDoc();
+                        let fromOffset = 0;
+                        for (let i = 0; i < savedFromCursor.line; i++) {
+                            fromOffset += doc.getLine(i).length + 1;
+                        }
+                        fromOffset += savedFromCursor.ch;
+
+                        let toOffset = 0;
+                        for (let i = 0; i < savedToCursor.line; i++) {
+                            toOffset += doc.getLine(i).length + 1;
+                        }
+                        toOffset += savedToCursor.ch;
+
+                        void handleGlobalUpdate(
+                            this.app,
+                            this.plugin.apiManager,
+                            context.fullText,
+                            selectedText,
+                            replacementText,
+                            { start: fromOffset, end: toOffset },
+                            (newFullText) => {
+                                // 应用全局更新 - 替换整个文档
+                                editor.setValue(newFullText);
+                            }
+                        );
+                    }
                 },
                 () => {
                     // 取消
