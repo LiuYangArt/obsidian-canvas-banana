@@ -162,7 +162,7 @@ export async function debugSelectedNodes(
             let payloadPreview: Record<string, unknown> = {};
 
             if (mode === 'chat') {
-                const systemPrompt = settings.chatSystemPrompt || 'You are a helpful AI assistant...';
+                const systemPrompt = settings.textSystemPrompt || 'You are a helpful AI assistant...';
                 payloadPreview = {
                     model: settings.apiProvider === 'openrouter' ? settings.openRouterTextModel : (settings.apiProvider === 'yunwu' ? settings.yunwuTextModel : settings.geminiTextModel),
                     mode: 'chat',

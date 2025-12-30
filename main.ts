@@ -6,7 +6,7 @@ import { IntentResolver, ResolvedIntent, NodeEditIntent } from './src/canvas/int
 import { extractCanvasJSON, remapCoordinates, regenerateIds, optimizeLayout, sanitizeCanvasData } from './src/canvas/node-mode-utils';
 import { t } from './lang/helpers';
 import { ApiProvider, QuickSwitchModel, PromptPreset, CanvasAISettings, DEFAULT_SETTINGS } from './src/settings/settings';
-import { DEFAULT_NODE_MODE_PROMPT } from './src/prompts';
+import { DEFAULT_NODE_MODE_PROMPT, DEFAULT_EDIT_MODE_PROMPT } from './src/prompts';
 import { debugSelectedNodes } from './src/utils/debug';
 import { CanvasAISettingTab } from './src/settings/settings-tab';
 import { DiffModal } from './src/ui/modals';
@@ -60,6 +60,19 @@ export default class CanvasAIPlugin extends Plugin {
             this.settings.openRouterUseCustomImageModel = this.settings.useCustomImageModel;
             this.settings.useCustomImageModel = undefined;
         }
+
+        // Migration: Rename chatSystemPrompt to textSystemPrompt
+        // @ts-ignore
+        if (this.settings.chatSystemPrompt !== undefined) {
+            // Only migrate if textSystemPrompt is still default or empty
+            if (!this.settings.textSystemPrompt || this.settings.textSystemPrompt === DEFAULT_SETTINGS.textSystemPrompt) {
+                // @ts-ignore
+                this.settings.textSystemPrompt = this.settings.chatSystemPrompt;
+            }
+            // @ts-ignore
+            this.settings.chatSystemPrompt = undefined;
+        }
+
         await this.saveSettings();
 
         // Register settings tab
@@ -277,10 +290,7 @@ export default class CanvasAIPlugin extends Plugin {
                 const editOptions = this.floatingPalette!.getEditOptions();
                 
                 // System Prompt for Editing - Request JSON
-                const systemPrompt = `You are an expert text editor. Rewrite the target text based on the user's instruction.
-Maintain the original tone and style unless instructed otherwise.
-Output a JSON object with a single key "replacement" containing the rewritten text.
-Example: { "replacement": "New text content" }`;
+                const systemPrompt = this.settings.editSystemPrompt || DEFAULT_EDIT_MODE_PROMPT;
                 
                 // Construct User Message with Context
                 let userMsg = `Target Text:\n${editIntent.targetText}`;
@@ -435,7 +445,7 @@ Example: { "replacement": "New text content" }`;
 
             if (mode === 'chat') {
                 // Chat Mode - use context and instruction
-                let systemPrompt = this.settings.chatSystemPrompt || 'You are a helpful AI assistant embedded in an Obsidian Canvas. Answer concisely and use Markdown formatting.';
+                let systemPrompt = this.settings.textSystemPrompt || 'You are a helpful AI assistant embedded in an Obsidian Canvas. Answer concisely and use Markdown formatting.';
 
                 if (intent.contextText) {
                     systemPrompt += `\n\n---\nThe user has selected the following content from their canvas:\n\n${intent.contextText}\n\n---\nBased on this context, respond to the user's request.`;

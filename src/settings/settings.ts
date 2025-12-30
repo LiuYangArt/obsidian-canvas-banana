@@ -3,6 +3,8 @@
  * 设置接口、类型和默认值
  */
 
+import { DEFAULT_EDIT_MODE_PROMPT } from '../prompts';
+
 // ========== API Provider Type ==========
 export type ApiProvider = 'openrouter' | 'yunwu' | 'gemini' | 'gptgod';
 
@@ -80,7 +82,8 @@ export interface CanvasAISettings {
     singleWindowMode: boolean;
 
     // System prompts for different modes
-    chatSystemPrompt: string;
+    textSystemPrompt: string;
+    editSystemPrompt: string;
     nodeSystemPrompt: string;
     imageSystemPrompt: string;
 
@@ -149,7 +152,8 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
     doubleClickImageOpen: true,
     singleWindowMode: true,
 
-    chatSystemPrompt: 'You are a helpful AI assistant embedded in an Obsidian Canvas. Answer concisely and use Markdown formatting.',
+    textSystemPrompt: 'You are a helpful AI assistant embedded in an Obsidian Canvas. Answer concisely and use Markdown formatting.',
+    editSystemPrompt: DEFAULT_EDIT_MODE_PROMPT,
     nodeSystemPrompt: '',
     imageSystemPrompt: 'Role: A Professional Image Creator. Use the following references for image creation.',
 
