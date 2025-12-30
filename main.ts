@@ -8,6 +8,7 @@ import { t } from './lang/helpers';
 import { ApiProvider, QuickSwitchModel, PromptPreset, CanvasAISettings, DEFAULT_SETTINGS } from './src/settings/settings';
 import { DEFAULT_NODE_MODE_PROMPT } from './src/prompts';
 import { debugSelectedNodes } from './src/utils/debug';
+import { debounce } from './src/utils/debounce';
 import { CanvasAISettingTab } from './src/settings/settings-tab';
 import { DiffModal } from './src/ui/modals';
 import { FloatingPalette, PaletteMode } from './src/ui/floating-palette';
@@ -955,9 +956,11 @@ ${intent.instruction}
      */
     private registerCanvasSelectionListener(): void {
         // 监听文本选区变化，实时缓存选区信息（用于Edit模式）
-        const selectionChangeHandler = () => {
+        // 使用 debounce 减少高频调用
+        const selectionChangeHandler = debounce(() => {
              this.captureTextSelectionContext(true);
-        };
+        }, 150); // 150ms delay is enough to capture 'settled' selection without feeling laggy
+        
         document.addEventListener('selectionchange', selectionChangeHandler);
         this.register(() => document.removeEventListener('selectionchange', selectionChangeHandler));
 
@@ -1095,20 +1098,19 @@ ${intent.instruction}
                         console.debug('Canvas Banana Debug: Attaching selection listeners to iframe', iframe);
                     }
                     
-                    // Listen for selection changes inside the iframe
-                    doc.addEventListener('selectionchange', () => {
+                    // Create a debounced handler for this specific iframe
+                    const debouncedCapture = debounce(() => {
                         this.captureTextSelectionContext(true, iframe);
-                    });
+                    }, 150);
+
+                    // Listen for selection changes inside the iframe
+                    doc.addEventListener('selectionchange', debouncedCapture);
                     
                     // Listen for mouseup as backup
-                    doc.addEventListener('mouseup', () => {
-                        this.captureTextSelectionContext(true, iframe);
-                    });
+                    doc.addEventListener('mouseup', debouncedCapture);
                     
                     // Listen for keyup (cursor movement)
-                    doc.addEventListener('keyup', () => {
-                        this.captureTextSelectionContext(true, iframe);
-                    });
+                    doc.addEventListener('keyup', debouncedCapture);
                 }
             } catch (e) {
                 // Ignore SecurityError for cross-origin iframes
