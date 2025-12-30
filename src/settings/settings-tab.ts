@@ -737,6 +737,7 @@ export class CanvasAISettingTab extends PluginSettingTab {
                 setTimeout(() => {
                     testBtn.textContent = t('Test connection');
                     testBtn.removeClass('success');
+                    testBtn.disabled = false;
                 }, 3000);
             } catch (error: unknown) {
                 const message = error instanceof Error ? error.message : String(error);
@@ -750,6 +751,7 @@ export class CanvasAISettingTab extends PluginSettingTab {
                 setTimeout(() => {
                     testBtn.textContent = t('Test connection');
                     testBtn.removeClass('error');
+                    testBtn.disabled = false;
                 }, 3000);
                 }
             })();
@@ -1019,11 +1021,18 @@ export class CanvasAISettingTab extends PluginSettingTab {
             modelSetting.addButton(btn => btn
                 .setButtonText(t('Add to quick switch'))
                 .onClick(async () => {
+                    // Get current model ID at click time (not closure capture time)
+                    const modelIdNow = this.plugin.settings[modelKey] as string;
+                    if (!modelIdNow) {
+                        new Notice(t('No model selected'));
+                        return;
+                    }
+
                     const targetList = isImageModel
                         ? (this.plugin.settings.quickSwitchImageModels || [])
                         : (this.plugin.settings.quickSwitchTextModels || []);
 
-                    const key = `${provider}|${currentModelId}`;
+                    const key = `${provider}|${modelIdNow}`;
                     if (targetList.some(m => `${m.provider}|${m.modelId}` === key)) {
                         new Notice(t('Model already exists'));
                         return;
@@ -1031,8 +1040,8 @@ export class CanvasAISettingTab extends PluginSettingTab {
 
                     targetList.push({
                         provider: provider,
-                        modelId: currentModelId,
-                        displayName: this.getModelDisplayName(currentModelId)
+                        modelId: modelIdNow,
+                        displayName: this.getModelDisplayName(modelIdNow)
                     });
 
                     if (isImageModel) {
