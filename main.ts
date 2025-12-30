@@ -956,14 +956,17 @@ ${intent.instruction}
      * 注册 Canvas 选中状态监听
      */
     private registerCanvasSelectionListener(): void {
+        // SCHEME B: Disable passive listener
         // 监听文本选区变化，实时缓存选区信息（用于Edit模式）
         // 使用 debounce 减少高频调用
+        /*
         const selectionChangeHandler = debounce(() => {
              this.captureTextSelectionContext(true);
         }, 150); // 150ms delay is enough to capture 'settled' selection without feeling laggy
         
         document.addEventListener('selectionchange', selectionChangeHandler);
         this.register(() => document.removeEventListener('selectionchange', selectionChangeHandler));
+        */
 
         // 监听布局变化（包括选中状态变化）
         this.registerEvent(
@@ -1309,7 +1312,8 @@ ${intent.instruction}
         const currentIds = new Set(Array.from(selection || []).map((n: CanvasNode) => n.id));
 
         // Use new active node strategy: dynamic listeners
-        this.updateActiveNodeListener(selection || new Set());
+        // SCHEME B: Disable active node listener
+        /* this.updateActiveNodeListener(selection || new Set()); */
 
         // 规则 3: 取消所有选中 -> 面板消失 
         // 改进：只有在明确点击背景或按下 Delete/Esc 时才关闭面板
