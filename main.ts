@@ -336,6 +336,16 @@ Example: { "replacement": "New text content" }`;
                 if (originalNode) {
                     const proposedFullText = context.preText + replacementText + context.postText;
 
+                    if (this.settings.debugMode) {
+                        console.debug('Canvas Banana Debug: HandleGeneration Apply', {
+                            context,
+                            replacementText,
+                            proposedFullText,
+                            preTextLen: context.preText.length,
+                            postTextLen: context.postText.length
+                        });
+                    }
+
                     // Update Ghost Node to show checks are done
                     this.updateGhostNode(ghostNode, "✅ Generated. Waiting for review...", false);
 
@@ -1247,7 +1257,8 @@ ${intent.instruction}
                         selectedText,
                         preText: fullText.substring(0, index),
                         postText: fullText.substring(index + selectedText.length),
-                        fullText
+                        fullText,
+                        isExplicit: true
                     };
                 } else {
                     // Implicit full node selection
@@ -1256,7 +1267,8 @@ ${intent.instruction}
                         selectedText: node.text, // Whole text is selected
                         preText: '',
                         postText: '',
-                        fullText: node.text
+                        fullText: node.text,
+                        isExplicit: false
                     };
                     if (this.settings.debugMode) {
                         console.debug('Canvas Banana Debug: Using implicit full node context');
@@ -1268,7 +1280,19 @@ ${intent.instruction}
                 }
 
                 if (updateCache) {
-                    this.lastTextSelectionContext = context;
+                    // Prevent overwriting explicit selection with implicit fallback for the SAME node
+                    // This handles the case where clicking the UI causes selection loss (fallback)
+                    const isNewImplicit = context.isExplicit === false;
+                    const isOldExplicit = this.lastTextSelectionContext?.isExplicit === true;
+                    const isSameNode = this.lastTextSelectionContext?.nodeId === context.nodeId;
+
+                    if (isNewImplicit && isOldExplicit && isSameNode) {
+                        if (this.settings.debugMode) {
+                            console.debug('Canvas Banana Debug: Ignoring implicit fallback update, keeping explicit context');
+                        }
+                    } else {
+                        this.lastTextSelectionContext = context;
+                    }
                 }
                 return context;
             }

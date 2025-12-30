@@ -180,6 +180,7 @@ export interface SelectionContext {
     preText: string;          // 选区前的文本
     postText: string;         // 选区后的文本
     fullText: string;         // 节点完整文本
+    isExplicit?: boolean;     // False if fallback (implicit full node selection)
 }
 
 // 扩展 Obsidian 模块声明
