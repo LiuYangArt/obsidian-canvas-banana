@@ -124,5 +124,15 @@
     "Model already exists": "Model already in quick switch list",
     "Model removed": "Model removed from quick switch list",
     "Palette Model": "Model",
-    "No quick switch models": "No quick switch models configured"
+    "No quick switch models": "No quick switch models configured",
+    "Edit": "Edit",
+    "No text selected": "No text selected in node",
+    "Failed to resolve edit context": "Failed to resolve edit context",
+    "Cannot edit this selection": "Cannot edit this selection",
+    "Text updated successfully": "Text updated successfully",
+    "Node not found": "Node not found",
+    "Review changes": "Review changes",
+    "Before": "Before",
+    "After": "After",
+    "Apply": "Apply"
 }

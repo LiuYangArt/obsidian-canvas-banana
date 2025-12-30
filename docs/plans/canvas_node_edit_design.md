@@ -73,16 +73,76 @@
 
 ## 5. 技术实现方案 (Implementation)
 
-### 4.1 获取编辑器实例
-在 Canvas 中，每个 Text Node 编辑时实际上是一个嵌入的 `MarkdownEditor`。
-需要通过 `app.workspace` 或遍历 Canvas View DOM 找到当前活跃的 EditorAdapter。
+### 5.1 获取编辑器选区 - 关键技术发现
 
-```typescript
-// 伪代码思路
-const canvasView = app.workspace.getActiveViewOfType(CanvasView);
-const selection = canvasView.selection; // Canvas 选中层级
-// 当进入编辑模式时，Obsidian 通常会暴露 activeEditor 或需从 DOM 查找
+> [!IMPORTANT]
+> **Canvas Text Node 使用 IFRAME 而非 CodeMirror！**
+> 这是通过实际调试确认的关键发现，原有假设（基于 CodeMirror）是错误的。
+
+**DOM 结构**（编辑模式下）：
 ```
+.canvas-node
+  └─ .canvas-node-container
+       └─ .canvas-node-content
+            └─ <iframe class="embed-iframe is-controlled">
+                 └─ #document (contentDocument)
+                      └─ 编辑器内容
+```
+
+**选区获取方式**：
+```typescript
+// ❌ 错误方式：window.getSelection() 无法获取 IFRAME 内部选区
+const selection = window.getSelection();  // 返回空
+
+// ✅ 正确方式：通过 IFRAME 的 contentDocument 获取
+const iframe = document.querySelector('.canvas-node iframe.embed-iframe') as HTMLIFrameElement;
+const iframeDoc = iframe.contentDocument;
+const selection = iframeDoc?.getSelection();  // 可获取选区
+```
+
+**选区丢失问题**：
+- 用户在 IFRAME 内选中文本后，点击 AI 按钮时 IFRAME 失去焦点
+- 焦点转移导致选区被清除（在 `mousedown` 捕获阶段已经为空）
+- **解决方案**：使用 `selectionchange` 事件持续监控并缓存选区
+
+**推荐实现**：
+```typescript
+interface SelectionContext {
+    nodeId: string;
+    selectedText: string;
+    preText: string;
+    postText: string;
+    fullText: string;
+}
+
+// 1. 持续监控 IFRAME 内的选区变化
+function monitorIframeSelection(): void {
+    const iframes = document.querySelectorAll('.canvas-node iframe.embed-iframe');
+    for (const iframe of iframes) {
+        const iframeDoc = (iframe as HTMLIFrameElement).contentDocument;
+        if (!iframeDoc) continue;
+        
+        iframeDoc.addEventListener('selectionchange', () => {
+            const sel = iframeDoc.getSelection();
+            if (sel && !sel.isCollapsed) {
+                // 缓存有效选区
+                cacheSelection(sel, iframe);
+            }
+        });
+    }
+}
+
+// 2. 点击 AI 按钮时使用缓存的选区
+function getTextSelectionContext(): SelectionContext | null {
+    // 优先使用缓存
+    if (cachedSelectionContext) {
+        return cachedSelectionContext;
+    }
+    // 尝试实时获取（可能已丢失）
+    return captureIframeSelection();
+}
+```
+
 
 ### 4.2 IntentResolver 扩展
 扩展 `IntentResolver.resolve` 方法，增加 `selectionContext` 参数：

@@ -415,6 +415,38 @@ export class CanvasConverter {
     }
 
     /**
+     * 读取单个图片文件并压缩为 WebP
+     * @param app Obsidian App 实例
+     * @param filePath 文件路径
+     * @param compressionQuality 压缩质量 (0-100)
+     * @param maxSize 最大尺寸（宽/高都不超过此值）
+     * @returns Base64 和 MimeType，如果失败返回 null
+     */
+    static async readSingleImageFile(
+        app: App,
+        filePath: string,
+        compressionQuality: number = 80,
+        maxSize: number = 2048
+    ): Promise<{ base64: string; mimeType: string } | null> {
+        try {
+            const file = app.vault.getAbstractFileByPath(filePath);
+            if (file && file instanceof TFile) {
+                const buffer = await app.vault.readBinary(file);
+                const compressedBase64 = await this.compressImageToWebP(buffer, compressionQuality, maxSize);
+                return {
+                    base64: compressedBase64,
+                    mimeType: 'image/webp'
+                };
+            }
+            console.warn(`CanvasConverter: File not found: ${filePath}`);
+            return null;
+        } catch (error) {
+            console.warn(`CanvasConverter: Failed to read image file ${filePath}`, error);
+            return null;
+        }
+    }
+
+    /**
      * 将 ArrayBuffer 转换为 Base64 字符串
      */
     private static arrayBufferToBase64(buffer: ArrayBuffer): string {

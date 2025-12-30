@@ -6,7 +6,7 @@
  */
 
 import { App } from 'obsidian';
-import type { Canvas, CanvasNode } from './types';
+import type { Canvas, CanvasNode, SelectionContext } from './types';
 import { CanvasConverter, ConvertedNode, ConvertedEdge } from './canvas-converter';
 import type { CanvasAISettings } from './main';
 
@@ -52,6 +52,21 @@ export interface ResolvedIntent {
     contextText: string;
     warnings: string[];
     canGenerate: boolean;
+}
+
+/**
+ * 节点编辑模式的意图解析结果
+ */
+export interface NodeEditIntent {
+    targetText: string;         // 选中的文本（即将被编辑的内容）
+    preText: string;            // 选区前文本
+    postText: string;           // 选区后文本
+    upstreamContext: string;    // 上游节点内容（作为背景）
+    downstreamContext: string;  // 下游节点内容（作为约束）
+    images: ImageWithRole[];    // 上游图片
+    instruction: string;        // 用户指令
+    warnings: string[];
+    canEdit: boolean;
 }
 
 // ========== Intent Resolver Class ==========
@@ -408,5 +423,216 @@ export class IntentResolver {
             return cleaned;
         }
         return cleaned.substring(0, MAX_ROLE_TEXT_LENGTH - 3) + '...';
+    }
+
+    // ========== Node Edit Mode Methods ==========
+
+    /**
+     * 节点编辑模式：解析选区上下文和图谱关系
+     * 使用 BFS 遍历上游/下游节点，按距离权重提取上下文
+     */
+    static async resolveForNodeEdit(
+        app: App,
+        canvas: Canvas,
+        selectionContext: SelectionContext,
+        userInput: string,
+        settings: CanvasAISettings
+    ): Promise<NodeEditIntent> {
+        const warnings: string[] = [];
+        const MAX_UPSTREAM_NODES = 10;
+        const MAX_DOWNSTREAM_NODES = 5;
+
+        // 获取当前编辑节点
+        const currentNode = canvas.nodes.get(selectionContext.nodeId);
+        if (!currentNode) {
+            return {
+                targetText: selectionContext.selectedText,
+                preText: selectionContext.preText,
+                postText: selectionContext.postText,
+                upstreamContext: '',
+                downstreamContext: '',
+                images: [],
+                instruction: userInput || 'Polish this text.',
+                warnings: ['Node not found in canvas'],
+                canEdit: false
+            };
+        }
+
+        // 构建边的快速查找
+        const incomingEdges = new Map<string, { fromId: string; label?: string }[]>();
+        const outgoingEdges = new Map<string, { toId: string; label?: string }[]>();
+
+        canvas.edges.forEach(edge => {
+            const fromId = edge.from?.node?.id;
+            const toId = edge.to?.node?.id;
+            if (fromId && toId) {
+                // 入边 (toId 的上游)
+                if (!incomingEdges.has(toId)) {
+                    incomingEdges.set(toId, []);
+                }
+                incomingEdges.get(toId)!.push({ fromId, label: edge.label });
+
+                // 出边 (fromId 的下游)
+                if (!outgoingEdges.has(fromId)) {
+                    outgoingEdges.set(fromId, []);
+                }
+                outgoingEdges.get(fromId)!.push({ toId, label: edge.label });
+            }
+        });
+
+        // BFS 遍历上游节点
+        const upstreamNodes = this.bfsTraverse(
+            selectionContext.nodeId,
+            incomingEdges,
+            canvas.nodes,
+            MAX_UPSTREAM_NODES,
+            'upstream'
+        );
+
+        // BFS 遍历下游节点
+        const downstreamNodes = this.bfsTraverse(
+            selectionContext.nodeId,
+            outgoingEdges,
+            canvas.nodes,
+            MAX_DOWNSTREAM_NODES,
+            'downstream'
+        );
+
+        // 处理上游节点：提取文本和图片
+        const upstreamParts: string[] = [];
+        const images: ImageWithRole[] = [];
+
+        for (const { node, distance, label } of upstreamNodes) {
+            // 处理图片节点
+            if (node.file && this.isImageFile(node.file.path || '')) {
+                try {
+                    const base64 = await CanvasConverter.readSingleImageFile(
+                        app,
+                        node.file.path,
+                        settings.imageCompressionQuality,
+                        settings.imageMaxSize
+                    );
+                    if (base64) {
+                        images.push({
+                            base64: base64.base64,
+                            mimeType: base64.mimeType,
+                            role: label || `Reference (distance ${distance})`,
+                            nodeId: node.id
+                        });
+                    }
+                } catch (e) {
+                    console.warn('Failed to read image:', e);
+                }
+            }
+            // 处理文本节点
+            else if (node.text !== undefined) {
+                const rolePrefix = label ? `[${label}] ` : '';
+                upstreamParts.push(`${rolePrefix}${node.text}`);
+            }
+            // 处理 .md 文件节点
+            else if (node.file && node.file.extension === 'md') {
+                try {
+                    const content = await app.vault.cachedRead(node.file);
+                    const filename = node.file.name;
+                    upstreamParts.push(`[File: ${filename}]\n${content}`);
+                } catch (e) {
+                    console.warn('Failed to read md file:', e);
+                }
+            }
+        }
+
+        // 处理下游节点：作为约束
+        const downstreamParts: string[] = [];
+        for (const { node, label } of downstreamNodes) {
+            if (node.text !== undefined) {
+                const rolePrefix = label ? `[${label}] ` : '';
+                downstreamParts.push(`${rolePrefix}${node.text}`);
+            }
+        }
+
+        // 限制上游图片数量
+        if (images.length > MAX_REFERENCE_IMAGES) {
+            warnings.push(`Upstream images (${images.length}) exceed limit. Using first ${MAX_REFERENCE_IMAGES}.`);
+            images.splice(MAX_REFERENCE_IMAGES);
+        }
+
+        // 确定指令
+        const instruction = userInput?.trim() || 'Polish this text.';
+
+        return {
+            targetText: selectionContext.selectedText,
+            preText: selectionContext.preText,
+            postText: selectionContext.postText,
+            upstreamContext: upstreamParts.join('\n\n---\n\n'),
+            downstreamContext: downstreamParts.join('\n\n---\n\n'),
+            images,
+            instruction,
+            warnings,
+            canEdit: selectionContext.selectedText.length > 0
+        };
+    }
+
+    /**
+     * BFS 遍历图谱节点
+     * @param startId 起始节点 ID
+     * @param edgeMap 边的映射 (节点ID -> 相邻节点)
+     * @param nodeMap 节点映射
+     * @param maxNodes 最大节点数
+     * @param direction 遍历方向 (用于日志)
+     * @returns 遍历到的节点列表（按距离排序）
+     */
+    private static bfsTraverse(
+        startId: string,
+        edgeMap: Map<string, { fromId?: string; toId?: string; label?: string }[]>,
+        nodeMap: Map<string, CanvasNode>,
+        maxNodes: number,
+        direction: 'upstream' | 'downstream'
+    ): { node: CanvasNode; distance: number; label?: string }[] {
+        const result: { node: CanvasNode; distance: number; label?: string }[] = [];
+        const visited = new Set<string>();
+        const queue: { id: string; distance: number; label?: string }[] = [];
+
+        visited.add(startId);
+
+        // 初始化队列：添加起始节点的相邻节点
+        const initialEdges = edgeMap.get(startId) || [];
+        for (const edge of initialEdges) {
+            const neighborId = direction === 'upstream' ? edge.fromId : edge.toId;
+            if (neighborId && !visited.has(neighborId)) {
+                queue.push({ id: neighborId, distance: 1, label: edge.label });
+                visited.add(neighborId);
+            }
+        }
+
+        // BFS 遍历
+        while (queue.length > 0 && result.length < maxNodes) {
+            const { id, distance, label } = queue.shift()!;
+            const node = nodeMap.get(id);
+
+            if (node) {
+                result.push({ node, distance, label });
+
+                // 继续遍历更远的节点
+                const nextEdges = edgeMap.get(id) || [];
+                for (const edge of nextEdges) {
+                    const neighborId = direction === 'upstream' ? edge.fromId : edge.toId;
+                    if (neighborId && !visited.has(neighborId)) {
+                        queue.push({ id: neighborId, distance: distance + 1, label: edge.label });
+                        visited.add(neighborId);
+                    }
+                }
+            }
+        }
+
+        console.debug(`IntentResolver: BFS ${direction} found ${result.length} nodes from ${startId}`);
+        return result;
+    }
+
+    /**
+     * 判断文件是否为图片
+     */
+    private static isImageFile(filePath: string): boolean {
+        const ext = filePath.split('.').pop()?.toLowerCase() || '';
+        return SUPPORTED_IMAGE_EXTENSIONS.includes(ext);
     }
 }

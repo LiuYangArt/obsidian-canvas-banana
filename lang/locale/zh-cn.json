@@ -124,5 +124,15 @@
     "Model already exists": "模型已存在于快捷切换列表",
     "Model removed": "模型已从快捷切换列表移除",
     "Palette Model": "模型",
-    "No quick switch models": "未配置快捷切换模型"
+    "No quick switch models": "未配置快捷切换模型",
+    "Edit": "编辑",
+    "No text selected": "节点中未选中文本",
+    "Failed to resolve edit context": "无法解析编辑上下文",
+    "Cannot edit this selection": "无法编辑此选区",
+    "Text updated successfully": "文本已成功更新",
+    "Node not found": "未找到节点",
+    "Review changes": "审核更改",
+    "Before": "修改前",
+    "After": "修改后",
+    "Apply": "应用"
 }

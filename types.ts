@@ -169,6 +169,19 @@ export interface CanvasView extends ItemView {
     file: TFile;
 }
 
+// ========== Node Edit Mode Types ==========
+
+/**
+ * 文本选区上下文 - 用于节点内文本编辑
+ */
+export interface SelectionContext {
+    nodeId: string;           // 当前编辑的节点 ID
+    selectedText: string;     // 选中的文本
+    preText: string;          // 选区前的文本
+    postText: string;         // 选区后的文本
+    fullText: string;         // 节点完整文本
+}
+
 // 扩展 Obsidian 模块声明
 declare module 'obsidian' {
     interface App {
