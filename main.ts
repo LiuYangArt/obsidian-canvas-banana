@@ -2495,10 +2495,28 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             if (containerIframe) {
                 const nodeEl = containerIframe.closest('.canvas-node');
                 nodeId = nodeEl?.getAttribute('data-node-id') || null;
+                
+                if (this.settings.debugMode && !nodeId) {
+                    console.debug('Canvas Banana Debug: Failed to find nodeId from iframe', containerIframe, 'closest .canvas-node:', nodeEl);
+                }
             } else if (selection.anchorNode) {
                 // 普通 DOM 选区
                 const nodeEl = selection.anchorNode.parentElement?.closest('.canvas-node');
                 nodeId = nodeEl?.getAttribute('data-node-id') || null;
+            }
+
+            // Fallback: Use single selected node from Canvas if available
+            if (!nodeId) {
+                const canvas = this.getActiveCanvas();
+                if (canvas && canvas.selection.size === 1) {
+                    const selectedNode = canvas.selection.values().next().value;
+                    if (selectedNode) {
+                        nodeId = selectedNode.id;
+                        if (this.settings.debugMode) {
+                            console.debug('Canvas Banana Debug: Fallback to canvas selection for nodeId:', nodeId);
+                        }
+                    }
+                }
             }
 
             if (nodeId) {
