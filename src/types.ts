@@ -181,6 +181,7 @@ export interface SelectionContext {
     postText: string;         // 选区后的文本
     fullText: string;         // 节点完整文本
     isExplicit?: boolean;     // False if fallback (implicit full node selection)
+    fileNode?: TFile;         // 如果是 File Node，保存文件引用
 }
 
 // 扩展 Obsidian 模块声明

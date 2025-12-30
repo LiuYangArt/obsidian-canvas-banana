@@ -368,10 +368,24 @@ export default class CanvasAIPlugin extends Plugin {
                         this.app,
                         context,
                         replacementText,
-                        () => {
+                        async () => {
                             // On Confirm
-                            if (originalNode.setText) {
+                            if (context.fileNode) {
+                                // File Node: write directly to the .md file
+                                try {
+                                    await this.app.vault.modify(context.fileNode, proposedFullText);
+                                    new Notice(t('File updated'));
+                                    if (this.settings.debugMode) {
+                                        console.debug('Canvas Banana Debug: File Node updated:', context.fileNode.path);
+                                    }
+                                } catch (e) {
+                                    console.error('Canvas Banana: Failed to write File Node:', e);
+                                    new Notice(t('Failed to update file'));
+                                }
+                            } else if (originalNode.setText) {
                                 originalNode.setText(proposedFullText);
+                                canvas.requestSave();
+                                new Notice(t('Text updated'));
                             } else {
                                 // Fallback: Direct property assignment
                                 // @ts-ignore
@@ -382,9 +396,9 @@ export default class CanvasAIPlugin extends Plugin {
                                     // @ts-ignore
                                     originalNode.setData({ text: proposedFullText });
                                 }
+                                canvas.requestSave();
+                                new Notice(t('Text updated'));
                             }
-                            canvas.requestSave();
-                            new Notice(t('Text updated'));
                         },
                         () => {
                             // On Cancel
@@ -1128,16 +1142,23 @@ ${intent.instruction}
             }
         } 
         
-        // Case B: No text selected (or failed to find ID), try fallback to single valid Text Node
+        // Case B: No text selected (or failed to find ID), try fallback to single valid Text/File Node
         if (!validNodeId) {
             const canvas = this.getActiveCanvas();
             if (canvas && canvas.selection.size === 1) {
                 const selectedNode = canvas.selection.values().next().value;
-                // Only treat as fallback if it's a Text Node (has text property and no file/url/label)
+                // Text Node: has text property and no file/url/label
                 if (selectedNode && selectedNode.text !== undefined && !selectedNode.file && !selectedNode.url && selectedNode.label === undefined) {
                     validNodeId = selectedNode.id;
                     if (this.settings.debugMode) {
-                        console.debug('Canvas Banana Debug: Fallback to canvas selection for nodeId via implicit selection:', validNodeId);
+                        console.debug('Canvas Banana Debug: Fallback to Text Node via implicit selection:', validNodeId);
+                    }
+                }
+                // File Node (.md): has file property with .md extension
+                else if (selectedNode && selectedNode.file?.extension === 'md') {
+                    validNodeId = selectedNode.id;
+                    if (this.settings.debugMode) {
+                        console.debug('Canvas Banana Debug: Fallback to File Node (.md) via implicit selection:', validNodeId);
                     }
                 }
             }
@@ -1147,6 +1168,7 @@ ${intent.instruction}
             const canvas = this.getActiveCanvas();
             const node = (canvas as Canvas)?.nodes.get(validNodeId);
             
+            // Handle Text Node (has node.text)
             if (node && node.text) {
                 let context: SelectionContext;
 
@@ -1206,6 +1228,31 @@ ${intent.instruction}
                         // Reset interaction flag after successful update
                         this.selectionInteractionFlag = false;
                     }
+                }
+                return context;
+            }
+            
+            // Handle File Node (.md) - implicit full content selection only
+            if (node && node.file?.extension === 'md') {
+                // File Node: construct context with file reference
+                // The actual content will be read asynchronously when needed
+                const context: SelectionContext = {
+                    nodeId: validNodeId,
+                    selectedText: '', // Will be populated asynchronously
+                    preText: '',
+                    postText: '',
+                    fullText: '',
+                    isExplicit: false, // File Node always uses implicit full selection
+                    fileNode: node.file
+                };
+
+                if (this.settings.debugMode) {
+                    console.debug('Canvas Banana Debug: Captured File Node context:', context);
+                }
+
+                if (updateCache) {
+                    this.lastTextSelectionContext = context;
+                    this.selectionInteractionFlag = false;
                 }
                 return context;
             }
@@ -1289,13 +1336,14 @@ ${intent.instruction}
 
         // 更新上下文预览
         if (this.floatingPalette?.visible) {
-            const { imageCount, textCount, groupCount } = this.countNodeTypes(selection);
+            const { imageCount, textCount, groupCount, mdFileCount } = this.countNodeTypes(selection);
             this.floatingPalette.updateContextPreview(selectionSize, imageCount, textCount, groupCount);
             
-            // Foolproof: Enable Edit tab ONLY if exactly 1 text node is selected (implicit or explicit)
-            // And NO other types (images/groups/files/links) are mixed in
-            const isSingleTextNode = selectionSize === 1 && textCount === 1 && imageCount === 0 && groupCount === 0;
-            this.floatingPalette.setEditTabEnabled(isSingleTextNode);
+            // Enable Edit tab for: single Text Node OR single File Node (.md)
+            // No other types (images/groups/links) should be mixed in
+            const isSingleTextNode = selectionSize === 1 && textCount === 1 && imageCount === 0 && groupCount === 0 && mdFileCount === 0;
+            const isSingleMdFileNode = selectionSize === 1 && mdFileCount === 1 && textCount === 0 && imageCount === 0 && groupCount === 0;
+            this.floatingPalette.setEditTabEnabled(isSingleTextNode || isSingleMdFileNode);
         }
 
         // 更新状态记录
@@ -1367,10 +1415,11 @@ ${intent.instruction}
      * 统计节点类型数量
      * 会展开 group 节点，统计其内部的子节点
      */
-    private countNodeTypes(selection: Set<CanvasNode>): { imageCount: number; textCount: number; groupCount: number } {
+    private countNodeTypes(selection: Set<CanvasNode>): { imageCount: number; textCount: number; groupCount: number; mdFileCount: number } {
         let imageCount = 0;
         let textCount = 0;
         let groupCount = 0;
+        let mdFileCount = 0;
 
         // Get canvas for expanding groups
         const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
@@ -1388,10 +1437,12 @@ ${intent.instruction}
                 // Group 节点（有 label 属性）
                 groupCount++;
             } else if (node.file) {
-                // 文件节点，检查是否为图片
+                // 文件节点，检查是否为图片或 .md 文件
                 const ext = node.file.extension?.toLowerCase();
                 if (['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg'].includes(ext)) {
                     imageCount++;
+                } else if (ext === 'md') {
+                    mdFileCount++;
                 } else {
                     textCount++;
                 }
@@ -1402,7 +1453,7 @@ ${intent.instruction}
             }
         });
 
-        return { imageCount, textCount, groupCount };
+        return { imageCount, textCount, groupCount, mdFileCount };
     }
 
     /**

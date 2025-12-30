@@ -112,10 +112,10 @@ export class ConfirmModal extends Modal {
 export class DiffModal extends Modal {
     private context: SelectionContext;
     private replacementText: string;
-    private onConfirm: () => void;
+    private onConfirm: () => void | Promise<void>;
     private onCancel: () => void;
 
-    constructor(app: App, context: SelectionContext, replacementText: string, onConfirm: () => void, onCancel: () => void) {
+    constructor(app: App, context: SelectionContext, replacementText: string, onConfirm: () => void | Promise<void>, onCancel: () => void) {
         super(app);
         this.context = context;
         this.replacementText = replacementText;
@@ -169,7 +169,7 @@ export class DiffModal extends Modal {
 
         const confirmBtn = buttonContainer.createEl('button', { text: t('Apply'), cls: 'mod-cta' });
         confirmBtn.addEventListener('click', () => {
-            this.onConfirm();
+            void this.onConfirm();
             this.close();
         });
     }

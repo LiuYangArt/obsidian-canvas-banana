@@ -442,16 +442,57 @@ export class IntentResolver {
         const MAX_UPSTREAM_NODES = 10;
         const MAX_DOWNSTREAM_NODES = 5;
 
+        // Handle File Node: read content and extract embedded images
+        let targetText = selectionContext.selectedText;
+        const images: ImageWithRole[] = [];
+
+        if (selectionContext.fileNode) {
+            try {
+                const content = await app.vault.cachedRead(selectionContext.fileNode);
+                targetText = content;  // Entire file content is the target
+                
+                // Extract embedded images from Markdown
+                const embeddedImages = this.extractEmbeddedImages(content);
+                for (const imgPath of embeddedImages) {
+                    try {
+                        // Resolve path relative to the file
+                        const resolvedPath = this.resolveImagePath(app, selectionContext.fileNode.path, imgPath);
+                        if (resolvedPath) {
+                            const imgData = await CanvasConverter.readSingleImageFile(
+                                app,
+                                resolvedPath,
+                                settings.imageCompressionQuality,
+                                settings.imageMaxSize
+                            );
+                            if (imgData) {
+                                images.push({
+                                    base64: imgData.base64,
+                                    mimeType: imgData.mimeType,
+                                    role: `Embedded image: ${imgPath}`,
+                                    nodeId: selectionContext.nodeId
+                                });
+                            }
+                        }
+                    } catch (e) {
+                        console.warn(`Failed to read embedded image: ${imgPath}`, e);
+                    }
+                }
+            } catch (e) {
+                console.warn('Failed to read File Node content:', e);
+                warnings.push('Failed to read file content');
+            }
+        }
+
         // 获取当前编辑节点
         const currentNode = canvas.nodes.get(selectionContext.nodeId);
         if (!currentNode) {
             return {
-                targetText: selectionContext.selectedText,
+                targetText,
                 preText: selectionContext.preText,
                 postText: selectionContext.postText,
                 upstreamContext: '',
                 downstreamContext: '',
-                images: [],
+                images,
                 instruction: userInput || 'Polish this text.',
                 warnings: ['Node not found in canvas'],
                 canEdit: false
@@ -500,7 +541,6 @@ export class IntentResolver {
 
         // 处理上游节点：提取文本和图片
         const upstreamParts: string[] = [];
-        const images: ImageWithRole[] = [];
 
         for (const { node, distance, label } of upstreamNodes) {
             // 处理图片节点
@@ -560,7 +600,7 @@ export class IntentResolver {
         const instruction = userInput?.trim() || 'Polish this text.';
 
         return {
-            targetText: selectionContext.selectedText,
+            targetText,
             preText: selectionContext.preText,
             postText: selectionContext.postText,
             upstreamContext: upstreamParts.join('\n\n---\n\n'),
@@ -568,8 +608,42 @@ export class IntentResolver {
             images,
             instruction,
             warnings,
-            canEdit: selectionContext.selectedText.length > 0
+            canEdit: targetText.length > 0 || selectionContext.fileNode !== undefined
         };
+    }
+
+    /**
+     * 解析 Markdown 中的内嵌图片 ![[image.png]] 语法
+     */
+    private static extractEmbeddedImages(content: string): string[] {
+        const regex = /!\[\[([^\]]+\.(png|jpg|jpeg|gif|webp|svg|bmp))\]\]/gi;
+        const matches: string[] = [];
+        let match;
+        while ((match = regex.exec(content)) !== null) {
+            matches.push(match[1]);
+        }
+        return matches;
+    }
+
+    /**
+     * 解析图片路径（相对于文件所在目录或 vault 根目录）
+     */
+    private static resolveImagePath(app: App, filePath: string, imgPath: string): string | null {
+        // 先尝试从 vault 根目录查找
+        const file = app.vault.getAbstractFileByPath(imgPath);
+        if (file) {
+            return imgPath;
+        }
+
+        // 尝试相对于文件所在目录
+        const fileDir = filePath.substring(0, filePath.lastIndexOf('/'));
+        const relativePath = fileDir ? `${fileDir}/${imgPath}` : imgPath;
+        const relativeFile = app.vault.getAbstractFileByPath(relativePath);
+        if (relativeFile) {
+            return relativePath;
+        }
+
+        return null;
     }
 
     /**

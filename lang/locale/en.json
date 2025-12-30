@@ -137,5 +137,7 @@
     "Before": "Before",
     "After": "After",
     "Apply": "Apply",
-    "Text updated": "Text updated"
+    "Text updated": "Text updated",
+    "File updated": "File updated",
+    "Failed to update file": "Failed to update file"
 }

@@ -171,9 +171,13 @@ Output:
 Return ONLY the replaced text in JSON format: {"replacement": "your text here"}
 ```
 
-## 5. 限制与边界 (Constraints)
+## 6. 限制与边界 (Constraints)
 
-1.  **Scope**: 初期仅支持 Text Node 的内部文本编辑。File Node (MD) 暂不支持（因涉及文件读写权限和视图同步，较复杂）。 ✅
+1.  **Scope**: 支持 Text Node 和 **File Node (.md)** 的编辑。 ✅
+    *   **Text Node**: 直接修改 `node.text` 属性
+    *   **File Node**: 通过 `vault.modify()` 写入源文件
+    *   **初期限制**: File Node 仅支持整个内容编辑，不支持选中部分文本
+
 2.  **Token Limit & Pruning Strategy**: ⏳ (Future Enhancement)
     *   **问题**: 上游节点过多可能导致 Context 爆炸或超出模型窗口。
     *   **策略**: 实施 **Distance-based Context Pruning** (基于距离的剪枝)。
@@ -182,4 +186,80 @@ Return ONLY the replaced text in JSON format: {"replacement": "your text here"}
         *   **截断**: 当达到 `MAX_TOKENS` 或 `MAX_NODE_COUNT` 时，丢弃距离最远的节点。
         *   **关键路**: 始终保留带有强 Label（如 "Critical Context"）的路径，即使距离较远。
     *   **当前状态**: 暂未实现，作为后续优化项。
-3.  **Image Inputs**: 必须正确处理上游图片节点，将其作为 `inline_data` 或 `image_url` 传入给支持 Vision 的模型 (Gemini 3 Pro)。 ✅
+
+3.  **Image Inputs**: ✅
+    *   **上游图片节点**: 正确处理连接的 Image 节点，作为 Vision Context 传入
+    *   **Markdown 内嵌图片**: 解析 `![[image.png]]` 语法，提取图片作为上下文
+    *   **图片格式**: 使用 `CanvasConverter.readSingleImageFile()` 压缩为 WebP/Base64
+
+## 7. File Node 编辑实现 (File Node Edit Support)
+
+> [!NOTE]
+> 2024-12-30 新增功能
+
+### 7.1 技术发现
+
+File Node 在编辑模式下**同样使用 IFRAME 渲染**，DOM 结构与 Text Node 一致：
+```
+.canvas-node
+  └─ .canvas-node-container
+       └─ .canvas-node-content
+            └─ <iframe class="embed-iframe">
+                 └─ #document (Markdown 渲染内容)
+```
+
+### 7.2 实现方案
+
+1. **SelectionContext 扩展**:
+```typescript
+interface SelectionContext {
+    nodeId: string;
+    selectedText: string;
+    preText: string;
+    postText: string;
+    fullText: string;
+    isExplicit?: boolean;
+    fileNode?: TFile;  // 新增：如果是 File Node，保存文件引用
+}
+```
+
+2. **File Node 识别**:
+```typescript
+// 在 captureTextSelectionContext 中
+if (node.file?.extension === 'md') {
+    const fullText = await app.vault.cachedRead(node.file);
+    context.fileNode = node.file;
+    // ...
+}
+```
+
+3. **文件写入**:
+```typescript
+// 新增方法
+async applyEditToFileNode(file: TFile, originalText: string, newText: string) {
+    const content = await this.app.vault.cachedRead(file);
+    const updated = content.replace(originalText, newText);
+    await this.app.vault.modify(file, updated);
+}
+```
+
+### 7.3 内嵌图片解析
+
+解析 Markdown 文件中的 `![[image]]` 语法：
+```typescript
+function extractEmbeddedImages(content: string): string[] {
+    const regex = /!\[\[([^\]]+\.(png|jpg|jpeg|gif|webp))\]\]/gi;
+    const matches = [];
+    let match;
+    while ((match = regex.exec(content)) !== null) {
+        matches.push(match[1]);
+    }
+    return matches;
+}
+```
+
+### 7.4 限制
+
+> [!WARNING]
+> - File Node 仅支持**整个内容**作为编辑目标，不支持选中部分文本（因 IFRAME 内选区捕获复杂度）
+> - 修改后依赖 Obsidian 自动刷新机制同步视图
