@@ -1,8 +1,8 @@
 import { App, ItemView, Modal, Notice, Plugin, PluginSettingTab, Setting, setIcon, setTooltip, TFile, Scope, requestUrl, WorkspaceLeaf, Menu, MenuItem } from 'obsidian';
-import type { Canvas, CanvasNode, CanvasCoords, CanvasView, CanvasData } from './types';
+import type { Canvas, CanvasNode, CanvasCoords, CanvasView, CanvasData, SelectionContext } from './types';
 import { CanvasConverter } from './canvas-converter';
 import { ApiManager } from './api-manager';
-import { IntentResolver, ResolvedIntent } from './intent-resolver';
+import { IntentResolver, ResolvedIntent, NodeEditIntent } from './intent-resolver';
 import { extractCanvasJSON, remapCoordinates, regenerateIds, optimizeLayout, sanitizeCanvasData } from './node-mode-utils';
 import { t } from './lang/helpers';
 
@@ -96,6 +96,8 @@ export interface CanvasAISettings {
     paletteTextModel: string;
     paletteImageModel: string;
     paletteNodeModel: string;
+    editPresets: PromptPreset[];
+    paletteEditModel: string;
 }
 
 const DEFAULT_SETTINGS: CanvasAISettings = {
@@ -158,7 +160,9 @@ const DEFAULT_SETTINGS: CanvasAISettings = {
     quickSwitchImageModels: [],
     paletteTextModel: '',
     paletteImageModel: '',
-    paletteNodeModel: ''
+    paletteNodeModel: '',
+    editPresets: [],
+    paletteEditModel: ''
 };
 
 
@@ -170,7 +174,7 @@ export interface PromptPreset {
 }
 
 // ========== Floating Palette Mode ==========
-type PaletteMode = 'chat' | 'image' | 'node';
+type PaletteMode = 'chat' | 'image' | 'node' | 'edit';
 
 // AI Button ID constant for popup menu
 const AI_SPARKLES_BUTTON_ID = 'canvas-ai-sparkles';
@@ -296,14 +300,17 @@ class FloatingPalette {
     private imageResolution: string = '1K';
     private chatTemperature: number = 0.5;
     private nodeTemperature: number = 0.5;
+    private editTemperature: number = 0.5;
 
     // DOM references for image options
     private imageOptionsEl: HTMLElement | null = null;
     private chatOptionsEl: HTMLElement | null = null;
+    private editOptionsEl: HTMLElement | null = null;
     private ratioSelect: HTMLSelectElement | null = null;
     private resolutionSelect: HTMLSelectElement | null = null;
     private tempInput: HTMLInputElement | null = null;
     private nodeTempInput: HTMLInputElement | null = null;
+    private editTempInput: HTMLInputElement | null = null;
     private nodeOptionsEl: HTMLElement | null = null;
     private debugBtnEl: HTMLButtonElement | null = null;
     private versionInfoEl: HTMLElement | null = null;
@@ -317,6 +324,7 @@ class FloatingPalette {
     private chatPresets: PromptPreset[] = [];
     private imagePresets: PromptPreset[] = [];
     private nodePresets: PromptPreset[] = [];
+    private editPresets: PromptPreset[] = [];
     private onPresetChange: ((presets: PromptPreset[], mode: PaletteMode) => void) | null = null;
     private app: App;
     private scope: Scope;
@@ -325,11 +333,13 @@ class FloatingPalette {
     private textModelSelectEl: HTMLSelectElement | null = null;
     private imageModelSelectEl: HTMLSelectElement | null = null;
     private nodeModelSelectEl: HTMLSelectElement | null = null;
+    private editModelSelectEl: HTMLSelectElement | null = null;
     private quickSwitchTextModels: QuickSwitchModel[] = [];
     private quickSwitchImageModels: QuickSwitchModel[] = [];
     private selectedTextModel: string = '';  // Format: "provider|modelId"
     private selectedImageModel: string = '';
     private selectedNodeModel: string = '';
+    private selectedEditModel: string = '';
     private onModelChange: ((mode: PaletteMode, modelKey: string) => void) | null = null;
 
     constructor(app: App, apiManager: ApiManager, onDebugCallback?: (mode: PaletteMode) => void) {
@@ -434,10 +444,10 @@ class FloatingPalette {
         const header = container.createDiv('canvas-ai-palette-header');
         const tabsDiv = header.createDiv('canvas-ai-tabs');
 
-        ['chat', 'image', 'node'].forEach(mode => {
+        ['chat', 'image', 'node', 'edit'].forEach(mode => {
             const btn = tabsDiv.createEl('button', {
                 cls: `canvas-ai-tab${mode === 'chat' ? ' active' : ''}`,
-                text: mode === 'chat' ? t('Text') : mode === 'image' ? t('Image') : t('Node')
+                text: mode === 'chat' ? t('Text') : mode === 'image' ? t('Image') : mode === 'node' ? t('Node') : 'Edit'
             });
             btn.dataset.mode = mode;
         });
@@ -509,6 +519,14 @@ class FloatingPalette {
         nodeModelGrp.createEl('label', { text: t('Palette Model') });
         this.nodeModelSelectEl = nodeModelGrp.createEl('select', 'canvas-ai-node-model-select dropdown');
 
+        // Edit Options (only model selection, temperature is fixed at 1)
+        this.editOptionsEl = body.createDiv({ cls: 'canvas-ai-edit-options is-hidden' });
+
+        const editModelRow = this.editOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-edit-model-select-row is-hidden' });
+        const editModelGrp = editModelRow.createEl('span', 'canvas-ai-option-group');
+        editModelGrp.createEl('label', { text: t('Palette Model') });
+        this.editModelSelectEl = editModelGrp.createEl('select', 'canvas-ai-edit-model-select dropdown');
+
         // Action Row
         const actionRow = body.createDiv('canvas-ai-action-row');
         const generateBtn = actionRow.createEl('button', { cls: 'canvas-ai-generate-btn', text: t('Generate') });
@@ -569,12 +587,24 @@ class FloatingPalette {
             this.onModelChange?.('node', value);
         });
 
+        this.editModelSelectEl?.addEventListener('change', () => {
+            const value = this.editModelSelectEl!.value;
+            this.selectedEditModel = value;
+            this.onModelChange?.('edit', value);
+        });
+
         // Temperature is now fixed at 1, no UI controls needed
 
         this.presetSelect?.addEventListener('change', () => {
             const selectedId = this.presetSelect!.value;
             if (selectedId) {
-                const presets = this.currentMode === 'chat' ? this.chatPresets : this.currentMode === 'image' ? this.imagePresets : this.nodePresets;
+                const presets = this.currentMode === 'chat'
+                    ? this.chatPresets
+                    : this.currentMode === 'image'
+                        ? this.imagePresets
+                        : this.currentMode === 'node'
+                            ? this.nodePresets
+                            : this.editPresets;
                 const p = presets.find(x => x.id === selectedId);
                 if (p) this.promptInput.value = p.prompt;
             }
@@ -623,6 +653,13 @@ class FloatingPalette {
                 this.nodeOptionsEl.addClass('is-hidden');
             }
         }
+        if (this.editOptionsEl) {
+            if (this.currentMode === 'edit') {
+                this.editOptionsEl.removeClass('is-hidden');
+            } else {
+                this.editOptionsEl.addClass('is-hidden');
+            }
+        }
     }
 
     /**
@@ -635,7 +672,9 @@ class FloatingPalette {
             ? this.chatPresets
             : this.currentMode === 'image'
                 ? this.imagePresets
-                : this.nodePresets;
+                : this.currentMode === 'node'
+                    ? this.nodePresets
+                    : this.editPresets;
 
         this.presetSelect.empty();
         this.presetSelect.createEl('option', { value: '', text: t('Select prompt preset') });
@@ -671,9 +710,12 @@ class FloatingPalette {
                 } else if (this.currentMode === 'image') {
                     this.imagePresets.push(newPreset);
                     this.onPresetChange?.(this.imagePresets, 'image');
-                } else {
+                } else if (this.currentMode === 'node') {
                     this.nodePresets.push(newPreset);
                     this.onPresetChange?.(this.nodePresets, 'node');
+                } else {
+                    this.editPresets.push(newPreset);
+                    this.onPresetChange?.(this.editPresets, 'edit');
                 }
 
                 this.refreshPresetDropdown();
@@ -699,7 +741,9 @@ class FloatingPalette {
             ? this.chatPresets
             : this.currentMode === 'image'
                 ? this.imagePresets
-                : this.nodePresets;
+                : this.currentMode === 'node'
+                    ? this.nodePresets
+                    : this.editPresets;
         const preset = presets.find(p => p.id === selectedId);
         if (!preset) return;
 
@@ -713,9 +757,12 @@ class FloatingPalette {
                 } else if (this.currentMode === 'image') {
                     this.imagePresets = this.imagePresets.filter(p => p.id !== selectedId);
                     this.onPresetChange?.(this.imagePresets, 'image');
-                } else {
+                } else if (this.currentMode === 'node') {
                     this.nodePresets = this.nodePresets.filter(p => p.id !== selectedId);
                     this.onPresetChange?.(this.nodePresets, 'node');
+                } else {
+                    this.editPresets = this.editPresets.filter(p => p.id !== selectedId);
+                    this.onPresetChange?.(this.editPresets, 'edit');
                 }
 
                 this.refreshPresetDropdown();
@@ -737,7 +784,9 @@ class FloatingPalette {
             ? this.chatPresets
             : this.currentMode === 'image'
                 ? this.imagePresets
-                : this.nodePresets;
+                : this.currentMode === 'node'
+                    ? this.nodePresets
+                    : this.editPresets;
         const preset = presets.find(p => p.id === selectedId);
         if (!preset) return;
 
@@ -747,8 +796,10 @@ class FloatingPalette {
             this.onPresetChange?.(this.chatPresets, 'chat');
         } else if (this.currentMode === 'image') {
             this.onPresetChange?.(this.imagePresets, 'image');
-        } else {
+        } else if (this.currentMode === 'node') {
             this.onPresetChange?.(this.nodePresets, 'node');
+        } else {
+            this.onPresetChange?.(this.editPresets, 'edit');
         }
 
         new Notice(t('Preset saved', { name: preset.name }));
@@ -768,7 +819,9 @@ class FloatingPalette {
             ? this.chatPresets
             : this.currentMode === 'image'
                 ? this.imagePresets
-                : this.nodePresets;
+                : this.currentMode === 'node'
+                    ? this.nodePresets
+                    : this.editPresets;
         const preset = presets.find(p => p.id === selectedId);
         if (!preset) return;
 
@@ -784,8 +837,10 @@ class FloatingPalette {
                     this.onPresetChange?.(this.chatPresets, 'chat');
                 } else if (this.currentMode === 'image') {
                     this.onPresetChange?.(this.imagePresets, 'image');
-                } else {
+                } else if (this.currentMode === 'node') {
                     this.onPresetChange?.(this.nodePresets, 'node');
+                } else {
+                    this.onPresetChange?.(this.editPresets, 'edit');
                 }
 
                 this.refreshPresetDropdown();
@@ -800,10 +855,11 @@ class FloatingPalette {
     /**
      * Initialize presets from saved settings
      */
-    initPresets(chatPresets: PromptPreset[], imagePresets: PromptPreset[], nodePresets: PromptPreset[] = []): void {
+    initPresets(chatPresets: PromptPreset[], imagePresets: PromptPreset[], nodePresets: PromptPreset[] = [], editPresets: PromptPreset[] = []): void {
         this.chatPresets = [...chatPresets];
         this.imagePresets = [...imagePresets];
         this.nodePresets = [...nodePresets];
+        this.editPresets = [...editPresets];
         this.refreshPresetDropdown();
     }
 
@@ -829,8 +885,10 @@ class FloatingPalette {
             this.promptInput.placeholder = t('Enter instructions');
         } else if (this.currentMode === 'image') {
             this.promptInput.placeholder = t('Describe the image');
-        } else {
+        } else if (this.currentMode === 'node') {
             this.promptInput.placeholder = t('Describe structure');
+        } else {
+            this.promptInput.placeholder = 'Edit selection...';
         }
     }
 
@@ -985,12 +1043,32 @@ class FloatingPalette {
     }
 
     /**
+     * Get current edit mode options
+     */
+    getEditOptions(): { temperature: number } {
+        // Temperature is fixed at 1 for optimal results
+        return {
+            temperature: 1
+        };
+    }
+
+    /**
      * Initialize node options from settings
      */
     initNodeOptions(temperature: number): void {
         this.nodeTemperature = temperature;
         if (this.nodeTempInput) {
             this.nodeTempInput.value = String(temperature);
+        }
+    }
+
+    /**
+     * Initialize edit options from settings
+     */
+    initEditOptions(temperature: number): void {
+        this.editTemperature = temperature;
+        if (this.editTempInput) {
+            this.editTempInput.value = String(temperature);
         }
     }
 
@@ -1002,13 +1080,15 @@ class FloatingPalette {
         imageModels: QuickSwitchModel[],
         selectedTextModel: string,
         selectedImageModel: string,
-        selectedNodeModel: string
+        selectedNodeModel: string,
+        selectedEditModel: string
     ): void {
         this.quickSwitchTextModels = textModels;
         this.quickSwitchImageModels = imageModels;
         this.selectedTextModel = selectedTextModel;
         this.selectedImageModel = selectedImageModel;
         this.selectedNodeModel = selectedNodeModel;
+        this.selectedEditModel = selectedEditModel;
         this.updateModelSelects();
     }
 
@@ -1088,6 +1168,17 @@ class FloatingPalette {
                 imageRow.removeClass('is-hidden');
             } else {
                 imageRow.addClass('is-hidden');
+            }
+        }
+
+        // Update edit model select (edit mode uses same text model list)
+        this.selectedEditModel = populateSelect(this.editModelSelectEl, this.quickSwitchTextModels, this.selectedEditModel);
+        const editRow = this.editModelSelectEl?.closest('.canvas-ai-edit-model-select-row') as HTMLElement;
+        if (editRow) {
+            if (hasTextModels) {
+                editRow.removeClass('is-hidden');
+            } else {
+                editRow.addClass('is-hidden');
             }
         }
     }
@@ -1198,6 +1289,8 @@ export default class CanvasAIPlugin extends Plugin {
     public floatingPalette: FloatingPalette | null = null;
     private lastSelectionSize: number = 0;
     private lastSelectedIds: Set<string> = new Set();
+    // Cache the last valid text selection from node edit mode
+    public lastTextSelectionContext: SelectionContext | null = null;
     private hideTimer: number | null = null;
     public apiManager: ApiManager | null = null;
     // Track active ghost nodes to prevent race conditions during concurrent image generations
@@ -1315,7 +1408,8 @@ export default class CanvasAIPlugin extends Plugin {
         this.floatingPalette.initPresets(
             this.settings.chatPresets || [],
             this.settings.imagePresets || [],
-            this.settings.nodePresets || []
+            this.settings.nodePresets || [],
+            this.settings.editPresets || []
         );
 
         // Initialize debug mode from settings
@@ -1327,7 +1421,8 @@ export default class CanvasAIPlugin extends Plugin {
             this.settings.quickSwitchImageModels || [],
             this.settings.paletteTextModel || '',
             this.settings.paletteImageModel || '',
-            this.settings.paletteNodeModel || ''
+            this.settings.paletteNodeModel || '',
+            this.settings.paletteEditModel || ''
         );
 
         // Set up model change callback for persisting selected models
@@ -1338,6 +1433,8 @@ export default class CanvasAIPlugin extends Plugin {
                 this.settings.paletteImageModel = modelKey;
             } else if (mode === 'node') {
                 this.settings.paletteNodeModel = modelKey;
+            } else {
+                this.settings.paletteEditModel = modelKey;
             }
             void this.saveSettings();
         });
@@ -1405,6 +1502,89 @@ export default class CanvasAIPlugin extends Plugin {
         } else {
             // No quick switch model selected, use the default apiManager's settings
             localApiManager = new ApiManager(this.settings);
+        }
+
+        // ========== Handle Edit Mode ==========
+        if (mode === 'edit') {
+            const context = this.lastTextSelectionContext || this.captureTextSelectionContext(true);
+            if (!context) {
+                new Notice(t('No text selected'));
+                return;
+            }
+
+            console.debug('Canvas Banana: Resolving edit intent for node', context.nodeId);
+
+            let editIntent: NodeEditIntent;
+            try {
+                editIntent = await IntentResolver.resolveForNodeEdit(
+                    this.app,
+                    canvas,
+                    context,
+                    userPrompt,
+                    this.settings
+                );
+            } catch (e) {
+                console.error('Canvas Banana: Edit intent resolution failed:', e);
+                return;
+            }
+
+            if (!editIntent.canEdit) {
+                console.debug('Canvas Banana: Nothing to edit');
+                return;
+            }
+
+            // Create Ghost Node relative to the edited node
+            const node = canvas.nodes.get(context.nodeId);
+            let nodeX = 100, nodeY = 100;
+            if (node) {
+                nodeX = node.x + node.width + 50;
+                nodeY = node.y;
+            }
+            const ghostNode = this.createGhostNode(canvas, nodeX, nodeY);
+            console.debug('Canvas Banana: Ghost Node created for edit result:', ghostNode.id);
+
+            try {
+                const editOptions = this.floatingPalette!.getEditOptions();
+                
+                // System Prompt for Editing
+                const systemPrompt = "You are an expert text editor. Rewrite the target text based on the user's instruction. Maintain the original tone and style unless instructed otherwise. Output ONLY the rewritten text.";
+                
+                // Construct User Message with Context
+                let userMsg = `Target Text:\n${editIntent.targetText}`;
+                if (editIntent.upstreamContext) {
+                    userMsg += `\n\nContext:\n${editIntent.upstreamContext}`;
+                }
+                userMsg += `\n\nInstruction:\n${editIntent.instruction}`;
+
+                // Handle Upstream Images
+                const mediaList = editIntent.images.map(img => ({
+                    base64: img.base64,
+                    mimeType: img.mimeType,
+                    type: 'image' as const
+                }));
+
+                let response: string;
+                if (mediaList.length > 0) {
+                    response = await localApiManager.multimodalChat(
+                        userMsg,
+                        mediaList,
+                        systemPrompt,
+                        editOptions.temperature
+                    );
+                } else {
+                    response = await localApiManager.chatCompletion(
+                        userMsg,
+                        systemPrompt,
+                        editOptions.temperature
+                    );
+                }
+
+                this.updateGhostNode(ghostNode, response, false);
+
+            } catch (error) {
+                this.updateGhostNode(ghostNode, `Error: ${error instanceof Error ? error.message : String(error)}`, true);
+            }
+            return;
         }
 
         // ========== Use IntentResolver for intelligent parsing ==========
@@ -2056,44 +2236,67 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
     /**
      * 注册 Canvas 选中状态监听
      */
+    /**
+     * 注册 Canvas 选中状态监听
+     */
     private registerCanvasSelectionListener(): void {
+        // 监听文本选区变化，实时缓存选区信息（用于Edit模式）
+        const selectionChangeHandler = () => {
+             this.captureTextSelectionContext(true);
+        };
+        document.addEventListener('selectionchange', selectionChangeHandler);
+        this.register(() => document.removeEventListener('selectionchange', selectionChangeHandler));
+
         // 监听布局变化（包括选中状态变化）
         this.registerEvent(
             this.app.workspace.on('layout-change', () => {
                 this.checkCanvasSelection();
+                // 布局变化时（如进入编辑模式），扫描新的 IFRAME
+                this.monitorIframeSelection();
             })
         );
 
-        // 监听全局鼠标按下事件，用于判断点击意图
-        this.registerDomEvent(document, 'mousedown', (evt: MouseEvent) => {
+        // 关键修复：使用捕获阶段的 mousedown 拦截点击
+        // 在浏览器清除文本选区之前捕获选区信息
+        const captureMousedown = (evt: MouseEvent) => {
             // 鼠标操作时，重置键盘状态
             this.lastInteractionWasDeleteOrEsc = false;
 
             const target = evt.target as HTMLElement;
-            // 检查是否点击了 Canvas 及其 UI 元素
-            const isCanvasClick = target.closest('.canvas-wrapper');
-            if (isCanvasClick) {
-                // 如果点击了 节点、连线、或者我们的 AI 面板，则不算"背景点击"
-                const isNode = target.closest('.canvas-node');
-                const isEdge = target.closest('.canvas-edge');
-                const isPalette = target.closest('.canvas-ai-palette');
-                const isMenu = target.closest('.menu'); // 上下文菜单
+            
+            // 检查是否点击了 AI Palette 相关元素
+            const isPalette = target.closest('.canvas-ai-palette');
+            const isAiButton = target.closest('#canvas-ai-sparkles');
+            const isMenu = target.closest('.menu');
 
+            if (isPalette || isAiButton || isMenu) {
+                // 点击 AI 界面前，强制尝试捕获当前焦点所在的选区
+                this.captureTextSelectionContext(true);
+            }
+
+            // 检查是否点击了 Canvas 及其 UI 元素 (用于背景点击检测)
+            const isCanvasClick = target.closest('.canvas-wrapper');
+            const isNode = target.closest('.canvas-node');
+            const isEdge = target.closest('.canvas-edge');
+
+            if (isCanvasClick) {
                 if (!isNode && !isEdge && !isPalette && !isMenu) {
                     this.lastClickWasBackground = true;
                 } else {
                     this.lastClickWasBackground = false;
                 }
             } else {
-                // Canvas 区域外点击，视为背景点击 (用于关闭)
+                // Canvas 区域外点击，自为背景点击
                 this.lastClickWasBackground = true;
             }
-        });
+        };
+        // 使用 capture: true 确保在冒泡阶段之前执行
+        document.addEventListener('mousedown', captureMousedown, true);
+        this.register(() => document.removeEventListener('mousedown', captureMousedown, true));
 
-        // 监听 Escape 键 - 使用捕获阶段确保先于 Obsidian 处理
+        // 监听 Escape 键
         const escapeHandler = (evt: KeyboardEvent) => {
             if (evt.key === 'Escape') {
-                // Escape 直接关闭面板（如果面板可见）
                 if (this.floatingPalette?.visible) {
                     this.floatingPalette.hide();
                     evt.preventDefault();
@@ -2102,17 +2305,15 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                 }
             }
         };
-        document.addEventListener('keydown', escapeHandler, true); // capture: true
+        document.addEventListener('keydown', escapeHandler, true);
         this.register(() => document.removeEventListener('keydown', escapeHandler, true));
 
         // 监听键盘事件，用于捕获 Delete/Backspace
         this.registerDomEvent(document, 'keydown', (evt: KeyboardEvent) => {
             if (evt.key === 'Delete' || evt.key === 'Backspace') {
                 this.lastInteractionWasDeleteOrEsc = true;
-                // 重置鼠标状态
                 this.lastClickWasBackground = false;
             } else if (evt.key !== 'Escape') {
-                // 不重置 Escape 相关状态，因为它已经在上面的 handler 处理了
                 this.lastInteractionWasDeleteOrEsc = false;
             }
         });
@@ -2120,8 +2321,6 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         // 监听活动叶子变化
         this.registerEvent(
             this.app.workspace.on('active-leaf-change', (leaf) => {
-                // 只有当真正的 View 发生变化时才隐藏
-                // 如果在同一个 Canvas 内切换焦点，不应该隐藏
                 const currentView = this.app.workspace.getActiveViewOfType(ItemView);
                 if (currentView?.getViewType() === 'canvas' && leaf?.view === currentView) {
                     return;
@@ -2130,8 +2329,7 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             })
         );
 
-        // 监听文件打开（切换文件时隐藏）
-        // 只有当真正离开 Canvas 视图时才隐藏，点击 Canvas 内的文件节点不应该隐藏面板
+        // 监听文件打开
         this.registerEvent(
             this.app.workspace.on('file-open', () => {
                 const currentView = this.app.workspace.getActiveViewOfType(ItemView);
@@ -2141,12 +2339,125 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             })
         );
 
-        // 使用 requestAnimationFrame 轮询检查选中状态（更及时）
+        // 使用 requestAnimationFrame 轮询检查选中状态
         this.registerInterval(
             window.setInterval(() => {
                 this.checkCanvasSelection();
             }, 200)
         );
+
+        // 定期扫描并监听 IFRAME
+        this.registerInterval(
+            window.setInterval(() => {
+                this.monitorIframeSelection();
+            }, 2000)
+        );
+    }
+
+    /**
+     * 监控 Canvas 节点内的 IFRAME 选区
+     * 必须递归添加监听器，因为 IFRAME 内部的选区变化不会冒泡到主文档
+     */
+    private monitorIframeSelection(): void {
+        const iframes = document.querySelectorAll('.canvas-node iframe.embed-iframe');
+        iframes.forEach((iframe: HTMLIFrameElement) => {
+            try {
+                // 忽略没有 contentDocument 的 iframe (可能是跨域或未加载)
+                const doc = iframe.contentDocument;
+                // 定义扩展接口以避免 any
+                interface DocWithListener extends Document {
+                    _hasSelectionListener?: boolean;
+                }
+                
+                if (doc && !(doc as DocWithListener)._hasSelectionListener) {
+                    (doc as DocWithListener)._hasSelectionListener = true;
+                    
+                    // 在 iframe 内部监听 selectionchange
+                    doc.addEventListener('selectionchange', () => {
+                        this.captureTextSelectionContext(true, iframe);
+                    });
+                    
+                    // 监听 mouseup 辅助捕获
+                    doc.addEventListener('mouseup', () => {
+                        this.captureTextSelectionContext(true, iframe);
+                    });
+                }
+            } catch {
+                // 忽略 SecurityError
+            }
+        });
+    }
+
+    /**
+     * 捕获并解析文本选区上下文
+     * @param updateCache 是否更新全局缓存
+     * @param specificIframe 指定从特定 IFRAME 获取
+     */
+    private captureTextSelectionContext(updateCache: boolean = false, specificIframe?: HTMLIFrameElement): SelectionContext | null {
+        let selection: Selection | null = null;
+        let containerIframe: HTMLIFrameElement | null = specificIframe || null;
+
+        // 1. 尝试从指定 IFRAME 获取
+        if (specificIframe && specificIframe.contentDocument) {
+            selection = specificIframe.contentDocument.getSelection();
+        } 
+        // 2. 尝试从 document.activeElement (如果是 IFRAME) 获取
+        else if (document.activeElement?.tagName === 'IFRAME' && document.activeElement.classList.contains('embed-iframe')) {
+            containerIframe = document.activeElement as HTMLIFrameElement;
+            selection = containerIframe.contentDocument?.getSelection() || null;
+        }
+        // 3. 全局尝试（不常用，但在还没进入 iframe 时可能有效）
+        else {
+            selection = window.getSelection();
+        }
+
+        if (selection && !selection.isCollapsed && selection.toString().trim()) {
+            let nodeId: string | null = null;
+
+            // 尝试反向查找 Node ID
+            if (containerIframe) {
+                const nodeEl = containerIframe.closest('.canvas-node');
+                nodeId = nodeEl?.getAttribute('data-node-id') || null;
+            } else if (selection.anchorNode) {
+                // 普通 DOM 选区
+                const nodeEl = selection.anchorNode.parentElement?.closest('.canvas-node');
+                nodeId = nodeEl?.getAttribute('data-node-id') || null;
+            }
+
+            if (nodeId) {
+                const canvas = this.getActiveCanvas();
+                const node = canvas?.nodes.get(nodeId);
+                
+                if (node && node.text) {
+                    const selectedText = selection.toString();
+                    const fullText = node.text;
+
+                    // 简易定位：使用 indexOf
+                    // TODO: 考虑如果有重复文本怎么办？
+                    // 理想情况下我们需要从编辑器的 Model 获取准确的 Range，
+                    // 但由于我们没有直接访问编辑器实例的 API，只能通过文本匹配。
+                    // 对于大多数 AI 润色场景，这已经足够好了。
+                    const index = fullText.indexOf(selectedText);
+                    
+                    const context: SelectionContext = {
+                        nodeId,
+                        selectedText,
+                        preText: index >= 0 ? fullText.substring(0, index) : '',
+                        postText: index >= 0 ? fullText.substring(index + selectedText.length) : '',
+                        fullText
+                    };
+
+                    if (updateCache) {
+                        this.lastTextSelectionContext = context;
+                    }
+                    return context;
+                }
+            }
+        }
+
+        // 如果没有获取到有效的新选区，且 updateCache 为 false，则返回缓存（如果调用者希望获取最佳猜测）
+        // 但这里为了语义清晰，如果没捕获到就返回 null
+        return null; 
     }
 
     /**
@@ -2395,93 +2706,127 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             // Get prompt from palette (might be empty)
             const prompt = this.floatingPalette?.getPrompt() || '';
 
-            const intent = await IntentResolver.resolve(
-                this.app,
-                canvas,
-                selection,
-                prompt,
-                mode,
-                this.settings
-            );
+            if (mode === 'edit') {
+                const context = this.lastTextSelectionContext;
+                if (!context) {
+                    console.debug('❌ No text selection context found for edit mode simulation');
+                    return;
+                }
+                
+                const intent = await IntentResolver.resolveForNodeEdit(
+                    this.app,
+                    canvas,
+                    context,
+                    prompt,
+                    this.settings
+                );
 
-            console.debug('✅ canGenerate:', intent.canGenerate);
-
-            if (intent.images.length > 0) {
-                console.debug('📷 Images with Roles');
-                intent.images.forEach((img, idx) => {
-                    console.debug(`[${idx + 1}] Role: "${img.role}", MimeType: ${img.mimeType}, Base64 Length: ${img.base64.length}`);
-                });
+                console.debug('✅ canEdit:', intent.canEdit);
+                console.debug('🎯 Target Text:', intent.targetText);
+                console.debug('📝 Instruction:', intent.instruction);
+                
+                if (intent.upstreamContext) {
+                    console.debug('📄 Upstream Context:', intent.upstreamContext);
+                }
+                
+                if (intent.images.length > 0) {
+                    console.debug('📷 Upstream Images with Roles');
+                    intent.images.forEach((img, idx) => {
+                        console.debug(`[${idx + 1}] Role: "${img.role}", MimeType: ${img.mimeType}`);
+                    });
+                }
+                
+                if (intent.warnings.length > 0) {
+                    console.debug('⚠️ Warnings');
+                    intent.warnings.forEach(w => console.warn(w));
+                }
             } else {
-                console.debug('(No images in selection)');
+                const intent = await IntentResolver.resolve(
+                    this.app,
+                    canvas,
+                    selection,
+                    prompt,
+                    mode,
+                    this.settings
+                );
+
+                console.debug('✅ canGenerate:', intent.canGenerate);
+
+                if (intent.images.length > 0) {
+                    console.debug('📷 Images with Roles');
+                    intent.images.forEach((img, idx) => {
+                        console.debug(`[${idx + 1}] Role: "${img.role}", MimeType: ${img.mimeType}, Base64 Length: ${img.base64.length}`);
+                    });
+                } else {
+                    console.debug('(No images in selection)');
+                }
+
+                console.debug('📝 Instruction');
+                console.debug('Final Instruction:', intent.instruction);
+
+                console.debug('📄 Context Text');
+                if (intent.contextText) {
+                    console.debug(intent.contextText);
+                } else {
+                    console.debug('(No context text)');
+                }
+
+                if (intent.warnings.length > 0) {
+                    console.debug('⚠️ Warnings');
+                    intent.warnings.forEach(w => console.warn(w));
+                }
+
+                // Simulated Payload Structure (Moved inside else)
+                console.debug('📦 Simulated API Payload Structure');
+
+                let payloadPreview: Record<string, unknown> = {};
+
+                if (mode === 'chat') {
+                    const systemPrompt = this.settings.chatSystemPrompt || 'You are a helpful AI assistant...';
+                    payloadPreview = {
+                        model: this.settings.apiProvider === 'openrouter' ? this.settings.openRouterTextModel : (this.settings.apiProvider === 'yunwu' ? this.settings.yunwuTextModel : this.settings.geminiTextModel),
+                        mode: 'chat',
+                        systemPrompt: systemPrompt,
+                        modalities: ['text'],
+                        content_structure: [
+                            { type: 'text', text: intent.instruction },
+                            ...(intent.contextText ? [{ type: 'text', text: `[Context] ...` }] : []),
+                            ...intent.images.map(img => ({ type: 'image_url', base64_length: img.base64.length }))
+                        ]
+                    };
+                } else if (mode === 'node') {
+                    const systemPrompt = this.settings.nodeSystemPrompt || 'Default Node Prompt...';
+                    payloadPreview = {
+                        model: this.settings.apiProvider === 'openrouter' ? this.settings.openRouterTextModel : (this.settings.apiProvider === 'yunwu' ? this.settings.yunwuTextModel : this.settings.geminiTextModel),
+                        mode: 'node',
+                        systemPrompt: systemPrompt,
+                        modalities: ['text'],
+                        content_structure: [
+                            { type: 'text', text: '[SOURCE_CONTENT]...' },
+                            { type: 'text', text: '[TASK] ' + intent.instruction },
+                            ...intent.images.map(img => ({ type: 'image_url', base64_length: img.base64.length }))
+                        ]
+                    };
+                } else {
+                    // Image Mode
+                    const systemPrompt = this.settings.imageSystemPrompt || 'Role: A Professional Image Creator...';
+                    payloadPreview = {
+                        model: this.settings.apiProvider === 'openrouter' ? this.settings.openRouterImageModel : (this.settings.apiProvider === 'yunwu' ? this.settings.yunwuImageModel : this.settings.geminiImageModel),
+                        mode: 'image',
+                        systemPrompt: systemPrompt,
+                        modalities: ['image', 'text'],
+                        content_structure: [
+                            ...intent.images.map(img => [
+                                { type: 'text', text: `[Ref: ${img.role}]` },
+                                { type: 'image_url', base64_length: img.base64.length }
+                            ]).flat(),
+                            intent.contextText ? { type: 'text', text: '[Context]...' } : null,
+                            { type: 'text', text: `INSTRUCTION: ${intent.instruction.substring(0, 100)}${intent.instruction.length > 100 ? '...' : ''}` }
+                        ].filter(Boolean)
+                    };
+                }
+                console.debug(JSON.stringify(payloadPreview, null, 2));
             }
-
-            console.debug('📝 Instruction');
-            console.debug('Final Instruction:', intent.instruction);
-
-            console.debug('📄 Context Text');
-            if (intent.contextText) {
-                console.debug(intent.contextText);
-            } else {
-                console.debug('(No context text)');
-            }
-
-            if (intent.warnings.length > 0) {
-                console.debug('⚠️ Warnings');
-                intent.warnings.forEach(w => console.warn(w));
-            }
-
-            // 模拟 Payload 结构
-            console.debug('📦 Simulated API Payload Structure');
-
-            let payloadPreview: Record<string, unknown>;
-
-            if (mode === 'chat') {
-                const systemPrompt = this.settings.chatSystemPrompt || 'You are a helpful AI assistant...';
-                payloadPreview = {
-                    model: this.settings.apiProvider === 'openrouter' ? this.settings.openRouterTextModel : (this.settings.apiProvider === 'yunwu' ? this.settings.yunwuTextModel : this.settings.geminiTextModel),
-                    mode: 'chat',
-                    systemPrompt: systemPrompt,
-                    modalities: ['text'],
-                    content_structure: [
-                        { type: 'text', text: intent.instruction },
-                        ...(intent.contextText ? [{ type: 'text', text: `[Context] ...` }] : []),
-                        ...intent.images.map(img => ({ type: 'image_url', base64_length: img.base64.length }))
-                    ]
-                };
-            } else if (mode === 'node') {
-                const systemPrompt = this.settings.nodeSystemPrompt || 'Default Node Prompt...';
-                payloadPreview = {
-                    model: this.settings.apiProvider === 'openrouter' ? this.settings.openRouterTextModel : (this.settings.apiProvider === 'yunwu' ? this.settings.yunwuTextModel : this.settings.geminiTextModel),
-                    mode: 'node',
-                    systemPrompt: systemPrompt,
-                    modalities: ['text'],
-                    content_structure: [
-                        { type: 'text', text: '[SOURCE_CONTENT]...' },
-                        { type: 'text', text: '[TASK] ' + intent.instruction },
-                        ...intent.images.map(img => ({ type: 'image_url', base64_length: img.base64.length }))
-                    ]
-                };
-            } else {
-                // Image Mode
-                const systemPrompt = this.settings.imageSystemPrompt || 'Role: A Professional Image Creator...';
-                payloadPreview = {
-                    model: this.settings.apiProvider === 'openrouter' ? this.settings.openRouterImageModel : (this.settings.apiProvider === 'yunwu' ? this.settings.yunwuImageModel : this.settings.geminiImageModel),
-                    mode: 'image',
-                    systemPrompt: systemPrompt, // Show what system prompt will be used
-                    modalities: ['image', 'text'],
-                    content_structure: [
-                        // REMOVED duplicate system prompt injection here
-                        ...intent.images.map(img => [
-                            { type: 'text', text: `[Ref: ${img.role}]` },
-                            { type: 'image_url', base64_length: img.base64.length }
-                        ]).flat(),
-                        intent.contextText ? { type: 'text', text: '[Context]...' } : null,
-                        { type: 'text', text: `INSTRUCTION: ${intent.instruction.substring(0, 100)}${intent.instruction.length > 100 ? '...' : ''}` }
-                    ].filter(Boolean)
-                };
-            }
-
-            console.debug(JSON.stringify(payloadPreview, null, 2));
 
         } catch (e) {
             console.error('IntentResolver failed:', e);
@@ -3855,7 +4200,8 @@ class CanvasAISettingTab extends PluginSettingTab {
                     this.plugin.settings.quickSwitchImageModels || [],
                     this.plugin.settings.paletteTextModel || '',
                     this.plugin.settings.paletteImageModel || '',
-                    this.plugin.settings.paletteNodeModel || ''
+                    this.plugin.settings.paletteNodeModel || '',
+                    this.plugin.settings.paletteEditModel || ''
                 );
                 new Notice(t('Model removed'));
                     void this.display();
@@ -3902,7 +4248,8 @@ class CanvasAISettingTab extends PluginSettingTab {
                         this.plugin.settings.quickSwitchImageModels || [],
                         this.plugin.settings.paletteTextModel || '',
                         this.plugin.settings.paletteImageModel || '',
-                        this.plugin.settings.paletteNodeModel || ''
+                        this.plugin.settings.paletteNodeModel || '',
+                        this.plugin.settings.paletteEditModel || ''
                     );
                     void this.display();
                     })();
@@ -4094,7 +4441,8 @@ class CanvasAISettingTab extends PluginSettingTab {
                         this.plugin.settings.quickSwitchImageModels || [],
                         this.plugin.settings.paletteTextModel || '',
                         this.plugin.settings.paletteImageModel || '',
-                        this.plugin.settings.paletteNodeModel || ''
+                        this.plugin.settings.paletteNodeModel || '',
+                        this.plugin.settings.paletteEditModel || ''
                     );
                     new Notice(t('Model added'));
                     this.display();
