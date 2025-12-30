@@ -29,6 +29,11 @@ src/
 │   └── utilities.ts         ✅ Canvas 工具命令
 ├── api/
 │   └── api-manager.ts       ✅ API 管理
+├── prompts/
+│   ├── index.ts             ✅ Prompts 入口
+│   └── node-mode-prompt.ts  ✅ Node Mode 默认 Prompt
+├── utils/
+│   └── debug.ts             ✅ 调试工具
 └── types.ts                 ✅ 类型定义
 ```
 
@@ -45,16 +50,12 @@ src/
 | 5 | 创建 settings-tab.ts | ✅ | ~1000 |
 | 6 | 创建 Canvas 功能模块 | ✅ | - |
 | 7 | 代码清理 (temperature) | ✅ | ~30 |
+| 8 | 提取 debugSelectedNodes | ✅ | ~197 |
+| 9 | 删除未使用 Provider 方法 | ✅ | ~76 |
+| 10 | 提取 prompts 到独立模块 | ✅ | ~86 |
+| 11 | 清理冗余注释 | ✅ | ~12 |
 
-**最终结果**: 4768 行 → 2360 行 (**减少 50.5%**)
-
----
-
-## 代码清理
-
-- [x] 删除未使用的 temperature 变量和方法
-- [ ] 合并重复的 Provider switch-case 模式（可选）
-- [ ] 将 debugSelectedNodes 移入可选调试模块（可选）
+**最终结果**: 4768 行 → **1986 行** (**减少 58.3%**)
 
 ---
 
