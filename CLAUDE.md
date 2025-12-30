@@ -13,6 +13,24 @@ trigger: always_on
 - 使用 Context7 MCP 检索 API 文档
 - 改动后运行 `npm run build` 和 `npm run lint`
 
+## 文件大小限制 (Vibe Coding 友好)
+- **单文件上限**: 800 行
+- **建议拆分**: 超过 500 行时考虑模块化
+- **核心原则**: 每个文件只做一件事
+
+> ⚠️ 文件过大会降低 AI 辅助编码效率，请及时拆分
+
+## 目录结构
+```
+src/
+├── settings/      # 设置相关
+├── ui/            # UI 组件 (FloatingPalette, Modals)
+├── canvas/        # Canvas 功能 (转换、意图解析、节点操作)
+├── api/           # API 管理
+└── types.ts       # 类型定义
+main.ts            # 插件入口
+```
+
 ## 多语言 (i18n)
 - `lang/locale/en.json` 为主 (Source of Truth)，`zh-cn.json` 为翻译
 - 使用 `t('key')` 函数调用，支持参数插值 `t('Hello {name}', { name: 'World' })`

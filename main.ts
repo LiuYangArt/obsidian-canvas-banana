@@ -108,16 +108,14 @@ export default class CanvasAIPlugin extends Plugin {
         // Set up settings change callback for persisting image options
         this.floatingPalette.setOnSettingsChange((key, value) => {
             if (key === 'aspectRatio') {
-                this.settings.defaultAspectRatio = value as string;
+                this.settings.defaultAspectRatio = value;
             } else if (key === 'resolution') {
-                this.settings.defaultResolution = value as string;
-            } else if (key === 'chatTemperature') {
-                this.settings.defaultChatTemperature = value as number;
-            } else if (key === 'nodeTemperature') {
-                this.settings.defaultNodeTemperature = value as number;
+                this.settings.defaultResolution = value;
             }
+
             void this.saveSettings();
         });
+
 
         // Set up preset change callback for persisting presets
         this.floatingPalette.setOnPresetChange((presets, mode) => {
@@ -139,15 +137,8 @@ export default class CanvasAIPlugin extends Plugin {
             this.settings.defaultResolution
         );
 
-        this.floatingPalette.initChatOptions(
-            this.settings.defaultChatTemperature
-        );
-
-        this.floatingPalette.initNodeOptions(
-            this.settings.defaultNodeTemperature
-        );
-
         // Initialize presets from saved settings
+
         this.floatingPalette.initPresets(
             this.settings.chatPresets || [],
             this.settings.imagePresets || [],

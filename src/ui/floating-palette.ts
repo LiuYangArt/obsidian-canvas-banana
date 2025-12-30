@@ -22,7 +22,8 @@ export class FloatingPalette {
     private onClose: (() => void) | null = null;
     private onDebug: ((mode: PaletteMode) => void) | null = null;
     private onGenerate: ((prompt: string, mode: PaletteMode) => Promise<void>) | null = null;
-    private onSettingsChange: ((key: 'aspectRatio' | 'resolution' | 'chatTemperature' | 'nodeTemperature', value: string | number) => void) | null = null;
+    private onSettingsChange: ((key: 'aspectRatio' | 'resolution', value: string) => void) | null = null;
+
     private apiManager: ApiManager;
     private pendingTaskCount: number = 0;
     // Track text node count for generate button state
@@ -30,9 +31,6 @@ export class FloatingPalette {
     // Image generation options (no model selection - always use Pro)
     private imageAspectRatio: string = '1:1';
     private imageResolution: string = '1K';
-    private chatTemperature: number = 0.5;
-    private nodeTemperature: number = 0.5;
-    private editTemperature: number = 0.5;
 
     // DOM references for image options
     private imageOptionsEl: HTMLElement | null = null;
@@ -40,10 +38,8 @@ export class FloatingPalette {
     private editOptionsEl: HTMLElement | null = null;
     private ratioSelect: HTMLSelectElement | null = null;
     private resolutionSelect: HTMLSelectElement | null = null;
-    private tempInput: HTMLInputElement | null = null;
-    private nodeTempInput: HTMLInputElement | null = null;
-    private editTempInput: HTMLInputElement | null = null;
     private nodeOptionsEl: HTMLElement | null = null;
+
     private debugBtnEl: HTMLButtonElement | null = null;
     private versionInfoEl: HTMLElement | null = null;
 
@@ -116,9 +112,10 @@ export class FloatingPalette {
     /**
      * Set the callback for settings change
      */
-    setOnSettingsChange(callback: (key: 'aspectRatio' | 'resolution' | 'chatTemperature', value: string | number) => void): void {
+    setOnSettingsChange(callback: (key: 'aspectRatio' | 'resolution', value: string) => void): void {
         this.onSettingsChange = callback;
     }
+
 
     /**
      * Initialize image options from settings
@@ -131,15 +128,7 @@ export class FloatingPalette {
         if (this.resolutionSelect) this.resolutionSelect.value = resolution;
     }
 
-    /**
-     * Initialize chat options from settings
-     */
-    initChatOptions(temperature: number): void {
-        this.chatTemperature = temperature;
-        if (this.tempInput) {
-            this.tempInput.value = String(temperature);
-        }
-    }
+
 
     /**
      * Set debug mode visibility for the Debug button
@@ -808,25 +797,7 @@ export class FloatingPalette {
         };
     }
 
-    /**
-     * Initialize node options from settings
-     */
-    initNodeOptions(temperature: number): void {
-        this.nodeTemperature = temperature;
-        if (this.nodeTempInput) {
-            this.nodeTempInput.value = String(temperature);
-        }
-    }
 
-    /**
-     * Initialize edit options from settings
-     */
-    initEditOptions(temperature: number): void {
-        this.editTemperature = temperature;
-        if (this.editTempInput) {
-            this.editTempInput.value = String(temperature);
-        }
-    }
 
     /**
      * Initialize quick switch models from settings
