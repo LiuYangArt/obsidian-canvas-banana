@@ -1072,24 +1072,26 @@
 .notes-ai-floating-button {
   position: fixed;
   z-index: 999;
-  width: 24px;
-  height: 24px;
+  width: 28px;
+  height: 28px;
   padding: 4px;
-  border: none;
-  border-radius: 4px;
-  background: transparent;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 6px;
+  background: var(--background-primary);
   color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  transition: color 0.15s ease, background 0.15s ease;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
 }
 
 #notes-ai-floating-button:hover,
 .notes-ai-floating-button:hover {
   color: var(--interactive-accent);
   background: var(--background-modifier-hover);
+  border-color: var(--interactive-accent);
 }
 
 #notes-ai-floating-button.is-hidden,
