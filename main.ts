@@ -29,13 +29,16 @@ export default class CanvasAIPlugin extends Plugin {
     private lastSelectedIds: Set<string> = new Set();
     // Cache the last valid text selection from node edit mode
     public lastTextSelectionContext: SelectionContext | null = null;
+    // Track active selection listener to avoid duplication and allow cleanup
+    private activeListenerTarget: EventTarget | null = null;
+    private activeListenerRemove: (() => void) | null = null;
     private hideTimer: number | null = null;
     public apiManager: ApiManager | null = null;
     // Track active ghost nodes to prevent race conditions during concurrent image generations
     private activeGhostNodeIds: Set<string> = new Set();
     // Track the popout leaf for single window mode
     private imagePopoutLeaf: WorkspaceLeaf | null = null;
-    private iframeObserver: MutationObserver | null = null;
+
 
     async onload() {
         console.debug('Canvas Banana: Plugin loading...');
@@ -70,8 +73,7 @@ export default class CanvasAIPlugin extends Plugin {
 
         this.registerCanvasSelectionListener();
 
-        // Setup MutationObserver for iframes
-        this.setupIframeObserver();
+        // Register Canvas utility hotkeys
 
         // Register Canvas utility hotkeys
         this.registerCanvasUtilities();
@@ -82,7 +84,6 @@ export default class CanvasAIPlugin extends Plugin {
     onunload() {
         console.debug('Canvas Banana: Plugin unloading...');
 
-        this.iframeObserver?.disconnect();
         this.floatingPalette?.destroy();
 
         console.debug('Canvas Banana: Plugin unloaded');
@@ -968,8 +969,6 @@ ${intent.instruction}
         this.registerEvent(
             this.app.workspace.on('layout-change', () => {
                 this.checkCanvasSelection();
-                // 布局变化时（如进入编辑模式），扫描新的 IFRAME
-                this.monitorIframeSelection();
             })
         );
 
@@ -1063,108 +1062,91 @@ ${intent.instruction}
             }, 200)
         );
 
-        // 定期扫描并监听 IFRAME
-        this.registerInterval(
-            window.setInterval(() => {
-                this.monitorIframeSelection();
-            }, 2000)
-        );
+
     }
 
     /**
-     * Monitor selection change in Canvas node iframes
-     * Recursively attach listeners because internal selection changes don't bubble
+     * Efficiently manage selection listener for the single active node
+     * Only attaches listener when a single text-capable node is selected
      */
-    private monitorIframeSelection(): void {
-        // Broadened selector to catch any iframe inside a canvas node
-        const iframes = document.querySelectorAll('.canvas-node iframe');
-        
-        if (this.settings.debugMode) {
-            console.debug(`Canvas Banana Debug: monitorIframeSelection found ${iframes.length} iframes`);
+    private updateActiveNodeListener(selection: Set<CanvasNode>): void {
+        // cleanup helper
+        const cleanup = () => {
+            if (this.activeListenerRemove) {
+                this.activeListenerRemove();
+                this.activeListenerRemove = null;
+            }
+            this.activeListenerTarget = null;
+        };
+
+        // 1. If selection count != 1, we don't need detailed text monitoring
+        //    (Multi-edit not supported, or no selection)
+        if (selection.size !== 1) {
+            cleanup();
+            return;
         }
 
-        iframes.forEach((iframe: HTMLIFrameElement) => {
+        const node = selection.values().next().value;
+        const nodeEl = node.nodeEl as HTMLElement;
+
+        // 2. Find editing target (iframe or editor container)
+        //    Prioritize finding the internal iframe or editor wrapper
+        const iframe = nodeEl.querySelector('iframe');
+        
+        // Target is the document inside iframe, or null if cross-origin/not found
+        let target: EventTarget | null = null;
+        let targetDoc: Document | null = null;
+
+        if (iframe) {
             try {
-                // Ignore iframes without access (security)
-                const doc = iframe.contentDocument;
-                interface DocWithListener extends Document {
-                    _hasSelectionListener?: boolean;
-                }
-                
-                if (doc && !(doc as DocWithListener)._hasSelectionListener) {
-                    (doc as DocWithListener)._hasSelectionListener = true;
-                    // Debug log for attaching listener
-                    if (this.settings.debugMode) {
-                        console.debug('Canvas Banana Debug: Attaching selection listeners to iframe', iframe);
-                    }
-                    
-                    // Create a debounced handler for this specific iframe
-                    const debouncedCapture = debounce(() => {
-                        this.captureTextSelectionContext(true, iframe);
-                    }, 150);
-
-                    // Listen for selection changes inside the iframe
-                    doc.addEventListener('selectionchange', debouncedCapture);
-                    
-                    // Listen for mouseup as backup
-                    doc.addEventListener('mouseup', debouncedCapture);
-                    
-                    // Listen for keyup (cursor movement)
-                    doc.addEventListener('keyup', debouncedCapture);
-                }
-            } catch (e) {
-                // Ignore SecurityError for cross-origin iframes
-                if (this.settings.debugMode) {
-                    console.debug('Canvas Banana Debug: Cannot access iframe document', e);
-                }
+                targetDoc = iframe.contentDocument;
+                target = targetDoc;
+            } catch {
+                // Security error likely
             }
-        });
-    }
-
-    /**
-     * Setup MutationObserver to watch for new iframes
-     */
-    private setupIframeObserver(): void {
-        this.iframeObserver = new MutationObserver((mutations) => {
-            let potentialIframeAdded = false;
-            for (const mutation of mutations) {
-                if (mutation.type === 'childList') {
-                    mutation.addedNodes.forEach(node => {
-                        if (node instanceof HTMLElement) {
-                            if (node.tagName === 'IFRAME') {
-                                potentialIframeAdded = true;
-                            } else if (node.querySelector && node.querySelector('iframe')) {
-                                potentialIframeAdded = true;
-                            }
-                        }
-                    });
-                }
-            }
-            if (potentialIframeAdded) {
-                this.monitorIframeSelection();
-            }
-        });
-
-        const config = { childList: true, subtree: true };
-
-        // Handle view switching
-        this.registerEvent(this.app.workspace.on('active-leaf-change', (leaf) => {
-            this.iframeObserver?.disconnect();
-            if (leaf?.view.getViewType() === 'canvas') {
-                const canvasView = leaf.view as ItemView;
-                this.iframeObserver?.observe(canvasView.contentEl, config);
-                // Initial scan when switching to canvas
-                this.monitorIframeSelection();
-            }
-        }));
+        } 
         
-        // Initial setup
-        const activeLeaf = this.app.workspace.getActiveViewOfType(ItemView);
-        if (activeLeaf && activeLeaf.getViewType() === 'canvas') {
-             this.iframeObserver.observe(activeLeaf.contentEl, config);
-             this.monitorIframeSelection();
+        // If we found a valid target document
+        if (target && targetDoc) {
+            // If already listening to this target, do nothing
+            if (this.activeListenerTarget === target) {
+                return;
+            }
+
+            // Target changed: clean up old one first
+            cleanup();
+
+            // Setup new listener
+            if (this.settings.debugMode) {
+                console.debug('Canvas Banana Debug: Attaching listener to active node iframe', node.id);
+            }
+
+            const debouncedCapture = debounce(() => {
+                this.captureTextSelectionContext(true, iframe || undefined);
+            }, 150);
+
+            // Add listeners
+            targetDoc.addEventListener('selectionchange', debouncedCapture);
+            targetDoc.addEventListener('mouseup', debouncedCapture);
+            targetDoc.addEventListener('keyup', debouncedCapture);
+
+            // Store cleanup function
+            this.activeListenerTarget = target;
+            this.activeListenerRemove = () => {
+                if (this.settings.debugMode) {
+                    console.debug('Canvas Banana Debug: Removing listener from active node', node.id);
+                }
+                targetDoc?.removeEventListener('selectionchange', debouncedCapture);
+                targetDoc?.removeEventListener('mouseup', debouncedCapture);
+                targetDoc?.removeEventListener('keyup', debouncedCapture);
+            };
+        } else {
+            // No valid target found in this node (e.g. image node, or not yet loaded)
+            cleanup();
         }
     }
+
+
 
     /**
      * 捕获并解析文本选区上下文
@@ -1325,6 +1307,9 @@ ${intent.instruction}
         const selection = canvas.selection;
         const selectionSize = selection?.size ?? 0;
         const currentIds = new Set(Array.from(selection || []).map((n: CanvasNode) => n.id));
+
+        // Use new active node strategy: dynamic listeners
+        this.updateActiveNodeListener(selection || new Set());
 
         // 规则 3: 取消所有选中 -> 面板消失 
         // 改进：只有在明确点击背景或按下 Delete/Esc 时才关闭面板
