@@ -8,7 +8,6 @@ import { t } from './lang/helpers';
 import { ApiProvider, QuickSwitchModel, PromptPreset, CanvasAISettings, DEFAULT_SETTINGS } from './src/settings/settings';
 import { DEFAULT_NODE_MODE_PROMPT } from './src/prompts';
 import { debugSelectedNodes } from './src/utils/debug';
-import { debounce } from './src/utils/debounce';
 import { CanvasAISettingTab } from './src/settings/settings-tab';
 import { DiffModal } from './src/ui/modals';
 import { FloatingPalette, PaletteMode } from './src/ui/floating-palette';
@@ -29,9 +28,6 @@ export default class CanvasAIPlugin extends Plugin {
     private lastSelectedIds: Set<string> = new Set();
     // Cache the last valid text selection from node edit mode
     public lastTextSelectionContext: SelectionContext | null = null;
-    // Track active selection listener to avoid duplication and allow cleanup
-    private activeListenerTarget: EventTarget | null = null;
-    private activeListenerRemove: (() => void) | null = null;
     private hideTimer: number | null = null;
     public apiManager: ApiManager | null = null;
     // Track active ghost nodes to prevent race conditions during concurrent image generations
@@ -956,17 +952,8 @@ ${intent.instruction}
      * 注册 Canvas 选中状态监听
      */
     private registerCanvasSelectionListener(): void {
-        // SCHEME B: Disable passive listener
-        // 监听文本选区变化，实时缓存选区信息（用于Edit模式）
-        // 使用 debounce 减少高频调用
-        /*
-        const selectionChangeHandler = debounce(() => {
-             this.captureTextSelectionContext(true);
-        }, 150); // 150ms delay is enough to capture 'settled' selection without feeling laggy
-        
-        document.addEventListener('selectionchange', selectionChangeHandler);
-        this.register(() => document.removeEventListener('selectionchange', selectionChangeHandler));
-        */
+        // SCHEME B: Passive listeners removed for zero-overhead performance
+        // Relying on 'captureMousedown' to update selection state on demand
 
         // 监听布局变化（包括选中状态变化）
         this.registerEvent(
@@ -1068,86 +1055,7 @@ ${intent.instruction}
 
     }
 
-    /**
-     * Efficiently manage selection listener for the single active node
-     * Only attaches listener when a single text-capable node is selected
-     */
-    private updateActiveNodeListener(selection: Set<CanvasNode>): void {
-        // cleanup helper
-        const cleanup = () => {
-            if (this.activeListenerRemove) {
-                this.activeListenerRemove();
-                this.activeListenerRemove = null;
-            }
-            this.activeListenerTarget = null;
-        };
 
-        // 1. If selection count != 1, we don't need detailed text monitoring
-        //    (Multi-edit not supported, or no selection)
-        if (selection.size !== 1) {
-            cleanup();
-            return;
-        }
-
-        const node = selection.values().next().value;
-        const nodeEl = node.nodeEl as HTMLElement;
-
-        // 2. Find editing target (iframe or editor container)
-        //    Prioritize finding the internal iframe or editor wrapper
-        const iframe = nodeEl.querySelector('iframe');
-        
-        // Target is the document inside iframe, or null if cross-origin/not found
-        let target: EventTarget | null = null;
-        let targetDoc: Document | null = null;
-
-        if (iframe) {
-            try {
-                targetDoc = iframe.contentDocument;
-                target = targetDoc;
-            } catch {
-                // Security error likely
-            }
-        } 
-        
-        // If we found a valid target document
-        if (target && targetDoc) {
-            // If already listening to this target, do nothing
-            if (this.activeListenerTarget === target) {
-                return;
-            }
-
-            // Target changed: clean up old one first
-            cleanup();
-
-            // Setup new listener
-            if (this.settings.debugMode) {
-                console.debug('Canvas Banana Debug: Attaching listener to active node iframe', node.id);
-            }
-
-            const debouncedCapture = debounce(() => {
-                this.captureTextSelectionContext(true, iframe || undefined);
-            }, 150);
-
-            // Add listeners
-            targetDoc.addEventListener('selectionchange', debouncedCapture);
-            targetDoc.addEventListener('mouseup', debouncedCapture);
-            targetDoc.addEventListener('keyup', debouncedCapture);
-
-            // Store cleanup function
-            this.activeListenerTarget = target;
-            this.activeListenerRemove = () => {
-                if (this.settings.debugMode) {
-                    console.debug('Canvas Banana Debug: Removing listener from active node', node.id);
-                }
-                targetDoc?.removeEventListener('selectionchange', debouncedCapture);
-                targetDoc?.removeEventListener('mouseup', debouncedCapture);
-                targetDoc?.removeEventListener('keyup', debouncedCapture);
-            };
-        } else {
-            // No valid target found in this node (e.g. image node, or not yet loaded)
-            cleanup();
-        }
-    }
 
 
 
@@ -1312,8 +1220,7 @@ ${intent.instruction}
         const currentIds = new Set(Array.from(selection || []).map((n: CanvasNode) => n.id));
 
         // Use new active node strategy: dynamic listeners
-        // SCHEME B: Disable active node listener
-        /* this.updateActiveNodeListener(selection || new Set()); */
+        // SCHEME B: Active listener removed
 
         // 规则 3: 取消所有选中 -> 面板消失 
         // 改进：只有在明确点击背景或按下 Delete/Esc 时才关闭面板

@@ -89,60 +89,45 @@
                       └─ 编辑器内容
 ```
 
+### 5.1 获取编辑器选区 - 关键技术发现 - [x] Implemented
+
+> [!IMPORTANT]
+> **Capture Phase Strategy (Zero Overhead)**
+> 经过实际验证，无需持续监听 `selectionchange`。只需要在用户点击 UI（如 AI 按钮）的瞬间，利用 **Capture Phase (捕获阶段)** 的 `mousedown` 事件抢在浏览器清除选区之前获取内容即可。
+
 **选区获取方式**：
 ```typescript
-// ❌ 错误方式：window.getSelection() 无法获取 IFRAME 内部选区
-const selection = window.getSelection();  // 返回空
+// ✅ Scheme B: Instant Capture (无被动监听)
+// 在 UI 元素的 mousedown (Capture Phase) 事件中执行：
+const iframe = activeNode.querySelector('iframe');
+const selection = iframe.contentDocument.getSelection();
+cacheSelection(selection); // 立即缓存
 
-// ✅ 正确方式：通过 IFRAME 的 contentDocument 获取
-const iframe = document.querySelector('.canvas-node iframe.embed-iframe') as HTMLIFrameElement;
-const iframeDoc = iframe.contentDocument;
-const selection = iframeDoc?.getSelection();  // 可获取选区
+// 随后 click 事件触发时，使用缓存的 selection
 ```
 
-**选区丢失问题**：
-- 用户在 IFRAME 内选中文本后，点击 AI 按钮时 IFRAME 失去焦点
-- 焦点转移导致选区被清除（在 `mousedown` 捕获阶段已经为空）
-- **解决方案**：使用 `selectionchange` 事件持续监控并缓存选区
-- **Robustness**: 增加了 `indexOf` 验证防止错位替换。
+**Why it works**:
+- `mousedown` (Capture) -> 此时焦点还在 iframe 内，选区有效。
+- `mousedown` (Bubble)
+- `blur` (Iframe 失去焦点，选区可能丢失)
+- `click` (按钮触发)
 
-**推荐实现**：
+**推荐实现** (最终采纳方案):
 ```typescript
-interface SelectionContext {
-    nodeId: string;
-    selectedText: string;
-    preText: string;
-    postText: string;
-    fullText: string;
-}
-
-// 1. 持续监控 IFRAME 内的选区变化
-function monitorIframeSelection(): void {
-    const iframes = document.querySelectorAll('.canvas-node iframe.embed-iframe');
-    for (const iframe of iframes) {
-        const iframeDoc = (iframe as HTMLIFrameElement).contentDocument;
-        if (!iframeDoc) continue;
-        
-        iframeDoc.addEventListener('selectionchange', () => {
-            const sel = iframeDoc.getSelection();
-            if (sel && !sel.isCollapsed) {
-                // 缓存有效选区
-                cacheSelection(sel, iframe);
-            }
-        });
+// main.ts
+const captureMousedown = (evt: MouseEvent) => {
+    // 检查是否点击了 AI 界面元素
+    if (isAiInterface(evt.target)) {
+        // 强制尝试捕获当前焦点所在的选区 (Global Check or Active Node Check)
+        this.captureTextSelectionContext(true);
     }
 }
-
-// 2. 点击 AI 按钮时使用缓存的选区
-function getTextSelectionContext(): SelectionContext | null {
-    // 优先使用缓存
-    if (cachedSelectionContext) {
-        return cachedSelectionContext;
-    }
-    // 尝试实时获取（可能已丢失）
-    return captureIframeSelection();
-}
+document.addEventListener('mousedown', captureMousedown, true); // Use Capture Phase
 ```
+
+> **Discarded Approaches**:
+> - Global `selectionchange` listener: 性能开销大 (CPU overhead).
+> - Active Node `selectionchange` listener: 逻辑复杂，需动态挂载/卸载.
 
 
 ### 4.2 IntentResolver 扩展 - [x] Implemented
