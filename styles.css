@@ -1072,24 +1072,29 @@
 .notes-ai-floating-button {
   position: fixed;
   z-index: 999;
-  width: 28px;
-  height: 28px;
-  padding: 0;
+  width: 24px;
+  height: 24px;
+  padding: 4px;
   border: none;
-  border-radius: 6px;
-  background: var(--interactive-accent);
-  color: white;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--text-muted);
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
-  transition: transform 0.15s ease, opacity 0.15s ease;
+  transition: color 0.15s ease, background 0.15s ease;
 }
 
 #notes-ai-floating-button:hover,
 .notes-ai-floating-button:hover {
-  transform: scale(1.1);
+  color: var(--interactive-accent);
+  background: var(--background-modifier-hover);
+}
+
+#notes-ai-floating-button.is-hidden,
+.notes-ai-floating-button.is-hidden {
+  display: none;
 }
 
 #notes-ai-floating-button.is-hidden,

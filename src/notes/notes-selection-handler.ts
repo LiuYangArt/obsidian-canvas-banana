@@ -211,19 +211,13 @@ export class NotesSelectionHandler {
             return;
         }
 
+        // 获取按钮位置，在按钮右侧显示面板
+        const buttonPos = this.floatingButton.getPosition();
+        const paletteX = Math.min(buttonPos.x + 10, window.innerWidth - 350);
+        const paletteY = Math.max(buttonPos.y - 20, 10);
+
         // 隐藏按钮，显示面板
         this.floatingButton.hide();
-        
-        // 获取按钮位置，在附近显示面板
-        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (!view) return;
-
-        // 在编辑器右侧显示面板
-        const viewEl = view.containerEl;
-        const rect = viewEl.getBoundingClientRect();
-        const paletteX = Math.min(rect.right + 20, window.innerWidth - 400);
-        const paletteY = rect.top + 50;
-
         this.editPalette.show(paletteX, paletteY);
     }
 

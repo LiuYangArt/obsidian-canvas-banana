@@ -145,9 +145,9 @@ function applyPatches(docContent: string, patches: TextChange[]) {
 | **PresetManager** | `main.ts` + Settings | 已支持按 Mode 分离预设 |
 | **FloatingPalette** | `src/ui/floating-palette.ts` | 可适配为 Notes 版本 |
 
-### Phase 1: 基础编辑器集成
-- [ ] 实现 `NoteFloatingPalette` (复用 FloatingPalette UI)。
-- [ ] 实现 `NoteContextManager` (获取选区 + 可选的全文)。
+### Phase 1: 基础编辑器集成 ✅
+- [x] 实现 `NoteFloatingPalette` (复用 FloatingPalette UI)。→ **`src/notes/notes-edit-palette.ts`**
+- [x] 实现 `NoteContextManager` (获取选区 + 可选的全文)。→ **`src/notes/notes-selection-handler.ts`**
 - [x] ~~实现基础的 "Replace Selection" 功能。~~ → **复用 DiffModal + Edit Mode**
 
 ### Phase 2: 预设与侧边栏
@@ -162,3 +162,4 @@ function applyPatches(docContent: string, patches: TextChange[]) {
 ### Phase 4: 稳定性与优化
 - [ ] **Diff Algorithm**: 完善 `applyPatches` 逻辑，处理 AI 返回的 "original" 文本与实际文本存在细微差异的情况 (Fuzzy matching)。
 - [ ] 性能测试：处理 10k+ 字长文档。
+

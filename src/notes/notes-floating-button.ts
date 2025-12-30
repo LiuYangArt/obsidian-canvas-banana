@@ -59,6 +59,11 @@ export class NotesFloatingButton {
         return this.isVisible;
     }
 
+    getPosition(): { x: number; y: number } {
+        const rect = this.buttonEl.getBoundingClientRect();
+        return { x: rect.right, y: rect.top };
+    }
+
     destroy(): void {
         this.buttonEl.remove();
     }
