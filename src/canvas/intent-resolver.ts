@@ -105,6 +105,8 @@ export class IntentResolver {
 
         // 构建图片列表（带角色）
         const images: ImageWithRole[] = [];
+        
+        // 1. 添加图片节点
         preprocessed.effectiveNodes.forEach(node => {
             if (node.isImage && node.base64) {
                 images.push({
@@ -115,6 +117,46 @@ export class IntentResolver {
                 });
             }
         });
+        
+        // 2. 提取文本节点和 .md 文件节点中的内嵌图片 ![[image.png]]
+        for (const node of preprocessed.effectiveNodes) {
+            const textContent = node.content || '';
+            if (!textContent) continue;
+            
+            const embeddedImages = this.extractEmbeddedImages(textContent);
+            if (embeddedImages.length === 0) continue;
+            
+            // 解析文件路径：对于 .md 节点使用其所在目录，否则使用 vault 根目录
+            const basePath = node.filePath || '';
+            
+            for (const imgPath of embeddedImages) {
+                const resolvedPath = this.resolveImagePath(app, basePath, imgPath);
+                if (!resolvedPath) continue;
+                
+                // 读取并压缩图片
+                try {
+                    const file = app.vault.getAbstractFileByPath(resolvedPath);
+                    if (!file) continue;
+                    
+                    const imgData = await CanvasConverter.readSingleImageFile(
+                        app, 
+                        resolvedPath, 
+                        settings.imageCompressionQuality, 
+                        settings.imageMaxSize
+                    );
+                    if (imgData) {
+                        images.push({
+                            base64: imgData.base64,
+                            mimeType: imgData.mimeType,
+                            role: `Embedded in ${node.id}`,
+                            nodeId: node.id
+                        });
+                    }
+                } catch (e) {
+                    console.warn('IntentResolver: Failed to read embedded image:', imgPath, e);
+                }
+            }
+        }
 
         // 防呆检查：图片数量限制
         if (images.length > MAX_REFERENCE_IMAGES) {
