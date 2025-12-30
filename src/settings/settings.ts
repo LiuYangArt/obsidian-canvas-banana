@@ -170,3 +170,57 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
     paletteNodeModel: '',
     paletteEditModel: ''
 };
+
+// ========== Provider Utility Functions ==========
+
+/**
+ * Get model ID by provider and type
+ */
+export function getModelByProvider(
+    settings: CanvasAISettings,
+    provider: ApiProvider,
+    type: 'text' | 'image'
+): string {
+    const key = type === 'text' ? 'TextModel' : 'ImageModel';
+    switch (provider) {
+        case 'openrouter':
+            return settings[`openRouter${key}`];
+        case 'yunwu':
+            return settings[`yunwu${key}`];
+        case 'gemini':
+            return settings[`gemini${key}`];
+        case 'gptgod':
+            return settings[`gptGod${key}`];
+        default:
+            return '';
+    }
+}
+
+/**
+ * Set model ID by provider and type
+ */
+export function setModelByProvider(
+    settings: CanvasAISettings,
+    provider: ApiProvider,
+    type: 'text' | 'image',
+    modelId: string
+): void {
+    switch (provider) {
+        case 'openrouter':
+            if (type === 'text') settings.openRouterTextModel = modelId;
+            else settings.openRouterImageModel = modelId;
+            break;
+        case 'yunwu':
+            if (type === 'text') settings.yunwuTextModel = modelId;
+            else settings.yunwuImageModel = modelId;
+            break;
+        case 'gemini':
+            if (type === 'text') settings.geminiTextModel = modelId;
+            else settings.geminiImageModel = modelId;
+            break;
+        case 'gptgod':
+            if (type === 'text') settings.gptGodTextModel = modelId;
+            else settings.gptGodImageModel = modelId;
+            break;
+    }
+}

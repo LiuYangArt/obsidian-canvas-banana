@@ -6,6 +6,7 @@ import { IntentResolver, ResolvedIntent, NodeEditIntent } from './src/canvas/int
 import { extractCanvasJSON, remapCoordinates, regenerateIds, optimizeLayout, sanitizeCanvasData } from './src/canvas/node-mode-utils';
 import { t } from './lang/helpers';
 import { ApiProvider, QuickSwitchModel, PromptPreset, CanvasAISettings, DEFAULT_SETTINGS } from './src/settings/settings';
+import { debugSelectedNodes } from './src/utils/debug';
 import { CanvasAISettingTab } from './src/settings/settings-tab';
 import { DiffModal } from './src/ui/modals';
 import { FloatingPalette, PaletteMode } from './src/ui/floating-palette';
@@ -97,7 +98,13 @@ export default class CanvasAIPlugin extends Plugin {
         this.apiManager = new ApiManager(this.settings);
 
         this.floatingPalette = new FloatingPalette(this.app, this.apiManager, (mode) => {
-            void this.debugSelectedNodes(mode);
+            void debugSelectedNodes(
+                this.app,
+                mode,
+                this.settings,
+                () => this.floatingPalette?.getPrompt() || '',
+                this.lastTextSelectionContext
+            );
         });
 
         // Set up generate callback for Ghost Node creation
@@ -1560,204 +1567,6 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
     }
 
     /**
-     * 调试：打印选中节点的详细信息
-     * 用于步骤 2.1 和 2.2 的测试验证
-     */
-    private async debugSelectedNodes(mode: PaletteMode): Promise<void> {
-        const canvasView = this.app.workspace.getActiveViewOfType(ItemView);
-
-        if (!canvasView || canvasView.getViewType() !== 'canvas') {
-            console.debug('Canvas Banana Debug: Not in Canvas view');
-            return;
-        }
-
-        const canvas = (canvasView as CanvasView).canvas;
-        if (!canvas) {
-            console.debug('Canvas Banana Debug: Canvas not found');
-            return;
-        }
-
-        const selection = canvas.selection;
-        if (!selection || selection.size === 0) {
-            console.debug('Canvas Banana Debug: No nodes selected');
-            return;
-        }
-
-        console.debug('🔍 Canvas Banana Debug: Selected Nodes');
-        console.debug('Current Mode:', mode);
-
-        // 步骤 2.1：打印每个节点的原始信息
-        console.debug('📋 Raw Node Data');
-        selection.forEach((node: CanvasNode) => {
-            console.debug('---');
-            console.debug('ID:', node.id);
-
-            if (node.text !== undefined) {
-                console.debug('Type: Text');
-                console.debug('Content:', node.text);
-            } else if (node.file) {
-                console.debug('Type: File');
-                console.debug('File Path:', node.file.path);
-                console.debug('File Extension:', node.file.extension);
-                console.debug('File Name:', node.file.name);
-            } else if (node.url) {
-                console.debug('Type: Link');
-                console.debug('URL:', node.url);
-            } else if (node.label !== undefined) {
-                console.debug('Type: Group');
-                console.debug('Label:', node.label);
-            } else {
-                console.debug('Type: Unknown');
-                console.debug('Node Object:', node);
-            }
-        });
-
-        // 步骤 2.2：使用 CanvasConverter 进行格式转换（异步）
-        console.debug('📝 Converted Output');
-        const result = await CanvasConverter.convert(this.app, canvas, selection);
-
-        console.debug('Converted Nodes:', result.nodes);
-        console.debug('Converted Edges:', result.edges);
-        console.debug('\n--- Markdown Output ---\n');
-        console.debug(result.markdown);
-        console.debug('\n--- Mermaid Output ---\n');
-        console.debug(result.mermaid);
-
-        // ========== 新增：IntentResolver 解析输出 ==========
-        console.debug(`🎨 IntentResolver Output (${mode} Mode Simulation)`);
-        try {
-            // Get prompt from palette (might be empty)
-            const prompt = this.floatingPalette?.getPrompt() || '';
-
-            if (mode === 'edit') {
-                const context = this.lastTextSelectionContext;
-                if (!context) {
-                    console.debug('❌ No text selection context found for edit mode simulation');
-                    return;
-                }
-                
-                const intent = await IntentResolver.resolveForNodeEdit(
-                    this.app,
-                    canvas,
-                    context,
-                    prompt,
-                    this.settings
-                );
-
-                console.debug('✅ canEdit:', intent.canEdit);
-                console.debug('🎯 Target Text:', intent.targetText);
-                console.debug('📝 Instruction:', intent.instruction);
-                
-                if (intent.upstreamContext) {
-                    console.debug('📄 Upstream Context:', intent.upstreamContext);
-                }
-                
-                if (intent.images.length > 0) {
-                    console.debug('📷 Upstream Images with Roles');
-                    intent.images.forEach((img, idx) => {
-                        console.debug(`[${idx + 1}] Role: "${img.role}", MimeType: ${img.mimeType}`);
-                    });
-                }
-                
-                if (intent.warnings.length > 0) {
-                    console.debug('⚠️ Warnings');
-                    intent.warnings.forEach(w => console.warn(w));
-                }
-            } else {
-                const intent = await IntentResolver.resolve(
-                    this.app,
-                    canvas,
-                    selection,
-                    prompt,
-                    mode,
-                    this.settings
-                );
-
-                console.debug('✅ canGenerate:', intent.canGenerate);
-
-                if (intent.images.length > 0) {
-                    console.debug('📷 Images with Roles');
-                    intent.images.forEach((img, idx) => {
-                        console.debug(`[${idx + 1}] Role: "${img.role}", MimeType: ${img.mimeType}, Base64 Length: ${img.base64.length}`);
-                    });
-                } else {
-                    console.debug('(No images in selection)');
-                }
-
-                console.debug('📝 Instruction');
-                console.debug('Final Instruction:', intent.instruction);
-
-                console.debug('📄 Context Text');
-                if (intent.contextText) {
-                    console.debug(intent.contextText);
-                } else {
-                    console.debug('(No context text)');
-                }
-
-                if (intent.warnings.length > 0) {
-                    console.debug('⚠️ Warnings');
-                    intent.warnings.forEach(w => console.warn(w));
-                }
-
-                // Simulated Payload Structure (Moved inside else)
-                console.debug('📦 Simulated API Payload Structure');
-
-                let payloadPreview: Record<string, unknown> = {};
-
-                if (mode === 'chat') {
-                    const systemPrompt = this.settings.chatSystemPrompt || 'You are a helpful AI assistant...';
-                    payloadPreview = {
-                        model: this.settings.apiProvider === 'openrouter' ? this.settings.openRouterTextModel : (this.settings.apiProvider === 'yunwu' ? this.settings.yunwuTextModel : this.settings.geminiTextModel),
-                        mode: 'chat',
-                        systemPrompt: systemPrompt,
-                        modalities: ['text'],
-                        content_structure: [
-                            { type: 'text', text: intent.instruction },
-                            ...(intent.contextText ? [{ type: 'text', text: `[Context] ...` }] : []),
-                            ...intent.images.map(img => ({ type: 'image_url', base64_length: img.base64.length }))
-                        ]
-                    };
-                } else if (mode === 'node') {
-                    const systemPrompt = this.settings.nodeSystemPrompt || 'Default Node Prompt...';
-                    payloadPreview = {
-                        model: this.settings.apiProvider === 'openrouter' ? this.settings.openRouterTextModel : (this.settings.apiProvider === 'yunwu' ? this.settings.yunwuTextModel : this.settings.geminiTextModel),
-                        mode: 'node',
-                        systemPrompt: systemPrompt,
-                        modalities: ['text'],
-                        content_structure: [
-                            { type: 'text', text: '[SOURCE_CONTENT]...' },
-                            { type: 'text', text: '[TASK] ' + intent.instruction },
-                            ...intent.images.map(img => ({ type: 'image_url', base64_length: img.base64.length }))
-                        ]
-                    };
-                } else {
-                    // Image Mode
-                    const systemPrompt = this.settings.imageSystemPrompt || 'Role: A Professional Image Creator...';
-                    payloadPreview = {
-                        model: this.settings.apiProvider === 'openrouter' ? this.settings.openRouterImageModel : (this.settings.apiProvider === 'yunwu' ? this.settings.yunwuImageModel : this.settings.geminiImageModel),
-                        mode: 'image',
-                        systemPrompt: systemPrompt,
-                        modalities: ['image', 'text'],
-                        content_structure: [
-                            ...intent.images.map(img => [
-                                { type: 'text', text: `[Ref: ${img.role}]` },
-                                { type: 'image_url', base64_length: img.base64.length }
-                            ]).flat(),
-                            intent.contextText ? { type: 'text', text: '[Context]...' } : null,
-                            { type: 'text', text: `INSTRUCTION: ${intent.instruction.substring(0, 100)}${intent.instruction.length > 100 ? '...' : ''}` }
-                        ].filter(Boolean)
-                    };
-                }
-                console.debug(JSON.stringify(payloadPreview, null, 2));
-            }
-
-        } catch (e) {
-            console.error('IntentResolver failed:', e);
-        }
-
-    }
-
-    /**
      * Sparkles 按钮点击处理
      */
     private onSparklesButtonClick(): void {
@@ -2279,82 +2088,4 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
         // Update ApiManager settings reference
         this.apiManager?.updateSettings(this.settings);
     }
-
-    /**
-     * Get current text model based on selected provider
-     */
-    private getCurrentTextModel(): string {
-        switch (this.settings.apiProvider) {
-            case 'openrouter':
-                return this.settings.openRouterTextModel;
-            case 'yunwu':
-                return this.settings.yunwuTextModel;
-            case 'gemini':
-                return this.settings.geminiTextModel;
-            case 'gptgod':
-                return this.settings.gptGodTextModel;
-            default:
-                return '';
-        }
-    }
-
-    /**
-     * Set current text model based on selected provider
-     */
-    private setCurrentTextModel(modelId: string): void {
-        switch (this.settings.apiProvider) {
-            case 'openrouter':
-                this.settings.openRouterTextModel = modelId;
-                break;
-            case 'yunwu':
-                this.settings.yunwuTextModel = modelId;
-                break;
-            case 'gemini':
-                this.settings.geminiTextModel = modelId;
-                break;
-            case 'gptgod':
-                this.settings.gptGodTextModel = modelId;
-                break;
-        }
-    }
-
-    /**
-     * Get current image model based on selected provider
-     */
-    private getCurrentImageModel(): string {
-        switch (this.settings.apiProvider) {
-            case 'openrouter':
-                return this.settings.openRouterImageModel;
-            case 'yunwu':
-                return this.settings.yunwuImageModel;
-            case 'gemini':
-                return this.settings.geminiImageModel;
-            case 'gptgod':
-                return this.settings.gptGodImageModel;
-            default:
-                return '';
-        }
-    }
-
-    /**
-     * Set current image model based on selected provider
-     */
-    private setCurrentImageModel(modelId: string): void {
-        switch (this.settings.apiProvider) {
-            case 'openrouter':
-                this.settings.openRouterImageModel = modelId;
-                break;
-            case 'yunwu':
-                this.settings.yunwuImageModel = modelId;
-                break;
-            case 'gemini':
-                this.settings.geminiImageModel = modelId;
-                break;
-            case 'gptgod':
-                this.settings.gptGodImageModel = modelId;
-                break;
-        }
-    }
 }
-
-
