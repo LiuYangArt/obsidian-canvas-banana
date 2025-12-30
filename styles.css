@@ -971,3 +971,62 @@
     flex-direction: column;
   }
 }
+
+/* ========== Diff Modal Styles ========== */
+.canvas-ai-diff-modal {
+  max-width: 800px;
+  width: 90vw;
+}
+
+.diff-container {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 24px;
+  max-height: 60vh;
+  overflow: hidden;
+}
+
+.diff-box {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  overflow: hidden;
+}
+
+.diff-box h3 {
+  margin: 0;
+  padding: 8px 12px;
+  font-size: 14px;
+  font-weight: 600;
+  background: var(--background-secondary);
+  border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.diff-box pre {
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  font-family: var(--font-monospace);
+  font-size: 13px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-all;
+  background: var(--background-primary);
+  flex: 1;
+}
+
+.diff-remove {
+  background-color: rgba(255, 82, 82, 0.2);
+  color: var(--text-error);
+  text-decoration: line-through;
+  border-radius: 2px;
+}
+
+.diff-add {
+  background-color: rgba(0, 200, 83, 0.2);
+  color: var(--text-success);
+  font-weight: bold;
+  border-radius: 2px;
+}

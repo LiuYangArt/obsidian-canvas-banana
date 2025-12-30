@@ -282,15 +282,15 @@ class ConfirmModal extends Modal {
 
 // ========== Diff Modal for Edit Review ==========
 class DiffModal extends Modal {
-    private originalText: string;
-    private newText: string;
+    private context: SelectionContext;
+    private replacementText: string;
     private onConfirm: () => void;
     private onCancel: () => void;
 
-    constructor(app: App, originalText: string, newText: string, onConfirm: () => void, onCancel: () => void) {
+    constructor(app: App, context: SelectionContext, replacementText: string, onConfirm: () => void, onCancel: () => void) {
         super(app);
-        this.originalText = originalText;
-        this.newText = newText;
+        this.context = context;
+        this.replacementText = replacementText;
         this.onConfirm = onConfirm;
         this.onCancel = onCancel;
     }
@@ -302,15 +302,34 @@ class DiffModal extends Modal {
 
         const container = contentEl.createDiv({ cls: 'diff-container' });
         
-        const createBox = (title: string, text: string, type: 'original' | 'new') => {
+
+        const createBox = (title: string, content: HTMLElement | string, type: 'original' | 'new') => {
             const box = container.createDiv({ cls: `diff-box ${type}` });
-            
             box.createEl('h3', { text: title });
-            box.createEl('pre', { text: text });
+            const pre = box.createEl('pre');
+            if (typeof content === 'string') {
+                pre.setText(content);
+            } else {
+                pre.appendChild(content);
+            }
         };
 
-        createBox(t('Before'), this.originalText, 'original');
-        createBox(t('After'), this.newText, 'new');
+        // Original View: Pre + Highlighted(Red) Selected + Post
+        const originalContent = document.createElement('span');
+        originalContent.createSpan({ text: this.context.preText });
+        const removedSpan = originalContent.createSpan({ cls: 'diff-remove' });
+        removedSpan.setText(this.context.selectedText);
+        originalContent.createSpan({ text: this.context.postText });
+
+        // New View: Pre + Highlighted(Green) Replacement + Post
+        const newContent = document.createElement('span');
+        newContent.createSpan({ text: this.context.preText });
+        const addedSpan = newContent.createSpan({ cls: 'diff-add' });
+        addedSpan.setText(this.replacementText);
+        newContent.createSpan({ text: this.context.postText });
+
+        createBox(t('Before'), originalContent, 'original');
+        createBox(t('After'), newContent, 'new');
 
         const buttonContainer = contentEl.createDiv({ cls: 'modal-button-container' });
         
@@ -1655,8 +1674,10 @@ Example: { "replacement": "New text content" }`;
 
                 // Prepare Diff
                 const originalNode = canvas.nodes.get(context.nodeId);
-                if (originalNode && originalNode.setText && originalNode.text) {
-                    const originalFullText = originalNode.text;
+                
+                // Robust check: Ensure node exists and has text property or setText ability
+                // We relaxed the check here to ensure UI always appears
+                if (originalNode) {
                     const proposedFullText = context.preText + replacementText + context.postText;
 
                     // Update Ghost Node to show checks are done
@@ -1665,11 +1686,23 @@ Example: { "replacement": "New text content" }`;
                     // Show Diff Modal
                     new DiffModal(
                         this.app,
-                        originalFullText,
-                        proposedFullText,
+                        context,
+                        replacementText,
                         () => {
                             // On Confirm
-                            originalNode.setText!(proposedFullText);
+                            if (originalNode.setText) {
+                                originalNode.setText(proposedFullText);
+                            } else {
+                                // Fallback: Direct property assignment
+                                // @ts-ignore
+                                originalNode.text = proposedFullText;
+                                // Try generic setData if available
+                                // @ts-ignore
+                                if (originalNode.setData) {
+                                    // @ts-ignore
+                                    originalNode.setData({ text: proposedFullText });
+                                }
+                            }
                             canvas.requestSave();
                             new Notice(t('Text updated'));
                             canvas.removeNode(ghostNode);
@@ -1683,7 +1716,7 @@ Example: { "replacement": "New text content" }`;
                     ).open();
 
                 } else {
-                    // Fallback if node not found
+                    // Fallback if node not found (should rarely happen as we just retrieved it)
                     this.updateGhostNode(ghostNode, replacementText, false);
                     console.warn('Canvas Banana: Original node not found for update, result left in Ghost Node');
                 }

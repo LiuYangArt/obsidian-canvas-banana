@@ -21,7 +21,7 @@
 3.  **执行 (Execution)**:
     *   系统收集上下文（详情见下文）。
     *   流式请求 AI。
-    *   **Direct Replacement**: AI 生成的内容直接替换选中的文本（或显示 Diff 供确认，取决于 Text Generation 模式）。
+    *   **Text Replacement**: 编辑模式 AI 生成的内容显示 Diff 供确认，取决于 Text Generation 模式。
 
 ## 3. 上下文构建 (Context Construction)
 
