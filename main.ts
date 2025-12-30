@@ -2360,35 +2360,52 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
     }
 
     /**
-     * 监控 Canvas 节点内的 IFRAME 选区
-     * 必须递归添加监听器，因为 IFRAME 内部的选区变化不会冒泡到主文档
+     * Monitor selection change in Canvas node iframes
+     * Recursively attach listeners because internal selection changes don't bubble
      */
     private monitorIframeSelection(): void {
-        const iframes = document.querySelectorAll('.canvas-node iframe.embed-iframe');
+        // Broadened selector to catch any iframe inside a canvas node
+        const iframes = document.querySelectorAll('.canvas-node iframe');
+        
+        if (this.settings.debugMode) {
+            console.debug(`Canvas Banana Debug: monitorIframeSelection found ${iframes.length} iframes`);
+        }
+
         iframes.forEach((iframe: HTMLIFrameElement) => {
             try {
-                // 忽略没有 contentDocument 的 iframe (可能是跨域或未加载)
+                // Ignore iframes without access (security)
                 const doc = iframe.contentDocument;
-                // 定义扩展接口以避免 any
                 interface DocWithListener extends Document {
                     _hasSelectionListener?: boolean;
                 }
                 
                 if (doc && !(doc as DocWithListener)._hasSelectionListener) {
                     (doc as DocWithListener)._hasSelectionListener = true;
+                    // Debug log for attaching listener
+                    if (this.settings.debugMode) {
+                        console.debug('Canvas Banana Debug: Attaching selection listeners to iframe', iframe);
+                    }
                     
-                    // 在 iframe 内部监听 selectionchange
+                    // Listen for selection changes inside the iframe
                     doc.addEventListener('selectionchange', () => {
                         this.captureTextSelectionContext(true, iframe);
                     });
                     
-                    // 监听 mouseup 辅助捕获
+                    // Listen for mouseup as backup
                     doc.addEventListener('mouseup', () => {
                         this.captureTextSelectionContext(true, iframe);
                     });
+                    
+                    // Listen for keyup (cursor movement)
+                    doc.addEventListener('keyup', () => {
+                        this.captureTextSelectionContext(true, iframe);
+                    });
                 }
-            } catch {
-                // 忽略 SecurityError
+            } catch (e) {
+                // Ignore SecurityError for cross-origin iframes
+                if (this.settings.debugMode) {
+                    console.debug('Canvas Banana Debug: Cannot access iframe document', e);
+                }
             }
         });
     }
@@ -2403,9 +2420,9 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                 if (mutation.type === 'childList') {
                     mutation.addedNodes.forEach(node => {
                         if (node instanceof HTMLElement) {
-                            if (node.tagName === 'IFRAME' && node.classList.contains('embed-iframe')) {
+                            if (node.tagName === 'IFRAME') {
                                 potentialIframeAdded = true;
-                            } else if (node.querySelector && node.querySelector('iframe.embed-iframe')) {
+                            } else if (node.querySelector && node.querySelector('iframe')) {
                                 potentialIframeAdded = true;
                             }
                         }
@@ -2452,13 +2469,23 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
             selection = specificIframe.contentDocument.getSelection();
         } 
         // 2. 尝试从 document.activeElement (如果是 IFRAME) 获取
-        else if (document.activeElement?.tagName === 'IFRAME' && document.activeElement.classList.contains('embed-iframe')) {
+        // Relaxed check: just check for IFRAME tag
+        else if (document.activeElement?.tagName === 'IFRAME') {
             containerIframe = document.activeElement as HTMLIFrameElement;
             selection = containerIframe.contentDocument?.getSelection() || null;
         }
         // 3. 全局尝试（不常用，但在还没进入 iframe 时可能有效）
         else {
             selection = window.getSelection();
+        }
+
+        if (this.settings.debugMode) {
+            console.debug('Canvas Banana Debug: captureTextSelectionContext strategy:', 
+                specificIframe ? 'specificIframe' : (containerIframe ? 'activeElement' : 'window'),
+                'Selection:', selection ? selection.toString() : 'null',
+                'IsCollapsed:', selection?.isCollapsed,
+                'CachedContext:', this.lastTextSelectionContext // Log the cache state
+            );
         }
 
         if (selection && !selection.isCollapsed && selection.toString().trim()) {
@@ -2476,17 +2503,13 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
 
             if (nodeId) {
                 const canvas = this.getActiveCanvas();
-                const node = canvas?.nodes.get(nodeId);
+                const node = (canvas as Canvas)?.nodes.get(nodeId);
                 
                 if (node && node.text) {
                     const selectedText = selection.toString();
                     const fullText = node.text;
 
                     // 简易定位：使用 indexOf
-                    // TODO: 考虑如果有重复文本怎么办？
-                    // 理想情况下我们需要从编辑器的 Model 获取准确的 Range，
-                    // 但由于我们没有直接访问编辑器实例的 API，只能通过文本匹配。
-                    // 对于大多数 AI 润色场景，这已经足够好了。
                     const index = fullText.indexOf(selectedText);
                     
                     const context: SelectionContext = {
@@ -2497,10 +2520,22 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                         fullText
                     };
 
+                    if (this.settings.debugMode) {
+                        console.debug('Canvas Banana Debug: Captured context:', context);
+                    }
+
                     if (updateCache) {
                         this.lastTextSelectionContext = context;
                     }
                     return context;
+                } else {
+                     if (this.settings.debugMode) {
+                        console.debug('Canvas Banana Debug: Node not found or no text', nodeId, node);
+                     }
+                }
+            } else {
+                if (this.settings.debugMode) {
+                     console.debug('Canvas Banana Debug: Could not determine nodeId');
                 }
             }
         }
@@ -2899,6 +2934,12 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
 
             const canvas = (canvasView as CanvasView).canvas;
             if (!canvas || canvas.selection.size === 0) return;
+
+            // 尝试在打开面板前捕获选区 (Force capture)
+            if (this.settings.debugMode) {
+                console.debug('Canvas Banana Debug: Sparkles button clicked, attempting to capture text context');
+            }
+            this.captureTextSelectionContext(true);
 
             // 获取选中节点位置
             const screenBBox = this.getSelectionScreenBBox(canvas.selection);
