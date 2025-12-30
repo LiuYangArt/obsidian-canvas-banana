@@ -45,6 +45,7 @@ export interface CanvasAISettings {
 
     // Google Gemini settings
     geminiApiKey: string;
+    geminiBaseUrl: string;
     geminiTextModel: string;
     geminiImageModel: string;
     geminiUseCustomTextModel: boolean;
@@ -130,6 +131,7 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
     yunwuUseCustomImageModel: false,
 
     geminiApiKey: '',
+    geminiBaseUrl: 'https://generativelanguage.googleapis.com',
     geminiTextModel: 'gemini-2.5-flash',
     geminiImageModel: 'gemini-3-pro-image-preview',
     geminiUseCustomTextModel: false,

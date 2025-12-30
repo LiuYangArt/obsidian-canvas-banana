@@ -402,6 +402,17 @@ export class CanvasAISettingTab extends PluginSettingTab {
                     }));
 
             this.addTestButton(geminiKeySetting.controlEl, containerEl);
+
+            new Setting(containerEl)
+                .setName(t('API base URL'))
+                .setDesc(t('API base URL'))
+                .addText((text) => text
+                    .setPlaceholder('https://generativelanguage.googleapis.com')
+                    .setValue(this.plugin.settings.geminiBaseUrl)
+                    .onChange(async (value) => {
+                        this.plugin.settings.geminiBaseUrl = value;
+                        await this.plugin.saveSettings();
+                    }));
         } else if (provider === 'gptgod') {
             const gptGodKeySetting = new Setting(containerEl)
                 .setName(t('GPTGod API key'))
