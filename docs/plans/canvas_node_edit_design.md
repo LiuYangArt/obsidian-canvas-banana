@@ -52,7 +52,7 @@
 
 参考 `docs/plans/2025-12-29-notes-ai-support-design.md`，从 Notes AI 设计中汲取以下关键特性以增强 Canvas 体验：
 
-### 4.1 安全替换 (Diff-based Safety)
+### 4.1 安全替换 (Diff-based Safety) - [x] Implemented
 原计划的 "Direct Replacement" 在长文本或复杂修改中风险较高。
 *   **采纳方案**: 引入 **Diff Popover** (或简单的 Before/After 预览)。
 *   **流程**: AI 生成 -> 解析 JSON Patches -> 弹窗显示 "Diff" -> 用户确认 -> 应用。
@@ -73,7 +73,7 @@
 
 ## 5. 技术实现方案 (Implementation)
 
-### 5.1 获取编辑器选区 - 关键技术发现
+### 5.1 获取编辑器选区 - 关键技术发现 - [x] Implemented
 
 > [!IMPORTANT]
 > **Canvas Text Node 使用 IFRAME 而非 CodeMirror！**
@@ -104,6 +104,7 @@ const selection = iframeDoc?.getSelection();  // 可获取选区
 - 用户在 IFRAME 内选中文本后，点击 AI 按钮时 IFRAME 失去焦点
 - 焦点转移导致选区被清除（在 `mousedown` 捕获阶段已经为空）
 - **解决方案**：使用 `selectionchange` 事件持续监控并缓存选区
+- **Robustness**: 增加了 `indexOf` 验证防止错位替换。
 
 **推荐实现**：
 ```typescript

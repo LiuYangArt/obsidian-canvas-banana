@@ -280,6 +280,58 @@ class ConfirmModal extends Modal {
     }
 }
 
+// ========== Diff Modal for Edit Review ==========
+class DiffModal extends Modal {
+    private originalText: string;
+    private newText: string;
+    private onConfirm: () => void;
+    private onCancel: () => void;
+
+    constructor(app: App, originalText: string, newText: string, onConfirm: () => void, onCancel: () => void) {
+        super(app);
+        this.originalText = originalText;
+        this.newText = newText;
+        this.onConfirm = onConfirm;
+        this.onCancel = onCancel;
+    }
+
+    onOpen() {
+        const { contentEl } = this;
+        contentEl.addClass('canvas-ai-diff-modal');
+        contentEl.createEl('h2', { text: t('Review changes') });
+
+        const container = contentEl.createDiv({ cls: 'diff-container' });
+        
+        const createBox = (title: string, text: string, type: 'original' | 'new') => {
+            const box = container.createDiv({ cls: `diff-box ${type}` });
+            
+            box.createEl('h3', { text: title });
+            box.createEl('pre', { text: text });
+        };
+
+        createBox(t('Before'), this.originalText, 'original');
+        createBox(t('After'), this.newText, 'new');
+
+        const buttonContainer = contentEl.createDiv({ cls: 'modal-button-container' });
+        
+        const cancelBtn = buttonContainer.createEl('button', { text: t('Cancel') });
+        cancelBtn.addEventListener('click', () => {
+            this.onCancel();
+            this.close();
+        });
+
+        const confirmBtn = buttonContainer.createEl('button', { text: t('Apply'), cls: 'mod-cta' });
+        confirmBtn.addEventListener('click', () => {
+            this.onConfirm();
+            this.close();
+        });
+    }
+
+    onClose() {
+        this.contentEl.empty();
+    }
+}
+
 // ========== Floating Palette Component ==========
 class FloatingPalette {
     private containerEl: HTMLElement;
@@ -1551,8 +1603,11 @@ export default class CanvasAIPlugin extends Plugin {
             try {
                 const editOptions = this.floatingPalette!.getEditOptions();
                 
-                // System Prompt for Editing
-                const systemPrompt = "You are an expert text editor. Rewrite the target text based on the user's instruction. Maintain the original tone and style unless instructed otherwise. Output ONLY the rewritten text.";
+                // System Prompt for Editing - Request JSON
+                const systemPrompt = `You are an expert text editor. Rewrite the target text based on the user's instruction.
+Maintain the original tone and style unless instructed otherwise.
+Output a JSON object with a single key "replacement" containing the rewritten text.
+Example: { "replacement": "New text content" }`;
                 
                 // Construct User Message with Context
                 let userMsg = `Target Text:\n${editIntent.targetText}`;
@@ -1584,7 +1639,54 @@ export default class CanvasAIPlugin extends Plugin {
                     );
                 }
 
-                this.updateGhostNode(ghostNode, response, false);
+                // Parse JSON response
+                let replacementText = response;
+                try {
+                    const jsonMatch = response.match(/\{[\s\S]*\}/);
+                    const jsonStr = jsonMatch ? jsonMatch[0] : response;
+                    const parsed = JSON.parse(jsonStr);
+                    if (parsed.replacement) {
+                        replacementText = parsed.replacement;
+                    }
+                } catch (e) {
+                    console.warn('Canvas Banana: Failed to parse edit JSON response, using raw text:', e);
+                    replacementText = response.replace(/^```json\s*/, '').replace(/^```\s*/, '').replace(/\s*```$/, '');
+                }
+
+                // Prepare Diff
+                const originalNode = canvas.nodes.get(context.nodeId);
+                if (originalNode && originalNode.setText && originalNode.text) {
+                    const originalFullText = originalNode.text;
+                    const proposedFullText = context.preText + replacementText + context.postText;
+
+                    // Update Ghost Node to show checks are done
+                    this.updateGhostNode(ghostNode, "✅ Generated. Waiting for review...", false);
+
+                    // Show Diff Modal
+                    new DiffModal(
+                        this.app,
+                        originalFullText,
+                        proposedFullText,
+                        () => {
+                            // On Confirm
+                            originalNode.setText!(proposedFullText);
+                            canvas.requestSave();
+                            new Notice(t('Text updated'));
+                            canvas.removeNode(ghostNode);
+                            canvas.requestSave();
+                        },
+                        () => {
+                            // On Cancel
+                            canvas.removeNode(ghostNode);
+                            canvas.requestSave();
+                        }
+                    ).open();
+
+                } else {
+                    // Fallback if node not found
+                    this.updateGhostNode(ghostNode, replacementText, false);
+                    console.warn('Canvas Banana: Original node not found for update, result left in Ghost Node');
+                }
 
             } catch (error) {
                 this.updateGhostNode(ghostNode, `Error: ${error instanceof Error ? error.message : String(error)}`, true);
@@ -2530,11 +2632,19 @@ Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UU
                     // 简易定位：使用 indexOf
                     const index = fullText.indexOf(selectedText);
                     
+                    if (index === -1) {
+                         if (this.settings.debugMode) {
+                            console.debug('Canvas Banana Debug: Selected text not found in node text (likely formatting mismatch)', selectedText);
+                         }
+                         // Mismatch: Don't return corrupted context that would replace the whole text
+                         return null;
+                    }
+
                     const context: SelectionContext = {
                         nodeId,
                         selectedText,
-                        preText: index >= 0 ? fullText.substring(0, index) : '',
-                        postText: index >= 0 ? fullText.substring(index + selectedText.length) : '',
+                        preText: fullText.substring(0, index),
+                        postText: fullText.substring(index + selectedText.length),
                         fullText
                     };
 
