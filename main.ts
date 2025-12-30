@@ -34,6 +34,8 @@ export default class CanvasAIPlugin extends Plugin {
     private activeGhostNodeIds: Set<string> = new Set();
     // Track the popout leaf for single window mode
     private imagePopoutLeaf: WorkspaceLeaf | null = null;
+    // Flag to track if user has interacted with non-AI elements (potentially changing selection)
+    private selectionInteractionFlag: boolean = false;
 
 
     async onload() {
@@ -988,6 +990,10 @@ ${intent.instruction}
             if (isPalette || isAiButton || isMenu) {
                 // 点击 AI 界面前，强制尝试捕获当前焦点所在的选区
                 this.captureTextSelectionContext(true);
+            } else {
+                // User interacted with something else (canvas, node, background)
+                // This marks a potential state change that should allow invalidating "stale" explicit context
+                this.selectionInteractionFlag = true;
             }
 
             // 检查是否点击了 Canvas 及其 UI 元素 (用于背景点击检测)
@@ -1191,12 +1197,14 @@ ${intent.instruction}
                     const isOldExplicit = this.lastTextSelectionContext?.isExplicit === true;
                     const isSameNode = this.lastTextSelectionContext?.nodeId === context.nodeId;
 
-                    if (isNewImplicit && isOldExplicit && isSameNode) {
+                    if (isNewImplicit && isOldExplicit && isSameNode && !this.selectionInteractionFlag) {
                         if (this.settings.debugMode) {
                             console.debug('Canvas Banana Debug: Ignoring implicit fallback update, keeping explicit context');
                         }
                     } else {
                         this.lastTextSelectionContext = context;
+                        // Reset interaction flag after successful update
+                        this.selectionInteractionFlag = false;
                     }
                 }
                 return context;
