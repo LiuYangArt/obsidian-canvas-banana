@@ -297,7 +297,7 @@ class DiffModal extends Modal {
 
     onOpen() {
         const { contentEl } = this;
-        contentEl.addClass('canvas-ai-diff-modal');
+        this.modalEl.addClass('canvas-ai-diff-modal');
         contentEl.createEl('h2', { text: t('Review changes') });
 
         const container = contentEl.createDiv({ cls: 'diff-container' });

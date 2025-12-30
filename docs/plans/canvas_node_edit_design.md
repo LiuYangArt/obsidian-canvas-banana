@@ -58,7 +58,7 @@
 *   **流程**: AI 生成 -> 解析 JSON Patches -> 弹窗显示 "Diff" -> 用户确认 -> 应用。
 *   **System Prompt 增强**: 要求 AI 返回 JSON 格式的修改建议，而非全文直接覆盖，这与 Notes 模式的防丢失策略保持一致。
 
-### 4.2 UI 组件复用 (Unified Floating Palette)
+### 4.2 UI 组件复用 (Unified Floating Palette) - [x] Implemented
 *   **目标**: 保持 Notes 和 Canvas Node 编辑体验的一致性。
 *   **实现**: 重构 `FloatingPalette` 为通用组件，支持 `mode: 'canvas-chat' | 'canvas-node' | 'note-edit'`。
 *   **共享功能**: 预设选择器、Prompt 输入框、Context Toggle 开关。
