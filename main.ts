@@ -347,6 +347,10 @@ Example: { "replacement": "New text content" }`;
                     // Update Ghost Node to show checks are done
                     this.updateGhostNode(ghostNode, "✅ Generated. Waiting for review...", false);
 
+                    // Remove Ghost Node immediately to prevent it sticking around if modal is cancelled via Esc
+                    canvas.removeNode(ghostNode);
+                    canvas.requestSave();
+
                     // Show Diff Modal
                     new DiffModal(
                         this.app,
@@ -369,13 +373,9 @@ Example: { "replacement": "New text content" }`;
                             }
                             canvas.requestSave();
                             new Notice(t('Text updated'));
-                            canvas.removeNode(ghostNode);
-                            canvas.requestSave();
                         },
                         () => {
                             // On Cancel
-                            canvas.removeNode(ghostNode);
-                            canvas.requestSave();
                         }
                     ).open();
 
