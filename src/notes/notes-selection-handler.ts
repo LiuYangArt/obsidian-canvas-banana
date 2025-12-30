@@ -10,6 +10,7 @@ import { NotesEditPalette } from './notes-edit-palette';
 import { SelectionContext } from '../types';
 import { DiffModal } from '../ui/modals';
 import { DEFAULT_EDIT_MODE_PROMPT } from '../prompts/edit-mode-prompt';
+import { CanvasConverter } from '../canvas/canvas-converter';
 
 export interface NotesSelectionContext extends SelectionContext {
     editor: Editor;
@@ -237,15 +238,29 @@ export class NotesSelectionHandler {
             // 构建系统提示
             const systemPrompt = this.plugin.settings.editSystemPrompt?.trim() || DEFAULT_EDIT_MODE_PROMPT;
 
+            // 提取文档中的内嵌图片 ![[image.png]]
+            const images = await this.extractDocumentImages(context.fullText, context.file.path);
+
             // 构建用户消息 - 与 Edit Mode prompt 格式匹配
             const userMessage = `Target text to edit:\n\`\`\`\n${selectedText}\n\`\`\`\n\nInstruction: ${prompt}`;
 
-            // 直接使用 ApiManager 的 chatCompletion 方法
-            const response = await this.plugin.apiManager.chatCompletion(
-                userMessage,
-                systemPrompt,
-                1 // temperature
-            );
+            // 使用 multimodalChat 或 chatCompletion
+            let response: string;
+            if (images.length > 0) {
+                console.debug(`Notes AI: Sending request with ${images.length} images as context`);
+                response = await this.plugin.apiManager.multimodalChat(
+                    userMessage,
+                    images,
+                    systemPrompt,
+                    1 // temperature
+                );
+            } else {
+                response = await this.plugin.apiManager.chatCompletion(
+                    userMessage,
+                    systemPrompt,
+                    1 // temperature
+                );
+            }
 
             // 解析 JSON 响应
             let replacementText = response;
@@ -299,6 +314,83 @@ export class NotesSelectionHandler {
             console.error('Notes AI: Generation error:', message);
             new Notice(`Notes AI Error: ${message}`);
         }
+    }
+
+    /**
+     * 提取文档中的内嵌图片 ![[image.png]] 并读取为 base64
+     */
+    private async extractDocumentImages(
+        content: string,
+        filePath: string
+    ): Promise<{ base64: string; mimeType: string; type: 'image' }[]> {
+        const images: { base64: string; mimeType: string; type: 'image' }[] = [];
+        
+        // 解析 ![[image.png]] 语法
+        const regex = /!\[\[([^\]]+\.(png|jpg|jpeg|gif|webp|svg|bmp))\]\]/gi;
+        const matches: string[] = [];
+        let match;
+        while ((match = regex.exec(content)) !== null) {
+            matches.push(match[1]);
+        }
+
+        if (matches.length === 0) {
+            return images;
+        }
+
+        const settings = this.plugin.settings;
+        const MAX_IMAGES = 14;
+
+        for (const imgPath of matches) {
+            if (images.length >= MAX_IMAGES) {
+                console.debug(`Notes AI: Image limit (${MAX_IMAGES}) reached, skipping remaining`);
+                break;
+            }
+
+            // 解析图片路径
+            const resolvedPath = this.resolveImagePath(filePath, imgPath);
+            if (!resolvedPath) continue;
+
+            try {
+                const imgData = await CanvasConverter.readSingleImageFile(
+                    this.app,
+                    resolvedPath,
+                    settings.imageCompressionQuality,
+                    settings.imageMaxSize
+                );
+                if (imgData) {
+                    images.push({
+                        base64: imgData.base64,
+                        mimeType: imgData.mimeType,
+                        type: 'image'
+                    });
+                }
+            } catch (e) {
+                console.warn('Notes AI: Failed to read embedded image:', imgPath, e);
+            }
+        }
+
+        return images;
+    }
+
+    /**
+     * 解析图片路径（相对于文件所在目录或 vault 根目录）
+     */
+    private resolveImagePath(filePath: string, imgPath: string): string | null {
+        // 先尝试从 vault 根目录查找
+        const file = this.app.vault.getAbstractFileByPath(imgPath);
+        if (file) {
+            return imgPath;
+        }
+
+        // 尝试相对于文件所在目录
+        const fileDir = filePath.substring(0, filePath.lastIndexOf('/'));
+        const relativePath = fileDir ? `${fileDir}/${imgPath}` : imgPath;
+        const relativeFile = this.app.vault.getAbstractFileByPath(relativePath);
+        if (relativeFile) {
+            return relativePath;
+        }
+
+        return null;
     }
 
     destroy(): void {

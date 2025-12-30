@@ -149,6 +149,7 @@ function applyPatches(docContent: string, patches: TextChange[]) {
 - [x] 实现 `NoteFloatingPalette` (复用 FloatingPalette UI)。→ **`src/notes/notes-edit-palette.ts`**
 - [x] 实现 `NoteContextManager` (获取选区 + 可选的全文)。→ **`src/notes/notes-selection-handler.ts`**
 - [x] ~~实现基础的 "Replace Selection" 功能。~~ → **复用 DiffModal + Edit Mode**
+- [x] **Notes 图片上下文支持**: 解析 `![[image.png]]` 并发送多模态请求。→ **`extractDocumentImages()` in notes-selection-handler.ts**
 
 ### Phase 2: 预设与侧边栏
 - [x] ~~分离 Preset 系统 (Canvas vs Notes)。~~ → **架构已就绪，需扩展 settings**

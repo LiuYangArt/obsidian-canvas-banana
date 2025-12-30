@@ -102,6 +102,7 @@ export default class CanvasAIPlugin extends Plugin {
         console.debug('Canvas Banana: Plugin unloading...');
 
         this.floatingPalette?.destroy();
+        this.notesHandler?.destroy();
 
         console.debug('Canvas Banana: Plugin unloaded');
     }
