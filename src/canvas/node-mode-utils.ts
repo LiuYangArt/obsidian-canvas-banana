@@ -4,7 +4,7 @@
  * for LLM-generated Canvas JSON structures
  */
 
-import { CanvasData, CanvasJsonNode } from './types';
+import { CanvasData, CanvasJsonNode } from '../types';
 
 // ========== Type Definitions ==========
 

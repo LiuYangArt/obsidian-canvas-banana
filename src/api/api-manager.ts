@@ -4,7 +4,7 @@
  */
 
 import { requestUrl, RequestUrlParam, RequestUrlResponse } from 'obsidian';
-import type { CanvasAISettings } from './main';
+import type { CanvasAISettings } from '../settings/settings';
 
 // ========== Error Type Helpers ==========
 

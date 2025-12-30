@@ -1,0 +1,172 @@
+/**
+ * Canvas AI Plugin Settings
+ * 设置接口、类型和默认值
+ */
+
+// ========== API Provider Type ==========
+export type ApiProvider = 'openrouter' | 'yunwu' | 'gemini' | 'gptgod';
+
+// ========== Quick Switch Model ==========
+export interface QuickSwitchModel {
+    provider: ApiProvider;
+    modelId: string;
+    displayName: string;
+}
+
+// ========== Prompt Preset ==========
+export interface PromptPreset {
+    id: string;      // UUID
+    name: string;    // Display name
+    prompt: string;  // Prompt content
+}
+
+// ========== Plugin Settings Interface ==========
+export interface CanvasAISettings {
+    // API Provider selection
+    apiProvider: ApiProvider;
+
+    // OpenRouter settings
+    openRouterApiKey: string;
+    openRouterBaseUrl: string;
+    openRouterTextModel: string;
+    openRouterImageModel: string;
+    openRouterUseCustomTextModel: boolean;
+    openRouterUseCustomImageModel: boolean;
+
+    // Yunwu settings
+    yunwuApiKey: string;
+    yunwuBaseUrl: string;
+    yunwuTextModel: string;
+    yunwuImageModel: string;
+    yunwuUseCustomTextModel: boolean;
+    yunwuUseCustomImageModel: boolean;
+
+    // Google Gemini settings
+    geminiApiKey: string;
+    geminiTextModel: string;
+    geminiImageModel: string;
+    geminiUseCustomTextModel: boolean;
+    geminiUseCustomImageModel: boolean;
+
+    // GPTGod settings
+    gptGodApiKey: string;
+    gptGodBaseUrl: string;
+    gptGodTextModel: string;
+    gptGodImageModel: string;
+    gptGodUseCustomTextModel: boolean;
+    gptGodUseCustomImageModel: boolean;
+
+    // Legacy fields (for migration)
+    textModel?: string;
+    imageModel?: string;
+    useCustomTextModel?: boolean;
+    useCustomImageModel?: boolean;
+
+    // Image compression settings
+    imageCompressionQuality: number;  // WebP compression quality (0-100)
+    imageMaxSize: number;  // Max width/height for WebP output
+
+    // Image generation defaults (palette state)
+    defaultAspectRatio: string;
+    defaultResolution: string;
+    defaultChatTemperature: number;
+
+    // Debug mode
+    debugMode: boolean;
+
+    // Double-click image to open in new window
+    doubleClickImageOpen: boolean;
+    // Reuse single window for images
+    singleWindowMode: boolean;
+
+    // System prompts for different modes
+    chatSystemPrompt: string;
+    nodeSystemPrompt: string;
+    imageSystemPrompt: string;
+
+    // Node mode settings
+    nodeDefaultColor: string;  // Override color for generated nodes ("1"-"6" or empty)
+
+    // Prompt presets - separate for chat, image, node, and edit modes
+    chatPresets: PromptPreset[];
+    imagePresets: PromptPreset[];
+    nodePresets: PromptPreset[];
+    editPresets: PromptPreset[];
+
+    // Node mode temperature
+    defaultNodeTemperature: number;
+
+    // Image generation timeout (seconds)
+    imageGenerationTimeout: number;
+
+    // Quick switch models
+    quickSwitchTextModels: QuickSwitchModel[];
+    quickSwitchImageModels: QuickSwitchModel[];
+    paletteTextModel: string;
+    paletteImageModel: string;
+    paletteNodeModel: string;
+    paletteEditModel: string;
+}
+
+// ========== Default Settings ==========
+export const DEFAULT_SETTINGS: CanvasAISettings = {
+    apiProvider: 'openrouter',
+
+    openRouterApiKey: '',
+    openRouterBaseUrl: 'https://openrouter.ai/api/v1/chat/completions',
+    openRouterTextModel: 'google/gemini-2.5-flash',
+    openRouterImageModel: 'google/gemini-3-pro-image-preview',
+    openRouterUseCustomTextModel: false,
+    openRouterUseCustomImageModel: false,
+
+    yunwuApiKey: '',
+    yunwuBaseUrl: 'https://yunwu.ai',
+    yunwuTextModel: 'gemini-2.5-flash',
+    yunwuImageModel: 'gemini-3-pro-image-preview',
+    yunwuUseCustomTextModel: false,
+    yunwuUseCustomImageModel: false,
+
+    geminiApiKey: '',
+    geminiTextModel: 'gemini-2.5-flash',
+    geminiImageModel: 'gemini-3-pro-image-preview',
+    geminiUseCustomTextModel: false,
+    geminiUseCustomImageModel: false,
+
+    gptGodApiKey: '',
+    gptGodBaseUrl: 'https://api.gptgod.online',
+    gptGodTextModel: 'gemini-2.5-flash',
+    gptGodImageModel: 'gemini-3-pro-image-preview',
+    gptGodUseCustomTextModel: false,
+    gptGodUseCustomImageModel: false,
+
+    imageCompressionQuality: 80,
+    imageMaxSize: 2048,
+    defaultAspectRatio: '1:1',
+    defaultResolution: '1K',
+    defaultChatTemperature: 0.5,
+
+    debugMode: false,
+    doubleClickImageOpen: true,
+    singleWindowMode: true,
+
+    chatSystemPrompt: 'You are a helpful AI assistant embedded in an Obsidian Canvas. Answer concisely and use Markdown formatting.',
+    nodeSystemPrompt: '',
+    imageSystemPrompt: 'Role: A Professional Image Creator. Use the following references for image creation.',
+
+    nodeDefaultColor: '6',
+
+    chatPresets: [],
+    imagePresets: [],
+    nodePresets: [],
+    editPresets: [],
+    defaultNodeTemperature: 0.5,
+
+    imageGenerationTimeout: 120,
+
+    quickSwitchTextModels: [],
+    quickSwitchImageModels: [],
+    paletteTextModel: '',
+    paletteImageModel: '',
+    paletteNodeModel: '',
+    paletteEditModel: ''
+};

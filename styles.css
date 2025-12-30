@@ -982,7 +982,7 @@
 .canvas-ai-diff-modal {
   max-width: 1200px !important;
   width: 80vw !important;
-  height: 85vh !important;
+  height: 75vh !important;
   display: flex !important;
   flex-direction: column;
   padding: 0 !important;

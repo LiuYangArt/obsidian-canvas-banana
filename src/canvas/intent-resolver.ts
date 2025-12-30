@@ -6,9 +6,9 @@
  */
 
 import { App } from 'obsidian';
-import type { Canvas, CanvasNode, SelectionContext } from './types';
+import type { Canvas, CanvasNode, SelectionContext } from '../types';
 import { CanvasConverter, ConvertedNode, ConvertedEdge } from './canvas-converter';
-import type { CanvasAISettings } from './main';
+import type { CanvasAISettings } from '../settings/settings';
 
 // ========== Constants ==========
 
