@@ -1067,6 +1067,35 @@
   border-radius: 2px;
 }
 
+/* Line-level diff styles */
+.diff-pre-lines {
+  margin: 0;
+  padding: 0;
+}
+
+.diff-line {
+  padding: 2px 8px;
+  margin: 0;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.diff-line.diff-unchanged {
+  color: var(--text-muted);
+}
+
+.diff-line.diff-removed {
+  background-color: rgba(255, 82, 82, 0.2);
+  color: var(--text-error);
+  text-decoration: line-through;
+}
+
+.diff-line.diff-added {
+  background-color: rgba(0, 200, 83, 0.2);
+  color: var(--text-success);
+}
+
 /* ========== Notes AI Floating Button ========== */
 #notes-ai-floating-button,
 .notes-ai-floating-button {
