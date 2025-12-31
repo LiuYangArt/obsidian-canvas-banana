@@ -3,7 +3,7 @@
  * Notes AI 侧边栏视图，提供多轮对话和文档编辑功能
  */
 
-import { ItemView, WorkspaceLeaf, Notice, setIcon, MarkdownView } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, setIcon } from 'obsidian';
 import type CanvasAIPlugin from '../../main';
 import { ApiManager } from '../api/api-manager';
 import { PromptPreset, QuickSwitchModel, ApiProvider } from '../settings/settings';
@@ -265,15 +265,14 @@ export class SideBarCoPilotView extends ItemView {
             return;
         }
 
-        // 获取当前文档
-        const activeView = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (!activeView || !activeView.file) {
+        // 获取当前文档 - 支持多种视图类型
+        const activeFile = this.app.workspace.getActiveFile();
+        if (!activeFile || activeFile.extension !== 'md') {
             new Notice(t('No active file'));
             return;
         }
 
-        const file = activeView.file;
-        const _editor = activeView.editor;
+        const file = activeFile;
         const docContent = await this.app.vault.read(file);
 
         // 添加用户消息
