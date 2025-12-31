@@ -79,10 +79,6 @@ export class SideBarCoPilotView extends ItemView {
         const header = container.createDiv('sidebar-copilot-header');
         header.createEl('span', { cls: 'sidebar-copilot-title', text: t('Canvas Banana') });
 
-        const clearBtn = header.createEl('button', { cls: 'sidebar-clear-btn', attr: { title: t('Clear conversation') } });
-        setIcon(clearBtn, 'trash-2');
-        clearBtn.addEventListener('click', () => this.clearConversation());
-
         // Messages Area
         this.messagesContainer = container.createDiv('sidebar-chat-messages');
 
@@ -324,8 +320,28 @@ export class SideBarCoPilotView extends ItemView {
             // 添加 AI 回复（仅显示摘要）
             this.addMessage('assistant', summary);
 
-            // 如果有具体修改，显示 Diff Modal
-            if (replacementText || globalChanges.length > 0) {
+            // 如果有具体修改，使用 patch 方式应用
+            if (globalChanges.length > 0) {
+                // 有 patch 修改，显示确认对话框
+                const changesSummary = globalChanges.map((c, i) => 
+                    `${i + 1}. "${c.original.substring(0, 30)}${c.original.length > 30 ? '...' : ''}" → "${c.new.substring(0, 30)}${c.new.length > 30 ? '...' : ''}"`
+                ).join('\n');
+                
+                new ConfirmModal(
+                    this.app,
+                    `${t('Apply')} ${globalChanges.length} ${t('changes')}?\n\n${changesSummary}`,
+                    () => {
+                        void (async () => {
+                            const patchResult = applyPatches(docContent, globalChanges);
+                            if (patchResult.text !== docContent) {
+                                await this.app.vault.modify(file, patchResult.text);
+                                new Notice(t('File updated'));
+                            }
+                        })();
+                    }
+                ).open();
+            } else if (replacementText && replacementText !== docContent) {
+                // 有全文替换，显示 Diff Modal
                 const context = {
                     nodeId: '',
                     selectedText: docContent,
@@ -338,15 +354,9 @@ export class SideBarCoPilotView extends ItemView {
                 new DiffModal(
                     this.app,
                     context,
-                    replacementText || docContent,
+                    replacementText,
                     async () => {
-                        // 应用修改
-                        let newContent = replacementText || docContent;
-                        if (globalChanges.length > 0) {
-                            const patchResult = applyPatches(newContent, globalChanges);
-                            newContent = patchResult.text;
-                        }
-                        await this.app.vault.modify(file, newContent);
+                        await this.app.vault.modify(file, replacementText);
                         new Notice(t('File updated'));
                     },
                     () => {
