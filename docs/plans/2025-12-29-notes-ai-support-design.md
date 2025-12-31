@@ -207,8 +207,8 @@ function applyPatches(docContent: string, patches: TextChange[]) {
 
 ### Phase 2: 预设与侧边栏
 - [x] ~~分离 Preset 系统 (Canvas vs Notes)。~~ → **架构已就绪，需扩展 settings**
-- [ ] 开发 `SideBarCoPilotView`。
-- [x] ~~实现 "Review Changes" 弹窗 (Diff View)。~~ → **DiffModal 可直接使用**
+- [x] 开发 `SideBarCoPilotView`。
+- [x] ~~实现 "Rexview Changes" 弹窗 (Diff View)。~~ → **DiffModal 可直接使用**
 
 ### Phase 3: 高级智能 (Smart Features)
 - [x] **Global Update Implementation**: ~~原两阶段 Prompt 方案~~ → **优化为一次性处理，集成到 Edit Mode Prompt 中**

@@ -1112,15 +1112,15 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--shadow-s);
   transition: color 0.15s ease, background 0.15s ease, border-color 0.15s ease;
+  opacity: 1 !important; /* Override .clickable-icon opacity */
 }
 
 #notes-ai-floating-button:hover,
 .notes-ai-floating-button:hover {
   color: var(--interactive-accent);
-  background: var(--background-modifier-hover);
-  border-color: var(--interactive-accent);
+  background: linear-gradient(var(--background-modifier-hover), var(--background-modifier-hover)), var(--background-primary);
 }
 
 #notes-ai-floating-button.is-hidden,
