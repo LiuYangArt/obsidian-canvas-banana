@@ -139,8 +139,8 @@ export class NotesSelectionHandler {
     }
 
     private checkSelection(): void {
-        // 生成中时保持按钮显示，不响应选区变化
-        if (this.isGenerating) {
+        // 生成中或面板打开时，不响应选区变化
+        if (this.isGenerating || this.editPalette?.visible) {
             return;
         }
 

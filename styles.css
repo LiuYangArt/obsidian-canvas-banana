@@ -1143,6 +1143,11 @@
   z-index: 1000;
 }
 
+/* 测量尺寸时使用：保持布局但不可见 */
+.notes-ai-palette.is-measuring {
+  visibility: hidden;
+}
+
 .notes-ai-palette-header {
   display: flex;
   justify-content: space-between;

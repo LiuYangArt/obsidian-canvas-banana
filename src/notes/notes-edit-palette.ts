@@ -362,11 +362,51 @@ export class NotesEditPalette {
     // ========== Show/Hide ==========
 
     show(x: number, y: number): void {
-        this.containerEl.style.left = `${x}px`;
-        this.containerEl.style.top = `${y}px`;
+        // 使用 is-measuring 类测量尺寸（保持布局但不可见）
+        this.containerEl.addClass('is-measuring');
         this.containerEl.removeClass('is-hidden');
+
+        // 获取面板实际尺寸
+        const rect = this.containerEl.getBoundingClientRect();
+        const panelWidth = rect.width || 320;
+        const panelHeight = rect.height || 300;
+        const padding = 10;
+
+        // 计算最终位置，确保不超出视口
+        let finalX = x;
+        let finalY = y;
+
+        // 右边界检测
+        if (finalX + panelWidth > window.innerWidth - padding) {
+            finalX = window.innerWidth - panelWidth - padding;
+        }
+
+        // 左边界检测
+        if (finalX < padding) {
+            finalX = padding;
+        }
+
+        // 下边界检测：如果下方空间不足，尝试显示在上方
+        if (finalY + panelHeight > window.innerHeight - padding) {
+            const aboveY = y - panelHeight - 40;
+            if (aboveY >= padding) {
+                finalY = aboveY;
+            } else {
+                finalY = window.innerHeight - panelHeight - padding;
+            }
+        }
+
+        // 上边界检测
+        if (finalY < padding) {
+            finalY = padding;
+        }
+
+        // 应用最终位置并显示
+        this.containerEl.style.left = `${finalX}px`;
+        this.containerEl.style.top = `${finalY}px`;
+        this.containerEl.removeClass('is-measuring');
         this.isVisible = true;
-        
+
         // 自动聚焦输入框
         setTimeout(() => this.promptInput.focus(), 50);
     }
