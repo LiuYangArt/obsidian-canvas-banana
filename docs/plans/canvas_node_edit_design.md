@@ -42,6 +42,9 @@
     *   例如：一个 Note 节点连向当前 Text 节点，该 Note 内容应作为背景知识。
 *   **Downstream Nodes (Children)**: 作为 **Constraints/Goals** (可选)。
     *   如果当前节点连向另一个 Summary 节点，AI 修改时应保持逻辑连贯，不破坏下游引用（High Priority）。
+*   **Group 节点展开**: ✅ (2024-12-31 实现)
+    *   当上游/下游遇到 Group 节点时，使用 `canvas.getContainingNodes(bbox)` 获取内部子节点。
+    *   提取子节点的文本、图片、.md 文件内容，以 `[GroupLabel]\n内容` 格式组织。
 
 ### 3.3 顺序与关系
 使用 `IntentResolver.preprocess` 和 `extractEdges` 确保顺序正确：

@@ -585,8 +585,61 @@ export class IntentResolver {
         const upstreamParts: string[] = [];
 
         for (const { node, distance, label } of upstreamNodes) {
+            // 处理 Group 节点：展开内部节点
+            if (node.label !== undefined) {
+                const bbox = node.getBBox ? node.getBBox() : node.bbox;
+                if (bbox) {
+                    const groupLabel = node.label || 'Group';
+                    const containedNodes = canvas.getContainingNodes(bbox);
+                    const groupParts: string[] = [];
+                    
+                    for (const child of containedNodes) {
+                        // 排除 Group 自身
+                        if (child.id === node.id) continue;
+                        
+                        // 处理子节点：图片
+                        if (child.file && this.isImageFile(child.file.path || '')) {
+                            try {
+                                const imgData = await CanvasConverter.readSingleImageFile(
+                                    app,
+                                    child.file.path,
+                                    settings.imageCompressionQuality,
+                                    settings.imageMaxSize
+                                );
+                                if (imgData) {
+                                    images.push({
+                                        base64: imgData.base64,
+                                        mimeType: imgData.mimeType,
+                                        role: `${groupLabel}: image`,
+                                        nodeId: child.id
+                                    });
+                                }
+                            } catch (e) {
+                                console.warn('Failed to read group child image:', e);
+                            }
+                        }
+                        // 处理子节点：文本
+                        else if (child.text !== undefined) {
+                            groupParts.push(child.text);
+                        }
+                        // 处理子节点：.md 文件
+                        else if (child.file && child.file.extension === 'md') {
+                            try {
+                                const content = await app.vault.cachedRead(child.file);
+                                groupParts.push(`[${child.file.name}]\n${content}`);
+                            } catch (e) {
+                                console.warn('Failed to read group child md file:', e);
+                            }
+                        }
+                    }
+                    
+                    if (groupParts.length > 0) {
+                        upstreamParts.push(`[${groupLabel}]\n${groupParts.join('\n\n')}`);
+                    }
+                }
+            }
             // 处理图片节点
-            if (node.file && this.isImageFile(node.file.path || '')) {
+            else if (node.file && this.isImageFile(node.file.path || '')) {
                 try {
                     const base64 = await CanvasConverter.readSingleImageFile(
                         app,
@@ -626,7 +679,28 @@ export class IntentResolver {
         // 处理下游节点：作为约束
         const downstreamParts: string[] = [];
         for (const { node, label } of downstreamNodes) {
-            if (node.text !== undefined) {
+            // 处理 Group 节点：展开内部节点
+            if (node.label !== undefined) {
+                const bbox = node.getBBox ? node.getBBox() : node.bbox;
+                if (bbox) {
+                    const groupLabel = node.label || 'Group';
+                    const containedNodes = canvas.getContainingNodes(bbox);
+                    const groupParts: string[] = [];
+                    
+                    for (const child of containedNodes) {
+                        if (child.id === node.id) continue;
+                        if (child.text !== undefined) {
+                            groupParts.push(child.text);
+                        }
+                    }
+                    
+                    if (groupParts.length > 0) {
+                        downstreamParts.push(`[${groupLabel}]\n${groupParts.join('\n\n')}`);
+                    }
+                }
+            }
+            // 处理文本节点
+            else if (node.text !== undefined) {
                 const rolePrefix = label ? `[${label}] ` : '';
                 downstreamParts.push(`${rolePrefix}${node.text}`);
             }
