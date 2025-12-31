@@ -1141,6 +1141,8 @@
 .notes-ai-palette {
   position: fixed;
   z-index: 1000;
+  /* 禁用位置过渡动画，避免每次显示时的"飞入"效果 */
+  transition: none;
 }
 
 /* 测量尺寸时使用：保持布局但不可见 */
