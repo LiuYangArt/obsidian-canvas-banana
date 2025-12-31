@@ -3,7 +3,7 @@
  * Notes AI 侧边栏视图，提供多轮对话和文档编辑功能
  */
 
-import { ItemView, WorkspaceLeaf, Notice, setIcon } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, setIcon, Scope } from 'obsidian';
 import type CanvasAIPlugin from '../../main';
 import { ApiManager } from '../api/api-manager';
 import { PromptPreset, QuickSwitchModel, ApiProvider } from '../settings/settings';
@@ -39,10 +39,19 @@ export class SideBarCoPilotView extends ItemView {
 
     // State
     private isGenerating: boolean = false;
+    private keyScope: Scope;
 
     constructor(leaf: WorkspaceLeaf, plugin: CanvasAIPlugin) {
         super(leaf);
         this.plugin = plugin;
+        
+        // 创建 Scope 用于注册 Ctrl+Enter
+        this.keyScope = new Scope(this.app.scope);
+        this.keyScope.register(['Ctrl'], 'Enter', (evt: KeyboardEvent) => {
+            evt.preventDefault();
+            void this.handleGenerate();
+            return false;
+        });
     }
 
     getViewType(): string {
@@ -143,14 +152,16 @@ export class SideBarCoPilotView extends ItemView {
         this.generateBtn = actionRow.createEl('button', { cls: 'sidebar-generate-btn', text: t('Generate') });
         this.generateBtn.addEventListener('click', () => void this.handleGenerate());
 
-        // Keyboard shortcut: Ctrl+Enter to generate
-        this.inputEl.addEventListener('keydown', (e) => {
-            if (e.ctrlKey && e.key === 'Enter') {
-                e.preventDefault();
-                void this.handleGenerate();
-            }
-            e.stopPropagation();
+        // Scope 管理：focus 时激活 Ctrl+Enter，blur 时取消
+        this.inputEl.addEventListener('focus', () => {
+            this.app.keymap.pushScope(this.keyScope);
         });
+        this.inputEl.addEventListener('blur', () => {
+            this.app.keymap.popScope(this.keyScope);
+        });
+
+        // 阻止键盘事件冒泡（避免 Obsidian 快捷键冲突）
+        this.inputEl.addEventListener('keydown', (e) => e.stopPropagation());
         this.inputEl.addEventListener('keyup', (e) => e.stopPropagation());
         this.inputEl.addEventListener('keypress', (e) => e.stopPropagation());
     }
