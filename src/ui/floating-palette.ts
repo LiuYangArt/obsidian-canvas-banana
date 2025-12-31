@@ -654,6 +654,7 @@ export class FloatingPalette {
     /**
      * Update generate button text and disabled state
      * Disabled when: no text nodes selected AND no prompt entered (fool-proof design)
+     * Edit mode: disabled when generation in progress (no concurrent edits allowed)
      */
     private updateGenerateButtonState(): void {
         const generateBtn = this.containerEl.querySelector('.canvas-ai-generate-btn') as HTMLButtonElement;
@@ -671,11 +672,10 @@ export class FloatingPalette {
         const hasPrompt = this.promptInput.value.trim().length > 0;
         const hasTextContent = this.currentTextCount > 0;
         
-        // In Edit mode, we always have "content" (implicit or explicit) if the tab is enabled
-        // So we really just need to ensure we aren't completely empty-handed
-        // But mainly rely on pendingTasks
+        // Edit mode: no concurrent generation allowed
+        const editModeBlocked = this.currentMode === 'edit' && this.pendingTaskCount > 0;
         
-        const shouldDisable = !hasPrompt && !hasTextContent && this.pendingTaskCount === 0;
+        const shouldDisable = editModeBlocked || (!hasPrompt && !hasTextContent && this.pendingTaskCount === 0);
 
         generateBtn.disabled = shouldDisable;
         if (shouldDisable) {
@@ -713,8 +713,14 @@ export class FloatingPalette {
         console.debug('Mode:', this.currentMode);
         console.debug('Prompt:', prompt || '(empty - will use fallback)');
 
+        // Edit mode: no concurrent generation allowed
+        if (this.currentMode === 'edit' && this.pendingTaskCount > 0) {
+            new Notice(t('Generation in progress'));
+            return;
+        }
+
         // Note: Empty prompt is now allowed - IntentResolver will handle fallback
-        // No longer blocking - multiple tasks can run concurrently
+        // Other modes allow concurrent tasks
 
         // Check if API is configured
         if (!this.apiManager.isConfigured()) {
