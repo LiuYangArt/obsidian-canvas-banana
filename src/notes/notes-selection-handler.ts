@@ -31,6 +31,9 @@ export class NotesSelectionHandler {
     // 生成状态 - 防止并发任务
     private isGenerating: boolean = false;
 
+    // 选区高亮容器
+    private highlightContainer: HTMLElement | null = null;
+
     // 事件清理
     private selectionChangeHandler: () => void;
     private escapeHandler: (evt: KeyboardEvent) => void;
@@ -195,10 +198,64 @@ export class NotesSelectionHandler {
     }
 
     private clearSelectionHighlight(): void {
+        // 移除高亮容器
+        if (this.highlightContainer) {
+            this.highlightContainer.remove();
+            this.highlightContainer = null;
+        }
         // 移除所有可能带有标记的编辑器容器
         document.querySelectorAll('.notes-ai-selection-active').forEach(el => {
             el.removeClass('notes-ai-selection-active');
         });
+    }
+
+    /**
+     * 在失去焦点前捕获选区的屏幕位置，创建持久高亮
+     * 原理：CodeMirror 6 会在失去焦点时移除 .cm-selectionBackground 元素
+     * 所以必须在 mousedown 阶段（焦点还在编辑器时）用 Range.getClientRects() 获取位置
+     */
+    private captureSelectionHighlight(): void {
+        this.clearSelectionHighlight();
+
+        const selection = window.getSelection();
+        if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
+
+        const range = selection.getRangeAt(0);
+        const rects = range.getClientRects();
+        if (rects.length === 0) return;
+
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!view) return;
+
+        // 获取 .cm-scroller 作为定位参考（它是滚动容器）
+        const scrollerEl = view.containerEl.querySelector('.cm-scroller');
+        if (!scrollerEl) return;
+
+        const scrollerRect = scrollerEl.getBoundingClientRect();
+
+        // 创建高亮容器
+        this.highlightContainer = document.createElement('div');
+        this.highlightContainer.className = 'notes-ai-highlight-container';
+
+        // 为每个矩形创建高亮
+        for (let i = 0; i < rects.length; i++) {
+            const rect = rects[i];
+            // 跳过宽度为0的矩形（换行符等）
+            if (rect.width < 1) continue;
+
+            const highlight = document.createElement('div');
+            highlight.className = 'notes-ai-highlight-rect';
+            // 计算相对于 scroller 的位置，考虑滚动偏移
+            const left = rect.left - scrollerRect.left + scrollerEl.scrollLeft;
+            const top = rect.top - scrollerRect.top + scrollerEl.scrollTop;
+            highlight.style.left = `${left}px`;
+            highlight.style.top = `${top}px`;
+            highlight.style.width = `${rect.width}px`;
+            highlight.style.height = `${rect.height}px`;
+            this.highlightContainer.appendChild(highlight);
+        }
+
+        scrollerEl.appendChild(this.highlightContainer);
     }
 
     private captureContext(): void {
@@ -207,11 +264,14 @@ export class NotesSelectionHandler {
 
         const editor = view.editor;
         const selection = editor.getSelection();
-        
+
         if (!selection || selection.trim().length === 0) {
             this.lastContext = null;
             return;
         }
+
+        // 在失去焦点前捕获选区高亮
+        this.captureSelectionHighlight();
 
         const fullText = editor.getValue();
         const fromCursor = editor.getCursor('from');

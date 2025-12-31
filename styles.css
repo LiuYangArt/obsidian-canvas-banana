@@ -1118,6 +1118,25 @@
   background-color: var(--text-selection) !important;
 }
 
+/* ========== Notes AI Selection Highlight Overlay ========== */
+/* 手动创建的选区高亮，用于在编辑器失去焦点后保持显示 */
+.notes-ai-highlight-container {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.notes-ai-highlight-rect {
+  position: absolute;
+  background-color: var(--text-selection);
+  pointer-events: none;
+  border-radius: 2px;
+}
+
 /* ========== Notes AI Palette ========== */
 .notes-ai-palette {
   position: fixed;
