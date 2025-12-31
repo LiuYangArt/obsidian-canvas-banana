@@ -101,9 +101,9 @@
             *   `summary`: 一句话描述做了什么修改 (如 "将主角名从 Adam 改为 David，并更新了全文 3 处引用")。
         2.  **前端显示**: 侧栏直接渲染 `summary` 字段内容，隐藏 `globalChanges` 细节。
         3.  **修改应用**: 复用现有 `applyPatches()` 逻辑 (`src/notes/text-patcher.ts`)。
-    *   **优点**: 
         *   单次 API 调用，无额外延迟。
         *   用户可在 DiffModal 中查看详细修改，侧栏保持清爽。
+        *   **交互优化**: 若用户在 DiffModal 中点击取消，侧栏最后一条 AI 消息会自动更新为 "User rejected changes"，避免误导。
 
 *   **其他优化点**:
     *   **📌 清除对话**: 侧栏顶部增加 "清除对话" 按钮，重置历史记录。

@@ -557,7 +557,10 @@ export class NotesSelectionHandler {
                     }
                 },
                 () => {
-                    // 取消
+                    // 取消 - 更新侧栏状态
+                    if (sidebarView) {
+                        sidebarView.updateLastAssistantMessage(t('Changes rejected by user'));
+                    }
                 }
             ).open();
 

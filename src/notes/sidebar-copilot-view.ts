@@ -532,4 +532,25 @@ export class SideBarCoPilotView extends ItemView {
     public addExternalMessage(role: 'user' | 'assistant', content: string): void {
         this.addMessage(role, content);
     }
+
+    /**
+     * 更新最后一条 AI 消息的内容（用于 Diff 拒绝后的状态更新）
+     */
+    public updateLastAssistantMessage(content: string): void {
+        if (this.chatHistory.length === 0) return;
+
+        const lastMsg = this.chatHistory[this.chatHistory.length - 1];
+        if (lastMsg.role === 'assistant') {
+            lastMsg.content = content;
+            
+            // 更新 DOM
+            const lastMsgEl = this.messagesContainer.lastElementChild;
+            if (lastMsgEl) {
+                const contentEl = lastMsgEl.querySelector('.sidebar-message-content');
+                if (contentEl) {
+                    contentEl.textContent = content;
+                }
+            }
+        }
+    }
 }
