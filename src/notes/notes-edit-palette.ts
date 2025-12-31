@@ -15,6 +15,7 @@ export class NotesEditPalette {
     private isVisible: boolean = false;
     private currentParent: HTMLElement | null = null;
     private onGenerate: ((prompt: string) => Promise<void>) | null = null;
+    private onClose: (() => void) | null = null;
 
     private apiManager: ApiManager;
     private pendingTaskCount: number = 0;
@@ -65,6 +66,10 @@ export class NotesEditPalette {
 
     setOnGenerate(callback: (prompt: string) => Promise<void>): void {
         this.onGenerate = callback;
+    }
+
+    setOnClose(callback: () => void): void {
+        this.onClose = callback;
     }
 
     private createPaletteDOM(): HTMLElement {
@@ -414,6 +419,7 @@ export class NotesEditPalette {
     hide(): void {
         this.containerEl.addClass('is-hidden');
         this.isVisible = false;
+        this.onClose?.();
     }
 
     get visible(): boolean {

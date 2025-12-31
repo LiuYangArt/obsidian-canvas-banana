@@ -52,6 +52,7 @@ export class NotesSelectionHandler {
         if (this.plugin.apiManager) {
             this.editPalette = new NotesEditPalette(this.app, this.plugin.apiManager);
             this.editPalette.setOnGenerate((prompt) => this.handleGeneration(prompt));
+            this.editPalette.setOnClose(() => this.clearSelectionHighlight());
             this.initFromSettings();
         }
 
