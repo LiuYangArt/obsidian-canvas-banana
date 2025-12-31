@@ -106,9 +106,8 @@
         *   **交互优化**: 若用户在 DiffModal 中点击取消，侧栏最后一条 AI 消息会自动更新为 "User rejected changes"，避免误导。
 
 *   **其他优化点**:
-    *   **📌 清除对话**: 侧栏顶部增加 "清除对话" 按钮，重置历史记录。
     *   **📌 导出对话**: 可选功能，将对话历史导出为 Markdown 文件。
-    *   **📌 文档切换感知**: 当用户切换到不同 Note 时，自动清空对话历史 (避免上下文混淆)。
+    *   ✅ **文档切换感知**: 当用户切换到不同 Note 时，自动清空对话历史 (避免上下文混淆)。
     *   **📌 Streaming 响应**: 支持流式输出，提升大文档编辑时的响应体验。
 
 ## 架构设计
@@ -221,4 +220,9 @@ function applyPatches(docContent: string, patches: TextChange[]) {
 ### Phase 4: 稳定性与优化
 - [x] **Diff Algorithm**: 完善 `applyPatches` 逻辑，处理 AI 返回的 "original" 文本与实际文本存在细微差异的情况 (Fuzzy matching)。→ **`src/notes/text-patcher.ts`**
 - [ ] 性能测试：处理 10k+ 字长文档。
+
+### Phase 5: 代码优化 (2025-12-31)
+- [x] **formatProviderName 提取**: 将 4 个文件中的重复函数提取为共享工具函数 → `src/utils/format-utils.ts`
+- [x] **侧栏图片上下文支持**: `sidebar-copilot-view.ts` 添加 `extractDocumentImages` + `multimodalChat`，与悬浮编辑功能对齐
+- [x] **移除清除对话按钮**: 设计简化，文档切换时自动清空对话历史即可满足需求
 

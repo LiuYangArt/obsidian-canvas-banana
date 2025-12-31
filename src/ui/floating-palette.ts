@@ -8,6 +8,7 @@ import { ApiManager } from '../api/api-manager';
 import { PromptPreset, QuickSwitchModel } from '../settings/settings';
 import { InputModal, ConfirmModal } from './modals';
 import { t } from '../../lang/helpers';
+import { formatProviderName } from '../utils/format-utils';
 
 // Palette Mode Type
 export type PaletteMode = 'chat' | 'image' | 'node' | 'edit';
@@ -831,17 +832,6 @@ export class FloatingPalette {
     updateModelSelects(): void {
         const hasTextModels = this.quickSwitchTextModels.length > 0;
         const hasImageModels = this.quickSwitchImageModels.length > 0;
-
-        // Helper to format provider name with proper capitalization
-        const formatProviderName = (provider: string): string => {
-            switch (provider.toLowerCase()) {
-                case 'openrouter': return 'OpenRouter';
-                case 'yunwu': return 'Yunwu';
-                case 'gemini': return 'Gemini';
-                case 'gptgod': return 'GPTGod';
-                default: return provider.charAt(0).toUpperCase() + provider.slice(1);
-            }
-        };
 
         // Helper to populate a select with models
         const populateSelect = (

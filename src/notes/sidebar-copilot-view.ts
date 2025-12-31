@@ -11,6 +11,8 @@ import { InputModal, ConfirmModal, DiffModal } from '../ui/modals';
 import { buildEditModeSystemPrompt } from '../prompts/edit-mode-prompt';
 import { applyPatches, TextChange } from './text-patcher';
 import { t } from '../../lang/helpers';
+import { formatProviderName } from '../utils/format-utils';
+import { CanvasConverter } from '../canvas/canvas-converter';
 
 export const VIEW_TYPE_SIDEBAR_COPILOT = 'canvas-ai-sidebar-copilot';
 
@@ -198,16 +200,6 @@ export class SideBarCoPilotView extends ItemView {
     private updateModelSelect(): void {
         this.modelSelect.empty();
 
-        const formatProviderName = (provider: string): string => {
-            switch (provider.toLowerCase()) {
-                case 'openrouter': return 'OpenRouter';
-                case 'yunwu': return 'Yunwu';
-                case 'gemini': return 'Gemini';
-                case 'gptgod': return 'GPTGod';
-                default: return provider.charAt(0).toUpperCase() + provider.slice(1);
-            }
-        };
-
         this.quickSwitchModels.forEach(model => {
             const key = `${model.provider}|${model.modelId}`;
             const displayName = `${model.displayName || model.modelId} | ${formatProviderName(model.provider)}`;
@@ -325,6 +317,9 @@ export class SideBarCoPilotView extends ItemView {
             // 构建系统提示
             const systemPrompt = buildEditModeSystemPrompt(this.plugin.settings.editSystemPrompt);
 
+            // 提取文档中的内嵌图片
+            const images = await this.extractDocumentImages(docContent, file.path);
+
             // 构建用户消息（包含完整文档上下文）
             let userMsg = `Document content:\n${docContent}\n\nInstruction:\n${prompt}`;
 
@@ -336,7 +331,19 @@ export class SideBarCoPilotView extends ItemView {
                 userMsg = `Previous conversation:\n${historyContext}\n\n${userMsg}`;
             }
 
-            const response = await localApiManager.chatCompletion(userMsg, systemPrompt, 0.5);
+            // 使用 multimodalChat 或 chatCompletion
+            let response: string;
+            if (images.length > 0) {
+                console.debug(`Sidebar CoPilot: Sending request with ${images.length} images as context`);
+                response = await localApiManager.multimodalChat(
+                    userMsg,
+                    images,
+                    systemPrompt,
+                    0.5
+                );
+            } else {
+                response = await localApiManager.chatCompletion(userMsg, systemPrompt, 0.5);
+            }
 
             // 解析响应
             let summary = '';
@@ -552,5 +559,82 @@ export class SideBarCoPilotView extends ItemView {
                 }
             }
         }
+    }
+
+    /**
+     * 提取文档中的内嵌图片 ![[image.png]] 并读取为 base64
+     */
+    private async extractDocumentImages(
+        content: string,
+        filePath: string
+    ): Promise<{ base64: string; mimeType: string; type: 'image' }[]> {
+        const images: { base64: string; mimeType: string; type: 'image' }[] = [];
+        
+        // 解析 ![[image.png]] 语法
+        const regex = /!\[\[([^\]]+\.(png|jpg|jpeg|gif|webp|svg|bmp))\]\]/gi;
+        const matches: string[] = [];
+        let match;
+        while ((match = regex.exec(content)) !== null) {
+            matches.push(match[1]);
+        }
+
+        if (matches.length === 0) {
+            return images;
+        }
+
+        const settings = this.plugin.settings;
+        const MAX_IMAGES = 14;
+
+        for (const imgPath of matches) {
+            if (images.length >= MAX_IMAGES) {
+                console.debug(`Sidebar CoPilot: Image limit (${MAX_IMAGES}) reached, skipping remaining`);
+                break;
+            }
+
+            // 解析图片路径
+            const resolvedPath = this.resolveImagePath(filePath, imgPath);
+            if (!resolvedPath) continue;
+
+            try {
+                const imgData = await CanvasConverter.readSingleImageFile(
+                    this.app,
+                    resolvedPath,
+                    settings.imageCompressionQuality,
+                    settings.imageMaxSize
+                );
+                if (imgData) {
+                    images.push({
+                        base64: imgData.base64,
+                        mimeType: imgData.mimeType,
+                        type: 'image'
+                    });
+                }
+            } catch (e) {
+                console.warn('Sidebar CoPilot: Failed to read embedded image:', imgPath, e);
+            }
+        }
+
+        return images;
+    }
+
+    /**
+     * 解析图片路径（相对于文件所在目录或 vault 根目录）
+     */
+    private resolveImagePath(filePath: string, imgPath: string): string | null {
+        // 先尝试从 vault 根目录查找
+        const file = this.app.vault.getAbstractFileByPath(imgPath);
+        if (file) {
+            return imgPath;
+        }
+
+        // 尝试相对于文件所在目录
+        const fileDir = filePath.substring(0, filePath.lastIndexOf('/'));
+        const relativePath = fileDir ? `${fileDir}/${imgPath}` : imgPath;
+        const relativeFile = this.app.vault.getAbstractFileByPath(relativePath);
+        if (relativeFile) {
+            return relativePath;
+        }
+
+        return null;
     }
 }

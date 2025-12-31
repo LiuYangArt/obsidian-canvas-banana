@@ -8,6 +8,7 @@ import type CanvasAIPlugin from '../../main';
 import { ApiProvider, CanvasAISettings, QuickSwitchModel } from './settings';
 import { t } from '../../lang/helpers';
 import { ApiManager } from '../api/api-manager';
+import { formatProviderName } from '../utils/format-utils';
 
 
 // ========== Settings Tab ==========
@@ -764,17 +765,6 @@ export class CanvasAISettingTab extends PluginSettingTab {
     private renderQuickSwitchCompact(containerEl: HTMLElement, _currentProvider: string): void {
         const textModels = this.plugin.settings.quickSwitchTextModels || [];
         const imageModels = this.plugin.settings.quickSwitchImageModels || [];
-
-        // Helper to format provider name with proper capitalization
-        const formatProviderName = (provider: string): string => {
-            switch (provider.toLowerCase()) {
-                case 'openrouter': return 'OpenRouter';
-                case 'yunwu': return 'Yunwu';
-                case 'gemini': return 'Gemini';
-                case 'gptgod': return 'GPTGod';
-                default: return provider.charAt(0).toUpperCase() + provider.slice(1);
-            }
-        };
 
         // Helper to create draggable tag
         const createDraggableTag = (

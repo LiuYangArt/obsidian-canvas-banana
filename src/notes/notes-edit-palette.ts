@@ -8,6 +8,7 @@ import { ApiManager } from '../api/api-manager';
 import { PromptPreset, QuickSwitchModel } from '../settings/settings';
 import { InputModal, ConfirmModal } from '../ui/modals';
 import { t } from '../../lang/helpers';
+import { formatProviderName } from '../utils/format-utils';
 
 export class NotesEditPalette {
     private containerEl: HTMLElement;
@@ -264,16 +265,6 @@ export class NotesEditPalette {
     private updateModelSelect(): void {
         if (!this.modelSelectEl) return;
         this.modelSelectEl.empty();
-
-        const formatProviderName = (provider: string): string => {
-            switch (provider.toLowerCase()) {
-                case 'openrouter': return 'OpenRouter';
-                case 'yunwu': return 'Yunwu';
-                case 'gemini': return 'Gemini';
-                case 'gptgod': return 'GPTGod';
-                default: return provider.charAt(0).toUpperCase() + provider.slice(1);
-            }
-        };
 
         this.quickSwitchModels.forEach(model => {
             const key = `${model.provider}|${model.modelId}`;
