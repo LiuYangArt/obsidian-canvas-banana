@@ -156,5 +156,6 @@
     "Max conversation turns desc": "侧边栏上下文中保留的最大对话轮数",
     "No active file": "无活动的 Markdown 文件",
     "Canvas Banana": "Canvas Banana",
-    "changes": "处修改"
+    "changes": "处修改",
+    "Notes AI only works with markdown files": "Notes AI 仅支持 Markdown 文件。请打开一个笔记以使用此功能。"
 }

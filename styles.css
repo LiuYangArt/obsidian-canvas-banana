@@ -1403,3 +1403,20 @@
   cursor: not-allowed;
 }
 
+/* ========== Sidebar Not Supported Message ========== */
+.sidebar-not-supported {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+  text-align: center;
+}
+
+.sidebar-not-supported-text {
+  font-size: 14px;
+  color: var(--text-muted);
+  line-height: 1.6;
+  max-width: 280px;
+}
+

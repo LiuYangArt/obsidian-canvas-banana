@@ -29,6 +29,8 @@ export class SideBarCoPilotView extends ItemView {
     private messagesContainer: HTMLElement;
     private inputEl: HTMLTextAreaElement;
     private generateBtn: HTMLButtonElement;
+    private footerEl: HTMLElement;
+    private notSupportedEl: HTMLElement;
 
     // Settings
     private presetSelect: HTMLSelectElement;
@@ -91,11 +93,19 @@ export class SideBarCoPilotView extends ItemView {
         // Messages Area
         this.messagesContainer = container.createDiv('sidebar-chat-messages');
 
+        // Not Supported Message (hidden by default)
+        this.notSupportedEl = container.createDiv('sidebar-not-supported');
+        this.notSupportedEl.addClass('is-hidden');
+        this.notSupportedEl.createEl('p', {
+            cls: 'sidebar-not-supported-text',
+            text: t('Notes AI only works with markdown files')
+        });
+
         // Footer (Input Area)
-        const footer = container.createDiv('sidebar-copilot-footer');
+        this.footerEl = container.createDiv('sidebar-copilot-footer');
 
         // Preset Row
-        const presetRow = footer.createDiv('sidebar-preset-row');
+        const presetRow = this.footerEl.createDiv('sidebar-preset-row');
         this.presetSelect = presetRow.createEl('select', 'sidebar-preset-select dropdown');
         this.presetSelect.createEl('option', { value: '', text: t('Select prompt preset') });
 
@@ -129,13 +139,13 @@ export class SideBarCoPilotView extends ItemView {
         });
 
         // Input Textarea
-        this.inputEl = footer.createEl('textarea', {
+        this.inputEl = this.footerEl.createEl('textarea', {
             cls: 'sidebar-prompt-input',
             attr: { placeholder: t('Enter instructions'), rows: '3' }
         });
 
         // Model Selection Row
-        const modelRow = footer.createDiv('sidebar-model-row');
+        const modelRow = this.footerEl.createDiv('sidebar-model-row');
         const modelGrp = modelRow.createEl('span', 'sidebar-model-group');
         modelGrp.createEl('label', { text: t('Palette Model') });
         this.modelSelect = modelGrp.createEl('select', 'sidebar-model-select dropdown');
@@ -148,7 +158,7 @@ export class SideBarCoPilotView extends ItemView {
         });
 
         // Action Row
-        const actionRow = footer.createDiv('sidebar-action-row');
+        const actionRow = this.footerEl.createDiv('sidebar-action-row');
         this.generateBtn = actionRow.createEl('button', { cls: 'sidebar-generate-btn', text: t('Generate') });
         this.generateBtn.addEventListener('click', () => void this.handleGenerate());
 
@@ -214,13 +224,14 @@ export class SideBarCoPilotView extends ItemView {
     }
 
     private registerActiveFileListener(): void {
-        // 监听文件切换，清空对话历史
+        // 监听文件切换
         this.registerEvent(
             this.app.workspace.on('file-open', (file) => {
                 if (file && file.path !== this.currentDocPath) {
                     this.currentDocPath = file.path;
                     this.clearConversation(true);
                 }
+                this.updateViewState();
             })
         );
 
@@ -228,6 +239,22 @@ export class SideBarCoPilotView extends ItemView {
         const activeFile = this.app.workspace.getActiveFile();
         if (activeFile) {
             this.currentDocPath = activeFile.path;
+        }
+        this.updateViewState();
+    }
+
+    private updateViewState(): void {
+        const activeFile = this.app.workspace.getActiveFile();
+        const isMarkdown = activeFile && activeFile.extension === 'md';
+
+        if (isMarkdown) {
+            this.footerEl.removeClass('is-hidden');
+            this.messagesContainer.removeClass('is-hidden');
+            this.notSupportedEl.addClass('is-hidden');
+        } else {
+            this.footerEl.addClass('is-hidden');
+            this.messagesContainer.addClass('is-hidden');
+            this.notSupportedEl.removeClass('is-hidden');
         }
     }
 
