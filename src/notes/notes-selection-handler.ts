@@ -129,6 +129,9 @@ export class NotesSelectionHandler {
 
         // 监听视图切换，切换到非 MarkdownView 时清理 UI
         this.leafChangeCleanup = this.app.workspace.on('active-leaf-change', () => {
+            // 如果正在生成中，不要清理 UI（支持切换到侧栏查看）
+            if (this.isGenerating) return;
+
             const view = this.app.workspace.getActiveViewOfType(MarkdownView);
             if (!view) {
                 // 切换到非 Markdown 视图，清理所有 UI
