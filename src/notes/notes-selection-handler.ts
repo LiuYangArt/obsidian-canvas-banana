@@ -3,7 +3,7 @@
  * 监听 Notes 编辑器中的文本选中，管理悬浮按钮和面板的显示
  */
 
-import { App, MarkdownView, Editor, TFile, Notice } from 'obsidian';
+import { App, MarkdownView, Editor, TFile, Notice, EventRef } from 'obsidian';
 import type CanvasAIPlugin from '../../main';
 import { NotesFloatingButton } from './notes-floating-button';
 import { NotesEditPalette } from './notes-edit-palette';
@@ -38,6 +38,7 @@ export class NotesSelectionHandler {
     private selectionChangeHandler: () => void;
     private escapeHandler: (evt: KeyboardEvent) => void;
     private mousedownHandler: (evt: MouseEvent) => void;
+    private leafChangeCleanup: EventRef | null = null;
 
     constructor(plugin: CanvasAIPlugin) {
         this.plugin = plugin;
@@ -123,6 +124,18 @@ export class NotesSelectionHandler {
             // 点击 palette 内部时不做任何事，保持现有高亮
         };
         document.addEventListener('mousedown', this.mousedownHandler, true);
+
+        // 监听视图切换，切换到非 MarkdownView 时清理 UI
+        this.leafChangeCleanup = this.app.workspace.on('active-leaf-change', () => {
+            const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+            if (!view) {
+                // 切换到非 Markdown 视图，清理所有 UI
+                this.floatingButton.hide();
+                this.editPalette?.hide();
+                this.clearSelectionHighlight();
+                this.lastContext = null;
+            }
+        });
     }
 
     private checkSelection(): void {
@@ -560,6 +573,11 @@ export class NotesSelectionHandler {
         document.removeEventListener('selectionchange', this.selectionChangeHandler);
         document.removeEventListener('keydown', this.escapeHandler, true);
         document.removeEventListener('mousedown', this.mousedownHandler, true);
+
+        // 清理 Obsidian 事件
+        if (this.leafChangeCleanup) {
+            this.app.workspace.offref(this.leafChangeCleanup);
+        }
 
         // 销毁 UI 组件
         this.floatingButton.destroy();
