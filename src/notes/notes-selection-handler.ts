@@ -104,20 +104,23 @@ export class NotesSelectionHandler {
         // 监听点击事件，用于捕获选区和关闭面板
         this.mousedownHandler = (evt: MouseEvent) => {
             const target = evt.target as HTMLElement;
-            
-            // 点击 Notes AI 界面前，强制捕获选区
+
             const isPalette = target.closest('.notes-ai-palette');
             const isButton = target.closest('#notes-ai-floating-button');
-            
-            if (isPalette || isButton) {
-                this.captureContext();
-            } else {
-                // 点击其他地方，隐藏面板
+
+            if (isButton) {
+                // 只在点击按钮且面板未打开时捕获选区
+                if (!this.editPalette?.visible) {
+                    this.captureContext();
+                }
+            } else if (!isPalette) {
+                // 点击 palette 外部（非按钮）时，隐藏面板
                 if (this.editPalette?.visible) {
                     this.editPalette.hide();
                     this.clearSelectionHighlight();
                 }
             }
+            // 点击 palette 内部时不做任何事，保持现有高亮
         };
         document.addEventListener('mousedown', this.mousedownHandler, true);
     }
