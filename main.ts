@@ -1600,12 +1600,29 @@ ${intent.instruction}
             id: 'open-ai-palette',
             name: t('Open AI Palette'),
             checkCallback: (checking: boolean) => {
+                // 优先检查 Canvas
                 const canvas = this.getActiveCanvas();
                 if (canvas && canvas.selection.size > 0) {
                     if (!checking) {
                         this.onSparklesButtonClick();
                     }
                     return true;
+                }
+                // 其次检查 Notes 编辑器
+                if (this.notesHandler?.triggerOpenPalette) {
+                    // checking 模式下，检查是否可以触发
+                    if (checking) {
+                        const view = this.app.workspace.getActiveViewOfType(ItemView);
+                        if (view?.getViewType() === 'markdown') {
+                            // 简单检查是否有选中文本
+                            const mdView = view as unknown as { editor?: { getSelection?: () => string } };
+                            const selection = mdView.editor?.getSelection?.();
+                            return !!(selection && selection.trim().length > 0);
+                        }
+                        return false;
+                    }
+                    // 执行模式下，调用 triggerOpenPalette
+                    return this.notesHandler.triggerOpenPalette();
                 }
                 return false;
             }

@@ -345,6 +345,47 @@ export class NotesSelectionHandler {
         this.editPalette.show(paletteX, paletteY);
     }
 
+    /**
+     * 供快捷键调用的公开方法，检查当前是否有选中文本并打开面板
+     * @returns true 如果成功打开面板
+     */
+    public triggerOpenPalette(): boolean {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!view || view.getMode() !== 'source') {
+            return false;
+        }
+
+        const editor = view.editor;
+        const selection = editor.getSelection();
+        if (!selection || selection.trim().length === 0) {
+            return false;
+        }
+
+        // 捕获上下文并打开面板
+        this.captureContext();
+        if (!this.lastContext || !this.editPalette) {
+            return false;
+        }
+
+        // 如果面板已打开，则关闭
+        if (this.editPalette.visible) {
+            this.editPalette.hide();
+            this.clearSelectionHighlight();
+            return true;
+        }
+
+        // 标记编辑器容器
+        view.containerEl.addClass('notes-ai-selection-active');
+
+        // 计算面板位置（屏幕中央偏右）
+        const paletteX = Math.min(window.innerWidth / 2, window.innerWidth - 350);
+        const paletteY = Math.max(100, window.innerHeight / 4);
+
+        this.floatingButton.hide();
+        this.editPalette.show(paletteX, paletteY);
+        return true;
+    }
+
     private async handleGeneration(prompt: string): Promise<void> {
         if (!this.lastContext || !this.plugin.apiManager) {
             return;
