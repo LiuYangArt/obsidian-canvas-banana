@@ -157,5 +157,7 @@
     "No active file": "无活动的 Markdown 文件",
     "Canvas Banana": "Canvas Banana",
     "changes": "处修改",
-    "Notes AI only works with markdown files": "Notes AI 仅支持 Markdown 文件。请打开一个笔记以使用此功能。"
+    "Notes AI only works with markdown files": "Notes AI 仅支持 Markdown 文件。请打开一个笔记以使用此功能。",
+    "Applied changes": "修改已应用",
+    "Applied changes with global updates": "修改已应用，包含 {count} 处全局更新"
 }

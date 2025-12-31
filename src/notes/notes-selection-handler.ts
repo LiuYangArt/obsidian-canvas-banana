@@ -13,6 +13,7 @@ import { buildEditModeSystemPrompt } from '../prompts/edit-mode-prompt';
 import { CanvasConverter } from '../canvas/canvas-converter';
 import { applyPatches, TextChange } from './text-patcher';
 import { t } from '../../lang/helpers';
+import { SideBarCoPilotView, VIEW_TYPE_SIDEBAR_COPILOT } from './sidebar-copilot-view';
 
 export interface NotesSelectionContext extends SelectionContext {
     editor: Editor;
@@ -386,6 +387,17 @@ export class NotesSelectionHandler {
         return true;
     }
 
+    /**
+     * 获取侧栏 CoPilot 视图（用于同步消息）
+     */
+    private getSidebarView(): SideBarCoPilotView | null {
+        const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_SIDEBAR_COPILOT);
+        if (leaves.length > 0) {
+            return leaves[0].view as SideBarCoPilotView;
+        }
+        return null;
+    }
+
     private async handleGeneration(prompt: string): Promise<void> {
         if (!this.lastContext || !this.plugin.apiManager) {
             return;
@@ -412,6 +424,12 @@ export class NotesSelectionHandler {
             parseInt(this.floatingButton.getElement().style.left) || 100,
             parseInt(this.floatingButton.getElement().style.top) || 100
         );
+
+        // 同步用户消息到侧栏
+        const sidebarView = this.getSidebarView();
+        if (sidebarView) {
+            sidebarView.addExternalMessage('user', prompt);
+        }
 
         try {
             // System Prompt - 根据是否开启全局一致性选择格式
@@ -452,6 +470,7 @@ export class NotesSelectionHandler {
             // 解析 JSON 响应
             let replacementText = response;
             let globalChanges: TextChange[] = [];
+            let summary = '';
 
             try {
                 // 清理可能的 markdown 代码块
@@ -471,6 +490,9 @@ export class NotesSelectionHandler {
                 if (parsed.replacement) {
                     replacementText = parsed.replacement;
                 }
+                if (parsed.summary) {
+                    summary = parsed.summary;
+                }
                 // 解析全局变更
                 if (enableGlobal && Array.isArray(parsed.globalChanges)) {
                     globalChanges = parsed.globalChanges.filter(
@@ -480,6 +502,20 @@ export class NotesSelectionHandler {
                 }
             } catch {
                 console.debug('Notes AI: Failed to parse JSON response, using raw text');
+            }
+
+            // 生成 summary（如果 AI 没有返回）
+            if (!summary) {
+                if (globalChanges.length > 0) {
+                    summary = t('Applied changes with global updates', { count: globalChanges.length.toString() });
+                } else {
+                    summary = t('Applied changes');
+                }
+            }
+
+            // 同步 AI 回复到侧栏
+            if (sidebarView) {
+                sidebarView.addExternalMessage('assistant', summary);
             }
 
             // 显示 DiffModal

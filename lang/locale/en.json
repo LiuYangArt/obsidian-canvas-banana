@@ -157,5 +157,7 @@
     "No active file": "No active markdown file",
     "Canvas Banana": "Canvas Banana",
     "changes": "changes",
-    "Notes AI only works with markdown files": "Notes AI only works with markdown files. Please open a note to use this feature."
+    "Notes AI only works with markdown files": "Notes AI only works with markdown files. Please open a note to use this feature.",
+    "Applied changes": "Changes applied",
+    "Applied changes with global updates": "Changes applied with {count} global updates"
 }

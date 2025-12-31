@@ -525,4 +525,11 @@ export class SideBarCoPilotView extends ItemView {
     private generateId(): string {
         return Date.now().toString(36) + Math.random().toString(36).substring(2, 11);
     }
+
+    /**
+     * 添加外部消息到对话历史（供悬浮面板调用）
+     */
+    public addExternalMessage(role: 'user' | 'assistant', content: string): void {
+        this.addMessage(role, content);
+    }
 }
