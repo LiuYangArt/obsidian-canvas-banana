@@ -28,6 +28,7 @@ export class NotesFloatingButton {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             e.preventDefault();
+            if (this.isGenerating) return;
             this.onClick?.();
         });
 
