@@ -24,10 +24,13 @@ export class NotesSelectionHandler {
     private app: App;
     private floatingButton: NotesFloatingButton;
     private editPalette: NotesEditPalette | null = null;
-    
+
     // 缓存的选区上下文
     private lastContext: NotesSelectionContext | null = null;
-    
+
+    // 生成状态 - 防止并发任务
+    private isGenerating: boolean = false;
+
     // 事件清理
     private selectionChangeHandler: () => void;
     private escapeHandler: (evt: KeyboardEvent) => void;
@@ -87,6 +90,7 @@ export class NotesSelectionHandler {
             if (evt.key === 'Escape') {
                 if (this.editPalette?.visible) {
                     this.editPalette.hide();
+                    this.clearSelectionHighlight();
                     evt.preventDefault();
                     evt.stopPropagation();
                 }
@@ -108,6 +112,7 @@ export class NotesSelectionHandler {
                 // 点击其他地方，隐藏面板
                 if (this.editPalette?.visible) {
                     this.editPalette.hide();
+                    this.clearSelectionHighlight();
                 }
             }
         };
@@ -115,6 +120,11 @@ export class NotesSelectionHandler {
     }
 
     private checkSelection(): void {
+        // 生成中时保持按钮显示，不响应选区变化
+        if (this.isGenerating) {
+            return;
+        }
+
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (!view || view.getMode() !== 'source') {
             // 不在 Source Mode (Live Preview 或 Reading Mode)
@@ -136,9 +146,11 @@ export class NotesSelectionHandler {
     }
 
     private showButtonNearSelection(editor: Editor): void {
-        // 获取选区结束位置的屏幕坐标
-        const toCursor = editor.getCursor('to');
-        
+        // 使用 'head' 获取光标当前位置（用户最后交互的位置）
+        // 'head' 是光标的实际位置，不管选区方向如何
+        // 这样从下往上选时，按钮会显示在用户视线附近
+        const headCursor = editor.getCursor('head');
+
         // 使用 CodeMirror 的坐标转换
         const cm = (editor as unknown as { cm: { coordsAtPos: (pos: number) => { left: number; top: number; bottom: number } } }).cm;
         if (!cm?.coordsAtPos) {
@@ -150,16 +162,43 @@ export class NotesSelectionHandler {
         // 计算文档中的字符偏移
         const doc = editor.getDoc();
         let offset = 0;
-        for (let i = 0; i < toCursor.line; i++) {
+        for (let i = 0; i < headCursor.line; i++) {
             offset += doc.getLine(i).length + 1; // +1 for newline
         }
-        offset += toCursor.ch;
+        offset += headCursor.ch;
 
         const coords = cm.coordsAtPos(offset);
         if (coords) {
-            // 按钮显示在选区右侧偏下一点
-            this.floatingButton.show(coords.left + 10, coords.bottom + 5);
+            // 计算按钮位置，确保在可视区域内
+            let posX = coords.left + 10;
+            let posY = coords.bottom + 5;
+
+            // 确保按钮不超出右边界
+            const buttonWidth = 32;
+            if (posX + buttonWidth > window.innerWidth) {
+                posX = window.innerWidth - buttonWidth - 10;
+            }
+
+            // 确保按钮不超出下边界，如果超出则显示在上方
+            const buttonHeight = 32;
+            if (posY + buttonHeight > window.innerHeight) {
+                posY = coords.top - buttonHeight - 5;
+            }
+
+            // 确保按钮不超出上边界
+            if (posY < 10) {
+                posY = 10;
+            }
+
+            this.floatingButton.show(posX, posY);
         }
+    }
+
+    private clearSelectionHighlight(): void {
+        // 移除所有可能带有标记的编辑器容器
+        document.querySelectorAll('.notes-ai-selection-active').forEach(el => {
+            el.removeClass('notes-ai-selection-active');
+        });
     }
 
     private captureContext(): void {
@@ -214,6 +253,12 @@ export class NotesSelectionHandler {
             return;
         }
 
+        // 标记编辑器容器，让 CSS 保持选区样式
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (view) {
+            view.containerEl.addClass('notes-ai-selection-active');
+        }
+
         // 获取按钮位置，在按钮右侧显示面板
         const buttonPos = this.floatingButton.getPosition();
         const paletteX = Math.min(buttonPos.x + 10, window.innerWidth - 350);
@@ -229,6 +274,12 @@ export class NotesSelectionHandler {
             return;
         }
 
+        // 禁止并发任务
+        if (this.isGenerating) {
+            new Notice(t('Generation in progress'));
+            return;
+        }
+
         const context = this.lastContext;
         const { editor, selectedText, preText, postText } = context;
         const enableGlobal = this.plugin.settings.enableGlobalConsistency !== false;
@@ -236,6 +287,14 @@ export class NotesSelectionHandler {
         // 保存选区位置（在异步操作前保存）
         const savedFromCursor = editor.getCursor('from');
         const savedToCursor = editor.getCursor('to');
+
+        // 设置生成状态
+        this.isGenerating = true;
+        this.floatingButton.setGenerating(true);
+        this.floatingButton.show(
+            parseInt(this.floatingButton.getElement().style.left) || 100,
+            parseInt(this.floatingButton.getElement().style.top) || 100
+        );
 
         try {
             // System Prompt - 根据是否开启全局一致性选择格式
@@ -349,6 +408,10 @@ export class NotesSelectionHandler {
             const message = error instanceof Error ? error.message : String(error);
             console.error('Notes AI: Generation error:', message);
             new Notice(`Notes AI Error: ${message}`);
+        } finally {
+            this.isGenerating = false;
+            this.floatingButton.setGenerating(false);
+            this.floatingButton.hide();
         }
     }
 

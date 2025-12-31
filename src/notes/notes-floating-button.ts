@@ -8,6 +8,7 @@ import { setIcon, setTooltip } from 'obsidian';
 export class NotesFloatingButton {
     private buttonEl: HTMLElement;
     private isVisible: boolean = false;
+    private isGenerating: boolean = false;
     private onClick: (() => void) | null = null;
 
     constructor() {
@@ -59,9 +60,26 @@ export class NotesFloatingButton {
         return this.isVisible;
     }
 
+    setGenerating(generating: boolean): void {
+        this.isGenerating = generating;
+        if (generating) {
+            this.buttonEl.addClass('generating');
+        } else {
+            this.buttonEl.removeClass('generating');
+        }
+    }
+
+    get generating(): boolean {
+        return this.isGenerating;
+    }
+
     getPosition(): { x: number; y: number } {
         const rect = this.buttonEl.getBoundingClientRect();
         return { x: rect.right, y: rect.top };
+    }
+
+    getElement(): HTMLElement {
+        return this.buttonEl;
     }
 
     destroy(): void {

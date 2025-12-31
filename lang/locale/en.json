@@ -78,6 +78,7 @@
     "Debug": "Debug",
     "Generate": "Generate",
     "Generating": "Generating",
+    "Generation in progress": "Generation in progress, please wait",
     "Architecting": "Architecting",
     "Tasks": "Task(s)",
     "Invalid JSON structure": "AI generated invalid JSON structure",

@@ -1099,9 +1099,23 @@
   display: none;
 }
 
-#notes-ai-floating-button.is-hidden,
-.notes-ai-floating-button.is-hidden {
-  display: none;
+/* Generating state - 绿色渐变，与 generate 按钮一致 */
+#notes-ai-floating-button.generating,
+.notes-ai-floating-button.generating {
+  background: linear-gradient(90deg, #9cf026 0%, #e3ff43 100%);
+  color: #1a1a1a;
+  border-color: #9cf026;
+  animation: notes-ai-pulse 1.5s ease-in-out infinite;
+}
+
+@keyframes notes-ai-pulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.85; transform: scale(1.05); }
+}
+
+/* 当 Notes AI 面板可见时，保持编辑器选区显示 */
+.notes-ai-selection-active .cm-selectionBackground {
+  background-color: var(--text-selection) !important;
 }
 
 /* ========== Notes AI Palette ========== */

@@ -78,6 +78,7 @@
     "Debug": "调试",
     "Generate": "生成",
     "Generating": "正在生成",
+    "Generation in progress": "生成中，请稍候",
     "Architecting": "正在构建",
     "Tasks": "个任务",
     "Invalid JSON structure": "AI 生成了无效的 JSON 结构",
