@@ -1100,7 +1100,7 @@
 #notes-ai-floating-button,
 .notes-ai-floating-button {
   position: fixed;
-  z-index: 999;
+  z-index: 30;
   width: 28px;
   height: 28px;
   padding: 4px;
@@ -1169,7 +1169,7 @@
 /* ========== Notes AI Palette ========== */
 .notes-ai-palette {
   position: fixed;
-  z-index: 1000;
+  z-index: 95;
   /* 禁用位置过渡动画，避免每次显示时的"飞入"效果 */
   transition: none;
 }
