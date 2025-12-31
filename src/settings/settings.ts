@@ -113,6 +113,7 @@ export interface CanvasAISettings {
 
     // Notes AI settings
     enableGlobalConsistency: boolean;  // 全局实体一致性检测
+    maxConversationTurns: number;      // 侧边栏最大对话轮数
 }
 
 // ========== Default Settings ==========
@@ -179,7 +180,8 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
     paletteNodeModel: '',
     paletteEditModel: '',
 
-    enableGlobalConsistency: true
+    enableGlobalConsistency: true,
+    maxConversationTurns: 5
 };
 
 // ========== Provider Utility Functions ==========

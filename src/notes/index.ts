@@ -8,3 +8,5 @@ export { NotesFloatingButton } from './notes-floating-button';
 export { NotesEditPalette } from './notes-edit-palette';
 export { applyPatches, parseAIPatches } from './text-patcher';
 export type { TextChange, PatchResult } from './text-patcher';
+export { SideBarCoPilotView, VIEW_TYPE_SIDEBAR_COPILOT } from './sidebar-copilot-view';
+

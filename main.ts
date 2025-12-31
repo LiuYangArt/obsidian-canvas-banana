@@ -11,7 +11,7 @@ import { debugSelectedNodes } from './src/utils/debug';
 import { CanvasAISettingTab } from './src/settings/settings-tab';
 import { DiffModal } from './src/ui/modals';
 import { FloatingPalette, PaletteMode } from './src/ui/floating-palette';
-import { NotesSelectionHandler } from './src/notes';
+import { NotesSelectionHandler, SideBarCoPilotView, VIEW_TYPE_SIDEBAR_COPILOT } from './src/notes';
 
 
 // Re-export for backward compatibility
@@ -95,7 +95,41 @@ export default class CanvasAIPlugin extends Plugin {
         // Initialize Notes AI handler
         this.notesHandler = new NotesSelectionHandler(this);
 
+        // Register Sidebar CoPilot View
+        this.registerView(
+            VIEW_TYPE_SIDEBAR_COPILOT,
+            (leaf) => new SideBarCoPilotView(leaf, this)
+        );
+
+        // Add Ribbon icon for Sidebar CoPilot (at the bottom)
+        const ribbonIcon = this.addRibbonIcon('banana', t('Canvas Banana'), () => {
+            void this.toggleSidebarCoPilot();
+        });
+        // Move to bottom of ribbon
+        ribbonIcon.parentElement?.appendChild(ribbonIcon);
+
         console.debug('Canvas Banana: Plugin loaded');
+    }
+
+    /**
+     * Toggle Sidebar CoPilot visibility
+     */
+    private async toggleSidebarCoPilot(): Promise<void> {
+        const existing = this.app.workspace.getLeavesOfType(VIEW_TYPE_SIDEBAR_COPILOT);
+        if (existing.length > 0) {
+            // Close existing view
+            existing.forEach(leaf => leaf.detach());
+        } else {
+            // Open new view in right sidebar
+            const leaf = this.app.workspace.getRightLeaf(false);
+            if (leaf) {
+                await leaf.setViewState({
+                    type: VIEW_TYPE_SIDEBAR_COPILOT,
+                    active: true
+                });
+                void this.app.workspace.revealLeaf(leaf);
+            }
+        }
     }
 
     onunload() {

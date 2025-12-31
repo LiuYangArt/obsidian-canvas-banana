@@ -148,5 +148,12 @@
     "Skip": "Skip",
     "Update all": "Update all",
     "Updating global references...": "Updating global references...",
-    "Global update completed": "Global update completed"
+    "Global update completed": "Global update completed",
+    "Canvas AI CoPilot": "Canvas AI CoPilot",
+    "Clear conversation": "Clear conversation",
+    "Conversation cleared": "Conversation cleared",
+    "Max conversation turns": "Max conversation turns",
+    "Max conversation turns desc": "Maximum number of conversation turns to keep in sidebar context",
+    "No active file": "No active markdown file",
+    "Canvas Banana": "Canvas Banana"
 }

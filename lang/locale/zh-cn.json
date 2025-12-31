@@ -148,5 +148,12 @@
     "Skip": "跳过",
     "Update all": "全部更新",
     "Updating global references...": "正在更新全局引用...",
-    "Global update completed": "全局更新完成"
+    "Global update completed": "全局更新完成",
+    "Canvas AI CoPilot": "Canvas AI 副驾驶",
+    "Clear conversation": "清除对话",
+    "Conversation cleared": "对话已清除",
+    "Max conversation turns": "最大对话轮数",
+    "Max conversation turns desc": "侧边栏上下文中保留的最大对话轮数",
+    "No active file": "无活动的 Markdown 文件",
+    "Canvas Banana": "Canvas Banana"
 }
