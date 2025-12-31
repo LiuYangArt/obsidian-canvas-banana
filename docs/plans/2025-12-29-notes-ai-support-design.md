@@ -62,17 +62,53 @@
     *   代码简洁，删除了 `global-update.ts`
     *   用户体验流畅
 
-### 3. 侧边栏协作 (Sidebar Co-pilot)
+### 3. Note 侧边栏 (Note Sidebar)
 
-*   **界面**: 复用 Obsidian 右侧边栏。
-*   **功能**:
-    *   **Chat**: 对话历史记录。
-    *   **Actions**: "Summarize Doc", "Fix Grammar (Full Text)".
-*   **输出**:
-    *   对于全文修改，在侧边栏显示 **Changes List** (可交互的修改列表)。
-    *   用户可以逐个点击 `[Apply]` 或 `[Apply All]`.
+*   **入口 (Entry)**:
+    *   在 Obsidian 右侧 Ribbon 增加一个 **"香蕉" (Banana) 图标按钮** 🍌 (与 Obsidian 其他侧栏按钮并列)。
+    *   点击用于切换本插件 Side Panel 的显示/隐藏。
+
+*   **界面布局 (Layout)**:
+    *   **总体风格**: 视觉上深度参考 **Google Gemini Canvas** 的侧栏设计。
+    *   **Body (Chat History)**:
+        *   **显示内容**: 用户的 Prompt + AI 的回复。
+        *   **AI 回复约束**: 仅显示**总结性文字** (如 "已为您补充了完整的世界观文档...")。
+        *   **关键点**: 
+            *   ❌ **不要**显示 AI 的思考过程 (Thought)。
+            *   ❌ **不要**显示具体的修改信息 (Diffs)。
+            *   ✅ 保持界面清爽，专注于“对话流”。
+    *   **Footer (Input Area)**:
+        *   **组件复用**: 直接复用当前 Edit Mode (悬浮条) 的输入框组件。
+        *   **功能**: 支持 Model 选择、Prompt Presets 呼出等现有功能。
+
+*   **对话上下文管理 (Context Management)**:
+    *   **问题**: 长文档 + 多轮对话容易导致 Token 爆炸。
+    *   **策略**:
+        *   **限制对话轮数**: 默认保留最近 **N 轮对话** (建议 N=5，可配置)。
+        *   **滑动窗口**: 超过 N 轮后，自动丢弃最早的对话。
+        *   **文档上下文**: 每次请求发送**完整当前文档**，但对话历史受限。
+    *   **配置项**: `notesSettings.maxConversationTurns: number` (默认 5)。
+
+*   **AI Summary 生成方案**:
+    *   **目标**: AI 返回修改后，侧栏仅显示简洁总结，不显示具体 Diff。
+    *   **实现方案 (扩展现有 Prompt)**:
+        1.  **扩展 JSON 格式**: AI 返回 `{ replacement, globalChanges, summary }` 格式。
+            *   复用现有 `edit-mode-prompt.ts`，增加 `summary` 字段。
+            *   `summary`: 一句话描述做了什么修改 (如 "将主角名从 Adam 改为 David，并更新了全文 3 处引用")。
+        2.  **前端显示**: 侧栏直接渲染 `summary` 字段内容，隐藏 `globalChanges` 细节。
+        3.  **修改应用**: 复用现有 `applyPatches()` 逻辑 (`src/notes/text-patcher.ts`)。
+    *   **优点**: 
+        *   单次 API 调用，无额外延迟。
+        *   用户可在 DiffModal 中查看详细修改，侧栏保持清爽。
+
+*   **其他优化点**:
+    *   **📌 清除对话**: 侧栏顶部增加 "清除对话" 按钮，重置历史记录。
+    *   **📌 导出对话**: 可选功能，将对话历史导出为 Markdown 文件。
+    *   **📌 文档切换感知**: 当用户切换到不同 Note 时，自动清空对话历史 (避免上下文混淆)。
+    *   **📌 Streaming 响应**: 支持流式输出，提升大文档编辑时的响应体验。
 
 ## 架构设计
+
 
 ### 核心组件
 
