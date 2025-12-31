@@ -356,7 +356,17 @@ export class SideBarCoPilotView extends ItemView {
                 const parsed = JSON.parse(jsonStr);
                 replacementText = parsed.replacement || '';
                 globalChanges = parsed.globalChanges || [];
-                summary = parsed.summary || 'Changes applied';
+                
+                // 优先使用 AI 返回的 summary，否则根据修改内容生成
+                if (parsed.summary) {
+                    summary = parsed.summary;
+                } else if (globalChanges.length > 0) {
+                    summary = t('Applied changes with global updates', { count: globalChanges.length.toString() });
+                } else if (replacementText) {
+                    summary = t('Text replaced');
+                } else {
+                    summary = t('No changes needed');
+                }
             } catch {
                 // 非 JSON 响应，当作纯文本回复
                 summary = response.substring(0, 200) + (response.length > 200 ? '...' : '');
