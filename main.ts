@@ -1,5 +1,5 @@
 import { ItemView, Notice, Plugin, setIcon, setTooltip, TFile, WorkspaceLeaf, Menu, MenuItem } from 'obsidian';
-import type { Canvas, CanvasNode, CanvasCoords, CanvasView, CanvasData, SelectionContext } from './src/types';
+import type { Canvas, CanvasNode, CanvasCoords, CanvasView, SelectionContext } from './src/types';
 import { CanvasConverter } from './src/canvas/canvas-converter';
 import { ApiManager } from './src/api/api-manager';
 import { IntentResolver, ResolvedIntent, NodeEditIntent } from './src/canvas/intent-resolver';
@@ -12,6 +12,9 @@ import { CanvasAISettingTab } from './src/settings/settings-tab';
 import { DiffModal } from './src/ui/modals';
 import { FloatingPalette, PaletteMode } from './src/ui/floating-palette';
 import { NotesSelectionHandler, SideBarCoPilotView, VIEW_TYPE_SIDEBAR_COPILOT } from './src/notes';
+import { openImageInNewWindow, copyImageToClipboard } from './src/canvas/image-viewer';
+import { createGroupFromSelection, createNewNodeAtCenter, selectConnectedNodes } from './src/canvas/node-operations';
+import { GhostNodeManager } from './src/core/ghost-node-manager';
 
 
 // Re-export for backward compatibility
@@ -31,8 +34,8 @@ export default class CanvasAIPlugin extends Plugin {
     public lastTextSelectionContext: SelectionContext | null = null;
     private hideTimer: number | null = null;
     public apiManager: ApiManager | null = null;
-    // Track active ghost nodes to prevent race conditions during concurrent image generations
-    private activeGhostNodeIds: Set<string> = new Set();
+    // Ghost Node 管理器
+    public ghostNodeManager: GhostNodeManager | null = null;
     // Track the popout leaf for single window mode
     private imagePopoutLeaf: WorkspaceLeaf | null = null;
     // Flag to track if user has interacted with non-AI elements (potentially changing selection)
@@ -144,6 +147,9 @@ export default class CanvasAIPlugin extends Plugin {
     private initFloatingComponents(): void {
         // Initialize API Manager
         this.apiManager = new ApiManager(this.settings);
+
+        // Initialize Ghost Node Manager
+        this.ghostNodeManager = new GhostNodeManager(this.app);
 
         this.floatingPalette = new FloatingPalette(this.app, this.apiManager, (mode) => {
             void debugSelectedNodes(
@@ -326,7 +332,7 @@ export default class CanvasAIPlugin extends Plugin {
                 nodeX = node.x + node.width + 50;
                 nodeY = node.y;
             }
-            const ghostNode = this.createGhostNode(canvas, nodeX, nodeY);
+            const ghostNode = this.ghostNodeManager!.createGhostNode(canvas, nodeX, nodeY);
             console.debug('Canvas Banana: Ghost Node created for edit result:', ghostNode.id);
 
             try {
@@ -398,7 +404,7 @@ export default class CanvasAIPlugin extends Plugin {
                     }
 
                     // Update Ghost Node to show checks are done
-                    this.updateGhostNode(ghostNode, "✅ Generated. Waiting for review...", false);
+                    this.ghostNodeManager!.updateGhostNode(ghostNode, "✅ Generated. Waiting for review...", false);
 
                     // Remove Ghost Node immediately to prevent it sticking around if modal is cancelled via Esc
                     canvas.removeNode(ghostNode);
@@ -448,12 +454,12 @@ export default class CanvasAIPlugin extends Plugin {
 
                 } else {
                     // Fallback if node not found (should rarely happen as we just retrieved it)
-                    this.updateGhostNode(ghostNode, replacementText, false);
+                    this.ghostNodeManager!.updateGhostNode(ghostNode, replacementText, false);
                     console.warn('Canvas Banana: Original node not found for update, result left in Ghost Node');
                 }
 
             } catch (error) {
-                this.updateGhostNode(ghostNode, `Error: ${error instanceof Error ? error.message : String(error)}`, true);
+                this.ghostNodeManager!.updateGhostNode(ghostNode, `Error: ${error instanceof Error ? error.message : String(error)}`, true);
             }
             return;
         }
@@ -494,7 +500,7 @@ export default class CanvasAIPlugin extends Plugin {
         }
 
         // Create Ghost Node
-        const ghostNode = this.createGhostNode(canvas, nodeX, nodeY);
+        const ghostNode = this.ghostNodeManager!.createGhostNode(canvas, nodeX, nodeY);
         console.debug('Canvas Banana: Ghost Node created:', ghostNode.id);
 
         try {
@@ -547,7 +553,7 @@ export default class CanvasAIPlugin extends Plugin {
                     response = await localApiManager.chatCompletion(intent.instruction, systemPrompt, chatOptions.temperature);
                 }
                 console.debug('Canvas Banana: API Response received');
-                this.updateGhostNode(ghostNode, response, false);
+                this.ghostNodeManager!.updateGhostNode(ghostNode, response, false);
 
             } else if (mode === 'image') {
                 // Image Mode - use new generateImageWithRoles
@@ -567,14 +573,14 @@ export default class CanvasAIPlugin extends Plugin {
                 );
 
                 // Update Ghost Node to show saving status
-                this.updateGhostNode(ghostNode, '💾 Saving image...', false, true);
+                this.ghostNodeManager!.updateGhostNode(ghostNode, '💾 Saving image...', false, true);
 
                 // Save to Vault
                 const savedFile = await this.saveImageToVault(base64Image, intent.instruction);
                 console.debug('Canvas Banana: Image saved to', savedFile.path);
 
                 // Replace Ghost Node with Image Node
-                this.replaceGhostWithImageNode(canvas, ghostNode, savedFile);
+                this.ghostNodeManager!.replaceGhostWithImageNode(canvas, ghostNode, savedFile);
 
             } else {
                 // Node Mode - Generate Canvas JSON structure
@@ -668,20 +674,20 @@ ${intent.instruction}
                     canvasData = optimizeLayout(canvasData);
 
                     // Replace ghost node with generated structure by modifying canvas file directly
-                    await this.replaceGhostWithCanvasData(canvas, ghostNode, canvasData);
+                    await this.ghostNodeManager!.replaceGhostWithCanvasData(canvas, ghostNode, canvasData, this.settings.nodeDefaultColor);
 
                     console.debug(`Canvas Banana: Created ${canvasData.nodes.length} nodes and ${canvasData.edges.length} edges`);
 
                 } catch (parseError: unknown) {
                     const message = parseError instanceof Error ? parseError.message : String(parseError);
                     console.error('Canvas Banana: JSON parse error:', parseError);
-                    this.updateGhostNode(ghostNode, `❗ ${t('Invalid JSON structure')}: ${message}`, true);
+                    this.ghostNodeManager!.updateGhostNode(ghostNode, `❗ ${t('Invalid JSON structure')}: ${message}`, true);
                 }
             }
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             console.error('Canvas Banana: API Error:', message);
-            this.updateGhostNode(ghostNode, `❗ Error: ${message || 'Unknown error'}`, true);
+            this.ghostNodeManager!.updateGhostNode(ghostNode, `❗ Error: ${message || 'Unknown error'}`, true);
         } finally {
             // No restoration needed - we used a local ApiManager instance
             // This prevents race conditions when multiple tasks run concurrently
@@ -690,99 +696,6 @@ ${intent.instruction}
 
     private getNodeModeSystemPrompt(): string {
         return this.settings.nodeSystemPrompt?.trim() || DEFAULT_NODE_MODE_PROMPT;
-    }
-
-    /**
-     * Replace Ghost Node with Canvas data by directly modifying the .canvas file
-     * This is more reliable than using undocumented Canvas API methods
-     */
-    private async replaceGhostWithCanvasData(
-        canvas: Canvas,
-        ghostNode: CanvasNode,
-        data: CanvasData
-    ): Promise<void> {
-        const ghostNodeId = ghostNode.id;
-
-        // Validate ghost node is still tracked (not already replaced by another concurrent operation)
-        if (!this.activeGhostNodeIds.has(ghostNodeId)) {
-            console.warn(`Canvas Banana: Ghost node ${ghostNodeId} already replaced, skipping duplicate replacement (Node Mode)`);
-            return;
-        }
-
-        // Check if the ghost node still exists in the canvas
-        const existingNode = canvas.nodes?.get(ghostNodeId);
-        if (!existingNode) {
-            console.warn(`Canvas Banana: Ghost node ${ghostNodeId} no longer exists in canvas, skipping (Node Mode)`);
-            this.activeGhostNodeIds.delete(ghostNodeId);
-            return;
-        }
-
-        // Remove from tracking BEFORE replacement to prevent race conditions
-        this.activeGhostNodeIds.delete(ghostNodeId);
-
-        // Get the canvas file
-        const canvasView = this.app.workspace.getActiveViewOfType(ItemView) as unknown as CanvasView | null;
-        const canvasFile = canvasView?.file;
-
-        if (!canvasFile || canvasFile.extension !== 'canvas') {
-            throw new Error('Cannot find canvas file');
-        }
-
-        // Read current canvas data
-        const fileContent = await this.app.vault.read(canvasFile);
-        let canvasJson: { nodes: Record<string, unknown>[], edges: Record<string, unknown>[] };
-
-        try {
-            canvasJson = JSON.parse(fileContent);
-        } catch {
-            throw new Error('Failed to parse canvas file');
-        }
-
-        // Find and remove the ghost node from canvas data
-        canvasJson.nodes = canvasJson.nodes.filter((n) => n.id !== ghostNodeId);
-
-        // Add new nodes from LLM response
-        // Override color if nodeDefaultColor is set in settings
-        const overrideColor = this.settings.nodeDefaultColor || undefined;
-
-        for (const node of data.nodes) {
-            canvasJson.nodes.push({
-                id: node.id,
-                type: node.type,
-                x: Math.round(node.x),
-                y: Math.round(node.y),
-                width: Math.round(node.width),
-                height: Math.round(node.height),
-                text: node.text,
-                color: overrideColor || node.color,  // Use override if set, otherwise LLM value
-                label: node.label,
-                url: node.url
-            });
-        }
-
-        // Add new edges from LLM response
-        for (const edge of data.edges) {
-            canvasJson.edges.push({
-                id: edge.id,
-                fromNode: edge.fromNode,
-                toNode: edge.toNode,
-                fromSide: edge.fromSide || 'right',
-                toSide: edge.toSide || 'left',
-                fromEnd: edge.fromEnd,
-                toEnd: edge.toEnd,
-                color: edge.color,
-                label: edge.label
-            });
-        }
-
-        // Write updated canvas data back to file
-        await this.app.vault.modify(canvasFile, JSON.stringify(canvasJson, null, '\t'));
-
-        // The canvas should auto-reload, but we can trigger a refresh
-        // by requesting save (which will cause canvas to reload from file)
-        setTimeout(() => {
-            canvas.requestSave();
-        }, 100);
     }
 
     /**
@@ -854,138 +767,6 @@ ${intent.instruction}
             bytes[i] = binaryString.charCodeAt(i);
         }
         return bytes.buffer;
-    }
-
-    /**
-     * Replace Ghost Node with real File Node
-     */
-    private replaceGhostWithImageNode(canvas: Canvas, ghostNode: CanvasNode, file: TFile): void {
-        const ghostNodeId = ghostNode.id;
-
-        // Validate ghost node is still tracked (not already replaced by another concurrent operation)
-        if (!this.activeGhostNodeIds.has(ghostNodeId)) {
-            console.warn(`Canvas Banana: Ghost node ${ghostNodeId} already replaced, skipping duplicate replacement`);
-            return;
-        }
-
-        // Check if the ghost node still exists in the canvas
-        const existingNode = canvas.nodes?.get(ghostNodeId);
-        if (!existingNode) {
-            console.warn(`Canvas Banana: Ghost node ${ghostNodeId} no longer exists in canvas, skipping`);
-            this.activeGhostNodeIds.delete(ghostNodeId);
-            return;
-        }
-
-        // Remove from tracking BEFORE replacement to prevent race conditions
-        this.activeGhostNodeIds.delete(ghostNodeId);
-
-        const { x, y, width } = ghostNode;
-        // Calculate aspect ratio height if needed, default square for 1:1
-        const height = width;
-
-        // Remove ghost
-        canvas.removeNode(ghostNode);
-
-        // Create file node
-        canvas.createFileNode({
-            file: file,
-            pos: { x, y, width, height },
-            size: { x, y, width, height },
-            save: true,
-            focus: false
-        });
-
-        canvas.requestSave();
-        console.debug(`Canvas Banana: Replaced ghost node ${ghostNodeId} with image node`);
-    }
-
-    /**
-     * Create a ghost node (loading placeholder)
-     */
-    private createGhostNode(canvas: Canvas, x: number, y: number): CanvasNode {
-        const node = canvas.createTextNode({
-            pos: { x, y, width: 400, height: 100 },
-            size: { x, y, width: 400, height: 100 },
-            text: '🍌 AI Generating...',
-            focus: false,
-            save: true
-        });
-
-        // Track this ghost node to prevent race conditions
-        this.activeGhostNodeIds.add(node.id);
-
-        // Add ghost node styling
-        if (node.nodeEl) {
-            node.nodeEl.addClass('canvas-ai-ghost-node');
-        }
-
-        canvas.requestSave();
-        return node;
-    }
-
-    /**
-     * Update ghost node with response
-     * Dynamically resize node height based on content length
-     */
-    private updateGhostNode(node: CanvasNode, content: string, isError: boolean, keepTracking: boolean = false): void {
-        // When updating ghost node to final state, remove from tracking
-        // (it's no longer a "ghost" that needs to be replaced)
-        if (!keepTracking) {
-            this.activeGhostNodeIds.delete(node.id);
-        }
-
-        // Remove ghost styling
-        if (node.nodeEl) {
-            node.nodeEl.removeClass('canvas-ai-ghost-node');
-            if (isError) {
-                node.nodeEl.addClass('canvas-ai-error-node');
-            }
-        }
-
-        // Update node text content
-        // Access the internal data and update
-        node.setText?.(content);
-
-        // Alternative: directly set text property and re-render
-        if (!((node as unknown as { setText?: (text: string) => void }).setText)) {
-            (node as unknown as { text: string }).text = content;
-            node.render?.();
-        }
-
-        // Dynamic height adjustment based on content
-        const lines = content.split('\n');
-
-        // Estimate wrapped lines for long lines
-        let totalEstimatedLines = 0;
-        const charsPerLine = 50; // Approximate chars per line at 400px width
-        for (const line of lines) {
-            const lineLen = line.length;
-            if (lineLen === 0) {
-                totalEstimatedLines += 1; // Empty line
-            } else {
-                totalEstimatedLines += Math.ceil(lineLen / charsPerLine);
-            }
-        }
-
-        // Calculate height: ~24px per line, minimum 100px, maximum 600px
-        const lineHeight = 24;
-        const padding = 40; // Top + bottom padding
-        const estimatedHeight = Math.min(
-            Math.max(100, totalEstimatedLines * lineHeight + padding),
-            600
-        );
-
-        // Update node dimensions
-        if (node.resize) {
-            node.resize({ width: 400, height: estimatedHeight });
-        } else {
-            // Fallback: directly set dimensions
-            node.width = 400;
-            node.height = estimatedHeight;
-        }
-
-        node.canvas?.requestSave();
-        console.debug(`Canvas Banana: Ghost Node updated, estimated ${totalEstimatedLines} lines, height: ${estimatedHeight}px`);
     }
 
     /**
@@ -1560,7 +1341,13 @@ ${intent.instruction}
             if (imageNode?.file && this.settings.doubleClickImageOpen) {
                 evt.preventDefault();
                 evt.stopPropagation();
-                await this.openImageInNewWindow(imageNode.file);
+                await openImageInNewWindow(
+                    this.app,
+                    imageNode.file,
+                    this.settings,
+                    this.imagePopoutLeaf,
+                    (leaf) => { this.imagePopoutLeaf = leaf; }
+                );
             }
         });
 
@@ -1573,7 +1360,7 @@ ${intent.instruction}
                 const imageNode = this.getSelectedImageNode(canvas);
                 if (imageNode?.file) {
                     if (!checking) {
-                        void this.copyImageToClipboard(imageNode.file);
+                        void copyImageToClipboard(this.app, imageNode.file);
                     }
                     return true;
                 }
@@ -1588,7 +1375,7 @@ ${intent.instruction}
                 const canvas = this.getActiveCanvas();
                 if (canvas && canvas.selection.size > 0) {
                     if (!checking) {
-                        this.createGroupFromSelection(canvas);
+                        createGroupFromSelection(canvas);
                     }
                     return true;
                 }
@@ -1635,7 +1422,7 @@ ${intent.instruction}
                 const canvas = this.getActiveCanvas();
                 if (canvas) {
                     if (!checking) {
-                        this.createNewNodeAtCenter(canvas);
+                        createNewNodeAtCenter(canvas);
                     }
                     return true;
                 }
@@ -1651,7 +1438,7 @@ ${intent.instruction}
                 const canvas = this.getActiveCanvas();
                 if (canvas && canvas.selection.size > 0) {
                     if (!checking) {
-                        this.selectConnectedNodes(canvas, false);
+                        selectConnectedNodes(canvas, false);
                     }
                     return true;
                 }
@@ -1667,7 +1454,7 @@ ${intent.instruction}
                 const canvas = this.getActiveCanvas();
                 if (canvas && canvas.selection.size > 0) {
                     if (!checking) {
-                        this.selectConnectedNodes(canvas, true);
+                        selectConnectedNodes(canvas, true);
                     }
                     return true;
                 }
@@ -1686,14 +1473,14 @@ ${intent.instruction}
                     item.setTitle(t('Select Connected Nodes'))
                         .setIcon('network')
                         .onClick(() => {
-                            this.selectConnectedNodes(canvas, false);
+                            selectConnectedNodes(canvas, false);
                         });
                 });
                 menu.addItem((item: MenuItem) => {
                     item.setTitle(t('Select Child Nodes'))
                         .setIcon('arrow-down-right')
                         .onClick(() => {
-                            this.selectConnectedNodes(canvas, true);
+                            selectConnectedNodes(canvas, true);
                         });
                 });
             })
@@ -1748,277 +1535,8 @@ ${intent.instruction}
             evt.altKey === needAlt;
     }
 
-    /**
-     * Open image file in a new popout window
-     * If singleWindowMode is enabled, reuse the existing popout window
-     */
-    private async openImageInNewWindow(file: TFile): Promise<void> {
-        try {
-            if (this.settings.singleWindowMode && this.imagePopoutLeaf) {
-                // Check if the leaf is still valid (window not closed)
-                const leaves = this.app.workspace.getLeavesOfType('image');
-                const allLeaves = this.app.workspace.getLeavesOfType('');
-                // Check if our tracked leaf still exists in workspace
-                if (leaves.includes(this.imagePopoutLeaf) || allLeaves.includes(this.imagePopoutLeaf)) {
-                    await this.imagePopoutLeaf.openFile(file);
-                    return;
-                }
-            }
-            // Create new popout window
-            const leaf = this.app.workspace.openPopoutLeaf();
-            await leaf.openFile(file);
-            // Track the leaf for reuse
-            if (this.settings.singleWindowMode) {
-                this.imagePopoutLeaf = leaf;
-            }
-        } catch (e) {
-            console.error('Canvas Banana: Failed to open image in new window:', e);
-        }
-    }
 
-    /**
-     * Copy image to clipboard (converts to PNG if needed)
-     */
-    private async copyImageToClipboard(file: TFile): Promise<void> {
-        try {
-            const arrayBuffer = await this.app.vault.readBinary(file);
-            const mimeType = this.getMimeType(file.extension);
-            const blob = new Blob([arrayBuffer], { type: mimeType });
 
-            // Clipboard API only supports PNG, convert if needed
-            let pngBlob: Blob;
-            if (file.extension.toLowerCase() === 'png') {
-                pngBlob = blob;
-            } else {
-                pngBlob = await this.convertToPng(blob);
-            }
-
-            await navigator.clipboard.write([
-                new ClipboardItem({ 'image/png': pngBlob })
-            ]);
-
-            new Notice(t('Image copied'));
-        } catch (error) {
-            console.error('Canvas Banana: Failed to copy image:', error);
-            new Notice(t('No image selected'));
-        }
-    }
-
-    /**
-     * Get MIME type from file extension
-     */
-    private getMimeType(ext: string): string {
-        const map: Record<string, string> = {
-            'png': 'image/png',
-            'jpg': 'image/jpeg',
-            'jpeg': 'image/jpeg',
-            'gif': 'image/gif',
-            'webp': 'image/webp',
-            'svg': 'image/svg+xml',
-            'bmp': 'image/bmp'
-        };
-        return map[ext.toLowerCase()] || 'image/png';
-    }
-
-    /**
-     * Convert image blob to PNG using Canvas API
-     */
-    private async convertToPng(blob: Blob): Promise<Blob> {
-        return new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => {
-                const canvas = document.createElement('canvas');
-                canvas.width = img.width;
-                canvas.height = img.height;
-                const ctx = canvas.getContext('2d');
-                if (!ctx) {
-                    reject(new Error('Failed to get canvas context'));
-                    return;
-                }
-                ctx.drawImage(img, 0, 0);
-                canvas.toBlob((pngBlob) => {
-                    URL.revokeObjectURL(img.src);
-                    if (pngBlob) {
-                        resolve(pngBlob);
-                    } else {
-                        reject(new Error('Failed to convert to PNG'));
-                    }
-                }, 'image/png');
-            };
-            img.onerror = () => {
-                URL.revokeObjectURL(img.src);
-                reject(new Error('Failed to load image'));
-            };
-            img.src = URL.createObjectURL(blob);
-        });
-    }
-
-    /**
-     * Create a group from selected nodes
-     */
-    private createGroupFromSelection(canvas: Canvas): void {
-        try {
-            const selection = canvas.selection;
-            if (selection.size === 0) return;
-
-            // Calculate bounding box of selected nodes
-            let minX = Infinity, minY = Infinity;
-            let maxX = -Infinity, maxY = -Infinity;
-
-            selection.forEach((node: CanvasNode) => {
-                minX = Math.min(minX, node.x);
-                minY = Math.min(minY, node.y);
-                maxX = Math.max(maxX, node.x + node.width);
-                maxY = Math.max(maxY, node.y + node.height);
-            });
-
-            // Add padding around the group
-            const padding = 20;
-            const groupX = minX - padding;
-            const groupY = minY - padding;
-            const groupWidth = (maxX - minX) + padding * 2;
-            const groupHeight = (maxY - minY) + padding * 2;
-
-            // Create group node using Canvas internal API
-            if (typeof canvas.createGroupNode === 'function') {
-                const groupNode = canvas.createGroupNode({
-                    pos: { x: groupX, y: groupY },
-                    size: { width: groupWidth, height: groupHeight },
-                    label: '',
-                    save: true
-                });
-
-                // Move group to back (lower z-index)
-                if (groupNode && typeof groupNode.moveToBack === 'function') {
-                    groupNode.moveToBack();
-                }
-
-                canvas.requestSave();
-                new Notice(t('Group created'));
-            } else {
-                // Fallback: try using menu method
-                if (canvas.menu && typeof canvas.menu.groupNodes === 'function') {
-                    canvas.menu.groupNodes();
-                    new Notice(t('Group created'));
-                } else {
-                    console.warn('Canvas Banana: No group creation API available');
-                    new Notice('Group creation not available');
-                }
-            }
-        } catch (e) {
-            console.error('Canvas Banana: Failed to create group:', e);
-        }
-    }
-
-    /**
-     * Create a new text node at viewport center
-     */
-    private createNewNodeAtCenter(canvas: Canvas): void {
-        try {
-            // Get viewport center in canvas coordinates
-            const viewportCenter = this.getViewportCenter(canvas);
-
-            const node = canvas.createTextNode({
-                pos: { x: viewportCenter.x - 100, y: viewportCenter.y - 50, width: 200, height: 100 },
-                size: { x: viewportCenter.x - 100, y: viewportCenter.y - 50, width: 200, height: 100 },
-                text: '',
-                focus: true,
-                save: true
-            });
-
-            // Select and start editing the new node
-            canvas.deselectAll();
-            canvas.select(node);
-            node.startEditing?.();
-
-            new Notice(t('Node created'));
-        } catch (e) {
-            console.error('Canvas Banana: Failed to create new node:', e);
-        }
-    }
-
-    /**
-     * Get viewport center in canvas coordinates
-     */
-    private getViewportCenter(canvas: Canvas): { x: number; y: number } {
-        // Canvas stores viewport position in canvas.x, canvas.y
-        // and wrapper dimensions give viewport size
-        const wrapperEl = canvas.wrapperEl;
-        if (wrapperEl) {
-            wrapperEl.getBoundingClientRect();
-            // canvas.x and canvas.y represent the center of the viewport in canvas coords
-            return { x: canvas.x, y: canvas.y };
-        }
-        return { x: 0, y: 0 };
-    }
-
-    /**
-     * 选择连接的节点
-     * @param canvas Canvas 实例
-     * @param childOnly 如果为 true，只选择下游子节点（按边的 from→to 方向）；否则选择所有相连节点
-     */
-    private selectConnectedNodes(canvas: Canvas, childOnly: boolean): void {
-        const selection = canvas.selection;
-        if (selection.size === 0) return;
-
-        // 使用 BFS 遍历所有连接的节点
-        const visited = new Set<string>();
-        const queue: CanvasNode[] = [];
-
-        // 初始化：将当前选中的节点加入队列
-        selection.forEach(node => {
-            visited.add(node.id);
-            queue.push(node);
-        });
-
-        // BFS 遍历
-        while (queue.length > 0) {
-            const currentNode = queue.shift();
-            if (!currentNode) continue;
-
-            // 获取当前节点的所有边
-            const edges = canvas.getEdgesForNode(currentNode);
-
-            for (const edge of edges) {
-                let targetNode: CanvasNode | undefined;
-
-                if (childOnly) {
-                    // 只选择子节点：当前节点是 from 端时，to 端是子节点
-                    if (edge.from?.node?.id === currentNode.id && edge.to?.node) {
-                        targetNode = edge.to.node;
-                    }
-                } else {
-                    // 选择所有相连节点：双向都考虑
-                    if (edge.from?.node?.id === currentNode.id && edge.to?.node) {
-                        targetNode = edge.to.node;
-                    } else if (edge.to?.node?.id === currentNode.id && edge.from?.node) {
-                        targetNode = edge.from.node;
-                    }
-                }
-
-                // 如果找到新节点，加入队列
-                if (targetNode && !visited.has(targetNode.id)) {
-                    visited.add(targetNode.id);
-                    queue.push(targetNode);
-                }
-            }
-        }
-
-        // 获取所有需要选中的节点（通过 ID 从 canvas.nodes 查找）
-        const nodesToSelect: CanvasNode[] = [];
-        visited.forEach(nodeId => {
-            const node = canvas.nodes.get(nodeId);
-            if (node) {
-                nodesToSelect.push(node);
-            }
-        });
-
-        // 更新选择：先取消全选，再逐个添加
-        canvas.deselectAll();
-        nodesToSelect.forEach(node => {
-            canvas.select(node);
-        });
-    }
 
     async loadSettings() {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
