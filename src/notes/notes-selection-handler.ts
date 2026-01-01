@@ -61,7 +61,17 @@ export class NotesSelectionHandler {
         if (this.plugin.apiManager) {
             this.editPalette = new NotesEditPalette(this.app, this.plugin.apiManager);
             this.editPalette.setOnGenerate((prompt, mode) => this.handleGeneration(prompt, mode));
-            this.editPalette.setOnClose(() => this.clearSelectionHighlight());
+            this.editPalette.setOnClose(() => {
+                this.clearSelectionHighlight();
+                // Restore floating button if generating
+                if (this.isGenerating || this.imageTaskManager.getActiveTaskCount() > 0) {
+                    const btn = this.floatingButton.getElement();
+                    // Keep original position or fallback
+                    const left = parseInt(btn.style.left) || 100;
+                    const top = parseInt(btn.style.top) || 100;
+                    this.floatingButton.show(left, top);
+                }
+            });
             this.setupCallbacks();
             this.initFromSettings();
         }
