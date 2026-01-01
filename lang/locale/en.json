@@ -170,5 +170,6 @@
     "Image generated": "Image generated and inserted",
     "Max parallel tasks reached": "Maximum parallel image tasks ({max}) reached",
     "Edit disabled during image generation": "Edit is disabled while images are generating",
+    "Image disabled during edit generation": "Image is disabled while editing is in progress",
     "Image generation failed": "Image generation failed"
 }

@@ -493,6 +493,9 @@ export class NotesSelectionHandler {
             parseInt(this.floatingButton.getElement().style.top) || 100
         );
 
+        // 禁用 Image Tab
+        this.editPalette?.setImageBlocked(true);
+
         // 同步用户消息到侧栏
         const sidebarView = this.getSidebarView();
         if (sidebarView) {
@@ -637,6 +640,8 @@ export class NotesSelectionHandler {
             this.isGenerating = false;
             this.floatingButton.setGenerating(false);
             this.floatingButton.hide();
+            // 恢复 Image Tab
+            this.editPalette?.setImageBlocked(false);
         }
     }
 

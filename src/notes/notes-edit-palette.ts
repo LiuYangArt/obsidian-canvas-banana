@@ -64,6 +64,7 @@ export class NotesEditPalette {
 
     // State
     private isEditBlocked: boolean = false;
+    private isImageBlocked: boolean = false;
 
     private app: App;
     private scope: Scope;
@@ -252,9 +253,15 @@ export class NotesEditPalette {
     }
 
     private switchMode(mode: NotesPaletteMode): void {
-        // 如果 Edit 模式被禁用，强制切换到 Image 模式
+        // 如果 Edit 模式被禁用，阻止切换
         if (mode === 'edit' && this.isEditBlocked) {
             new Notice(t('Edit disabled during image generation'));
+            return;
+        }
+
+        // 如果 Image 模式被禁用，阻止切换
+        if (mode === 'image' && this.isImageBlocked) {
+            new Notice(t('Image disabled during edit generation'));
             return;
         }
 
@@ -287,7 +294,7 @@ export class NotesEditPalette {
 
     setEditBlocked(blocked: boolean): void {
         this.isEditBlocked = blocked;
-        
+
         if (this.editTabBtn) {
             this.editTabBtn.toggleClass('disabled', blocked);
             if (blocked) {
@@ -300,6 +307,24 @@ export class NotesEditPalette {
         // 如果当前是 Edit 模式且刚被禁用，自动切换到 Image
         if (blocked && this.currentMode === 'edit') {
             this.switchMode('image');
+        }
+    }
+
+    setImageBlocked(blocked: boolean): void {
+        this.isImageBlocked = blocked;
+
+        if (this.imageTabBtn) {
+            this.imageTabBtn.toggleClass('disabled', blocked);
+            if (blocked) {
+                this.imageTabBtn.setAttr('disabled', 'true');
+            } else {
+                this.imageTabBtn.removeAttribute('disabled');
+            }
+        }
+
+        // 如果当前是 Image 模式且刚被禁用，自动切换到 Edit
+        if (blocked && this.currentMode === 'image') {
+            this.switchMode('edit');
         }
     }
 

@@ -61,6 +61,8 @@ export class SideBarCoPilotView extends ItemView {
 
     // State
     private isGenerating: boolean = false;
+    private isEditBlocked: boolean = false;
+    private isImageBlocked: boolean = false;
     private keyScope: Scope;
     private presetManager: PresetManager;
 
@@ -258,6 +260,18 @@ export class SideBarCoPilotView extends ItemView {
     }
 
     private switchMode(mode: SidebarMode): void {
+        // 如果 Edit 模式被禁用，阻止切换
+        if (mode === 'edit' && this.isEditBlocked) {
+            new Notice(t('Edit disabled during image generation'));
+            return;
+        }
+
+        // 如果 Image 模式被禁用，阻止切换
+        if (mode === 'image' && this.isImageBlocked) {
+            new Notice(t('Image disabled during edit generation'));
+            return;
+        }
+
         if (this.currentMode === mode) return;
         this.currentMode = mode;
 
@@ -282,6 +296,42 @@ export class SideBarCoPilotView extends ItemView {
 
         // 刷新 preset dropdown
         this.refreshPresetDropdown();
+    }
+
+    private setEditBlocked(blocked: boolean): void {
+        this.isEditBlocked = blocked;
+
+        if (this.editTabBtn) {
+            this.editTabBtn.toggleClass('disabled', blocked);
+            if (blocked) {
+                this.editTabBtn.setAttr('disabled', 'true');
+            } else {
+                this.editTabBtn.removeAttribute('disabled');
+            }
+        }
+
+        // 如果当前是 Edit 模式且刚被禁用，自动切换到 Image
+        if (blocked && this.currentMode === 'edit') {
+            this.switchMode('image');
+        }
+    }
+
+    private setImageBlocked(blocked: boolean): void {
+        this.isImageBlocked = blocked;
+
+        if (this.imageTabBtn) {
+            this.imageTabBtn.toggleClass('disabled', blocked);
+            if (blocked) {
+                this.imageTabBtn.setAttr('disabled', 'true');
+            } else {
+                this.imageTabBtn.removeAttribute('disabled');
+            }
+        }
+
+        // 如果当前是 Image 模式且刚被禁用，自动切换到 Edit
+        if (blocked && this.currentMode === 'image') {
+            this.switchMode('edit');
+        }
     }
 
     private initFromSettings(): void {
@@ -496,6 +546,9 @@ export class SideBarCoPilotView extends ItemView {
         this.generateBtn.textContent = t('Generating');
         this.generateBtn.addClass('generating');
 
+        // 禁用 Image Tab
+        this.setImageBlocked(true);
+
         try {
             // 创建 ApiManager
             const localApiManager = this.createLocalApiManager('text');
@@ -610,6 +663,8 @@ export class SideBarCoPilotView extends ItemView {
             this.isGenerating = false;
             this.generateBtn.textContent = t('Generate');
             this.generateBtn.removeClass('generating');
+            // 恢复 Image Tab
+            this.setImageBlocked(false);
         }
     }
 
@@ -641,6 +696,9 @@ export class SideBarCoPilotView extends ItemView {
         this.isGenerating = true;
         this.generateBtn.textContent = t('Generating');
         this.generateBtn.addClass('generating');
+
+        // 禁用 Edit Tab
+        this.setEditBlocked(true);
 
         try {
             // 创建 ApiManager
@@ -683,6 +741,8 @@ export class SideBarCoPilotView extends ItemView {
             this.isGenerating = false;
             this.generateBtn.textContent = t('Generate');
             this.generateBtn.removeClass('generating');
+            // 恢复 Edit Tab
+            this.setEditBlocked(false);
         }
     }
 
