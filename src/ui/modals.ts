@@ -246,6 +246,20 @@ export class DiffModal extends Modal {
             void this.onConfirm();
             this.close();
         });
+
+        // Auto-scroll to first change
+        setTimeout(() => {
+            const boxes = container.querySelectorAll('.diff-box');
+            boxes.forEach(box => {
+                const isOriginal = box.classList.contains('original');
+                const selector = isOriginal ? '.diff-removed, .diff-remove' : '.diff-added, .diff-add';
+                const changeEl = box.querySelector(selector);
+                
+                if (changeEl) {
+                    changeEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+                }
+            });
+        }, 300);
     }
 
     onClose() {
