@@ -488,8 +488,9 @@ export class NotesSelectionHandler {
                 enableGlobal
             );
 
-            // 提取文档中的内嵌图片 ![[image.png]]
-            const images = await this.extractDocumentImages(context.fullText, context.file.path);
+            // 从选中文本提取内嵌图片 ![[image.png]] 作为上下文
+            // 注意：只从选中文本提取图片，而非全文档，避免发送过多图片
+            const images = await this.extractDocumentImages(selectedText, context.file.path);
 
             // 构建用户消息 - 如果开启全局一致性，包含全文
             let userMessage: string;

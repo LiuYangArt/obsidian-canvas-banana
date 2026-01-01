@@ -936,10 +936,10 @@ export class ApiManager {
         const apiKey = this.getApiKey();
         const model = this.getTextModel();
 
-        // Build base URL
+        // Build base URL (use settings if configured)
         let baseUrl: string;
         if (provider === 'gemini') {
-            baseUrl = 'https://generativelanguage.googleapis.com';
+            baseUrl = this.settings.geminiBaseUrl || 'https://generativelanguage.googleapis.com';
         } else {
             baseUrl = this.settings.yunwuBaseUrl || 'https://yunwu.ai';
         }
