@@ -111,22 +111,6 @@ export class ApiManager {
     }
 
     /**
-     * Generate an image (basic, OpenRouter only)
-     */
-    async generateImage(
-        prompt: string,
-        aspectRatio?: '1:1' | '16:9' | '4:3' | '9:16',
-        imageSize?: string,
-        inputImages?: { base64: string, mimeType: string }[]
-    ): Promise<string> {
-        if (!this.isConfigured()) {
-            throw new Error('OpenRouter API Key not configured. Please set it in plugin settings.');
-        }
-
-        return this.openrouter.generateImageBasic(prompt, aspectRatio, imageSize, inputImages);
-    }
-
-    /**
      * Generate an image with role-annotated references
      */
     async generateImageWithRoles(
