@@ -155,9 +155,10 @@ export class NotesEditPalette {
             attr: { placeholder: t('Enter instructions'), rows: '4' }
         });
 
-        // Edit Model Selection Row (for Edit mode)
-        this.editModelOptionsEl = body.createDiv({ cls: 'canvas-ai-option-row canvas-ai-model-select-row' });
-        const editModelGrp = this.editModelOptionsEl.createEl('span', 'canvas-ai-option-group');
+        // Edit Model Selection Row (for Edit mode) - wrapped in container for border styling
+        this.editModelOptionsEl = body.createDiv({ cls: 'canvas-ai-chat-options' });
+        const editModelRow = this.editModelOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-model-select-row' });
+        const editModelGrp = editModelRow.createEl('span', 'canvas-ai-option-group');
         editModelGrp.createEl('label', { text: t('Palette Model') });
         this.editModelSelectEl = editModelGrp.createEl('select', 'canvas-ai-edit-model-select dropdown');
 
