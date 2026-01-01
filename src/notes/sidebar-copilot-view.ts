@@ -63,6 +63,9 @@ export class SideBarCoPilotView extends ItemView {
     private isGenerating: boolean = false;
     private isEditBlocked: boolean = false;
     private isImageBlocked: boolean = false;
+    
+    private onModeChange: ((mode: SidebarMode) => void) | null = null;
+    
     private keyScope: Scope;
     private presetManager: PresetManager;
 
@@ -141,9 +144,9 @@ export class SideBarCoPilotView extends ItemView {
         this.editTabBtn = tabsEl.createEl('button', { cls: 'canvas-ai-tab active', text: t('Edit') });
         this.imageTabBtn = tabsEl.createEl('button', { cls: 'canvas-ai-tab', text: t('Image') });
 
-        // Tab 切换事件
-        this.editTabBtn.addEventListener('click', () => this.switchMode('edit'));
-        this.imageTabBtn.addEventListener('click', () => this.switchMode('image'));
+        // Tab 切换事件 - user triggered
+        this.editTabBtn.addEventListener('click', () => this.handleUserSwitchMode('edit'));
+        this.imageTabBtn.addEventListener('click', () => this.handleUserSwitchMode('image'));
 
         // Preset Row - 复用悬浮面板样式
         const presetRow = this.footerEl.createDiv('canvas-ai-preset-row');
@@ -259,20 +262,40 @@ export class SideBarCoPilotView extends ItemView {
         this.inputEl.addEventListener('keypress', (e) => e.stopPropagation());
     }
 
-    private switchMode(mode: SidebarMode): void {
+    setOnModeChange(callback: (mode: SidebarMode) => void): void {
+        this.onModeChange = callback;
+    }
+
+    /**
+     * 用户点击切换 Tab
+     */
+    private handleUserSwitchMode(mode: SidebarMode): void {
+        if (this.switchModeInternal(mode)) {
+            this.onModeChange?.(mode);
+        }
+    }
+
+    /**
+     * 外部程序切换 Tab
+     */
+    public setMode(mode: SidebarMode): void {
+        this.switchModeInternal(mode);
+    }
+
+    private switchModeInternal(mode: SidebarMode): boolean {
         // 如果 Edit 模式被禁用，阻止切换
         if (mode === 'edit' && this.isEditBlocked) {
             new Notice(t('Edit disabled during image generation'));
-            return;
+            return false;
         }
 
         // 如果 Image 模式被禁用，阻止切换
         if (mode === 'image' && this.isImageBlocked) {
             new Notice(t('Image disabled during edit generation'));
-            return;
+            return false;
         }
 
-        if (this.currentMode === mode) return;
+        if (this.currentMode === mode) return false;
         this.currentMode = mode;
 
         // 更新 Tab 状态
@@ -296,42 +319,27 @@ export class SideBarCoPilotView extends ItemView {
 
         // 刷新 preset dropdown
         this.refreshPresetDropdown();
+        return true;
     }
 
-    private setEditBlocked(blocked: boolean): void {
+    public setEditBlocked(blocked: boolean): void {
         this.isEditBlocked = blocked;
 
         if (this.editTabBtn) {
             this.editTabBtn.toggleClass('disabled', blocked);
-            if (blocked) {
-                this.editTabBtn.setAttr('disabled', 'true');
-            } else {
-                this.editTabBtn.removeAttribute('disabled');
-            }
         }
 
-        // 如果当前是 Edit 模式且刚被禁用，自动切换到 Image
-        if (blocked && this.currentMode === 'edit') {
-            this.switchMode('image');
-        }
+        // 如果当前是 Edit 模式且刚被禁用，自动切换到 Image - 由 Handler 统一控制
     }
 
-    private setImageBlocked(blocked: boolean): void {
+    public setImageBlocked(blocked: boolean): void {
         this.isImageBlocked = blocked;
 
         if (this.imageTabBtn) {
             this.imageTabBtn.toggleClass('disabled', blocked);
-            if (blocked) {
-                this.imageTabBtn.setAttr('disabled', 'true');
-            } else {
-                this.imageTabBtn.removeAttribute('disabled');
-            }
         }
 
-        // 如果当前是 Image 模式且刚被禁用，自动切换到 Edit
-        if (blocked && this.currentMode === 'image') {
-            this.switchMode('edit');
-        }
+        // 如果当前是 Image 模式且刚被禁用，自动切换到 Edit - 由 Handler 统一控制
     }
 
     private initFromSettings(): void {

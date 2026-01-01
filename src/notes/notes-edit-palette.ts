@@ -65,6 +65,8 @@ export class NotesEditPalette {
     // State
     private isEditBlocked: boolean = false;
     private isImageBlocked: boolean = false;
+    
+    private onModeChange: ((mode: NotesPaletteMode) => void) | null = null;
 
     private app: App;
     private scope: Scope;
@@ -118,6 +120,10 @@ export class NotesEditPalette {
         this.onClose = callback;
     }
 
+    setOnModeChange(callback: (mode: NotesPaletteMode) => void): void {
+        this.onModeChange = callback;
+    }
+
     private createPaletteDOM(): HTMLElement {
         const container = document.createElement('div');
         container.addClass('notes-ai-palette');
@@ -137,9 +143,9 @@ export class NotesEditPalette {
 
         const closeBtn = header.createEl('button', { cls: 'canvas-ai-close-btn', text: '×' });
 
-        // Tab 切换事件
-        this.editTabBtn.addEventListener('click', () => this.switchMode('edit'));
-        this.imageTabBtn.addEventListener('click', () => this.switchMode('image'));
+        // Tab 切换事件 - user triggered
+        this.editTabBtn.addEventListener('click', () => this.handleUserSwitchMode('edit'));
+        this.imageTabBtn.addEventListener('click', () => this.handleUserSwitchMode('image'));
 
         // Body
         const body = container.createDiv('canvas-ai-palette-body');
@@ -252,20 +258,36 @@ export class NotesEditPalette {
         return container;
     }
 
-    private switchMode(mode: NotesPaletteMode): void {
+    /**
+     * 用户点击切换 Tab
+     */
+    private handleUserSwitchMode(mode: NotesPaletteMode): void {
+         if (this.switchModeInternal(mode)) {
+             this.onModeChange?.(mode);
+         }
+    }
+
+    /**
+     * 外部程序切换 Tab (不触发 onModeChange)
+     */
+    public setMode(mode: NotesPaletteMode): void {
+        this.switchModeInternal(mode);
+    }
+
+    private switchModeInternal(mode: NotesPaletteMode): boolean {
         // 如果 Edit 模式被禁用，阻止切换
         if (mode === 'edit' && this.isEditBlocked) {
             new Notice(t('Edit disabled during image generation'));
-            return;
+            return false;
         }
 
         // 如果 Image 模式被禁用，阻止切换
         if (mode === 'image' && this.isImageBlocked) {
             new Notice(t('Image disabled during edit generation'));
-            return;
+            return false;
         }
 
-        if (this.currentMode === mode) return;
+        if (this.currentMode === mode) return false;
         this.currentMode = mode;
 
         // 更新 Tab 状态
@@ -290,6 +312,7 @@ export class NotesEditPalette {
         // 刷新 preset dropdown
         this.refreshPresetDropdown();
         this.updateGenerateButtonState();
+        return true;
     }
 
     setEditBlocked(blocked: boolean): void {
@@ -297,17 +320,11 @@ export class NotesEditPalette {
 
         if (this.editTabBtn) {
             this.editTabBtn.toggleClass('disabled', blocked);
-            if (blocked) {
-                this.editTabBtn.setAttr('disabled', 'true');
-            } else {
-                this.editTabBtn.removeAttribute('disabled');
-            }
+            // 不再禁用按钮，因为我们可能需要点击它来显示通知
+            // 但如果 blocked，我们仍会在 switchModeInternal 中拦截
         }
 
-        // 如果当前是 Edit 模式且刚被禁用，自动切换到 Image
-        if (blocked && this.currentMode === 'edit') {
-            this.switchMode('image');
-        }
+        // 如果当前是 Edit 模式且刚被禁用，自动切换到 Image - 由 Handler 统一控制，这里去掉自动切换，只做 UI 响应
     }
 
     setImageBlocked(blocked: boolean): void {
@@ -315,17 +332,9 @@ export class NotesEditPalette {
 
         if (this.imageTabBtn) {
             this.imageTabBtn.toggleClass('disabled', blocked);
-            if (blocked) {
-                this.imageTabBtn.setAttr('disabled', 'true');
-            } else {
-                this.imageTabBtn.removeAttribute('disabled');
-            }
         }
 
-        // 如果当前是 Image 模式且刚被禁用，自动切换到 Edit
-        if (blocked && this.currentMode === 'image') {
-            this.switchMode('edit');
-        }
+        // 如果当前是 Image 模式且刚被禁用，自动切换到 Edit - 由 Handler 统一控制
     }
 
     private emitImageOptionsChange(): void {

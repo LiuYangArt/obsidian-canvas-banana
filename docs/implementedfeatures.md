@@ -26,7 +26,7 @@
 
 | 文件 | 功能 |
 |-----|------|
-| `notes-selection-handler.ts` | 文本选中监听、悬浮按钮、Edit/Image 模式处理 |
+| `notes-selection-handler.ts` | 文本选中监听、Edit/Image 状态中央同步控制 |
 | `notes-edit-palette.ts` | Notes 悬浮面板 (Edit/Image 双 Tab) |
 | `sidebar-copilot-view.ts` | 侧边栏 CoPilot (多轮对话、文档编辑、图片生成) |
 | `note-image-task-manager.ts` | 图片生成任务队列、并发控制 |

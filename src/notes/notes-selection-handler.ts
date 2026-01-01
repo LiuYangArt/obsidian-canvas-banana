@@ -34,6 +34,7 @@ export class NotesSelectionHandler {
 
     // 生成状态 - 防止并发任务
     private isGenerating: boolean = false;
+    private currentMode: NotesPaletteMode = 'edit';
 
     // 选区高亮容器
     private highlightContainer: HTMLElement | null = null;
@@ -128,6 +129,61 @@ export class NotesSelectionHandler {
             this.plugin.settings.defaultAspectRatio = options.aspectRatio;
             void this.plugin.saveSettings();
         });
+        
+        // 监听 Palette 模式切换
+        this.editPalette.setOnModeChange((mode) => {
+            this.setMode(mode, 'palette');
+        });
+    }
+
+    /**
+     * 设置当前模式并同步到所有视图
+     * @param mode 新模式
+     * @param source 来源 ('palette' | 'sidebar' | 'internal')
+     */
+    private setMode(mode: NotesPaletteMode, source: 'palette' | 'sidebar' | 'internal' = 'internal'): void {
+        if (this.currentMode === mode) return; // 避免重复更新
+        
+        this.currentMode = mode;
+        
+        // 同步到 Palette (如果不是来源)
+        if (source !== 'palette' && this.editPalette) {
+            this.editPalette.setMode(mode);
+        }
+        
+        // 同步到 Sidebar (如果不是来源)
+        const sidebar = this.getSidebarView();
+        if (source !== 'sidebar' && sidebar) {
+            sidebar.setMode(mode);
+        }
+    }
+    
+    /**
+     * 设置 Edit 禁用状态并同步
+     */
+    private setEditBlocked(blocked: boolean): void {
+        this.editPalette?.setEditBlocked(blocked);
+        const sidebar = this.getSidebarView();
+        if (sidebar) sidebar.setEditBlocked(blocked);
+        
+        // 如果当前是 Edit 模式且刚被禁用，自动切换到 Image
+        if (blocked && this.currentMode === 'edit') {
+            this.setMode('image', 'internal');
+        }
+    }
+    
+    /**
+     * 设置 Image 禁用状态并同步
+     */
+    private setImageBlocked(blocked: boolean): void {
+        this.editPalette?.setImageBlocked(blocked);
+        const sidebar = this.getSidebarView();
+        if (sidebar) sidebar.setImageBlocked(blocked);
+        
+        // 如果当前是 Image 模式且刚被禁用，自动切换到 Edit
+        if (blocked && this.currentMode === 'image') {
+            this.setMode('edit', 'internal');
+        }
     }
 
     private registerEventListeners(): void {
@@ -182,9 +238,26 @@ export class NotesSelectionHandler {
                 this.floatingButton.hide();
                 this.editPalette?.hide();
                 this.clearSelectionHighlight();
-                this.lastContext = null;
             }
+            
+            // 每次视图切换，重新绑定 sidebar 监听 (如果 sidebar 存在)
+            this.bindSidebarListeners();
         });
+        
+        // 初始化绑定
+        this.bindSidebarListeners();
+    }
+
+    private bindSidebarListeners(): void {
+        const sidebar = this.getSidebarView();
+        if (sidebar) {
+            // 监听 Sidebar 模式切换
+            sidebar.setOnModeChange((mode) => {
+                this.setMode(mode, 'sidebar');
+            });
+            // 同步当前状态到 Sidebar (例如刚打开 Sidebar)
+            sidebar.setMode(this.currentMode);
+        }
     }
 
     private checkSelection(): void {
@@ -516,8 +589,8 @@ export class NotesSelectionHandler {
             parseInt(this.floatingButton.getElement().style.top) || 100
         );
 
-        // 禁用 Image Tab
-        this.editPalette?.setImageBlocked(true);
+        // 禁用 Image Tab (同步)
+        this.setImageBlocked(true);
 
         // 同步用户消息到侧栏
         const sidebarView = this.getSidebarView();
@@ -627,7 +700,7 @@ export class NotesSelectionHandler {
                 this.app,
                 diffContext,
                 replacementText,
-                () => {
+                async () => {
                     // 先替换选区
                     // 计算新光标位置
                     const startOffset = editor.posToOffset(savedFromCursor);
@@ -670,8 +743,8 @@ export class NotesSelectionHandler {
             this.isGenerating = false;
             this.floatingButton.setGenerating(false);
             this.floatingButton.hide();
-            // 恢复 Image Tab
-            this.editPalette?.setImageBlocked(false);
+            // 恢复 Image Tab (同步)
+            this.setImageBlocked(false);
         }
     }
 
@@ -738,8 +811,8 @@ export class NotesSelectionHandler {
             parseInt(this.floatingButton.getElement().style.top) || btnPos.y
         );
 
-        // 禁用 Edit Tab
-        this.editPalette?.setEditBlocked(true);
+        // 禁用 Edit Tab (同步)
+        this.setEditBlocked(true);
 
         try {
             // 使用 TaskManager 启动异步任务
@@ -761,8 +834,8 @@ export class NotesSelectionHandler {
                 this.floatingButton.hide();
             }
             
-            // 更新 Edit Tab 禁用状态
-            this.editPalette?.setEditBlocked(this.imageTaskManager.isEditBlocked());
+            // 更新 Edit Tab 禁用状态 (同步)
+            this.setEditBlocked(this.imageTaskManager.isEditBlocked());
         }
     }
 
