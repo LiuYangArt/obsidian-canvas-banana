@@ -1,6 +1,6 @@
 /**
  * AntigravityTools Provider
- * 文字生成使用 Gemini 原生 API，图片生成使用 OpenAI 兼容 /v1/images/generations
+ * 文字生成使用 Gemini 原生 API，图片生成使用 OpenAI 兼容 API
  */
 
 import { requestUrl, RequestUrlParam } from 'obsidian';
@@ -8,7 +8,7 @@ import type { CanvasAISettings } from '../../settings/settings';
 import type { GeminiRequest, GeminiResponse, GeminiPart } from '../types';
 import { isHttpError, getErrorMessage, requestUrlWithTimeout } from '../utils';
 
-// OpenAI 兼容图片生成响应格式
+// OpenAI Images API 响应格式
 interface OpenAIImageResponse {
     created: number;
     data: Array<{
@@ -46,7 +46,7 @@ export class AntigravityToolsProvider {
         return this.settings.antigravityToolsBaseUrl || 'http://127.0.0.1:8045';
     }
 
-    // Gemini 原生 API 端点
+    // Gemini 原生 API 端点 (用于文字生成)
     private getGeminiEndpoint(model: string): string {
         const baseUrl = this.getBaseUrl();
         const apiKey = this.getApiKey();
@@ -57,6 +57,20 @@ export class AntigravityToolsProvider {
     private getImageEndpoint(): string {
         const baseUrl = this.getBaseUrl();
         return `${baseUrl}/v1/images/generations`;
+    }
+
+    /**
+     * 将 aspectRatio 转换为 OpenAI size 格式
+     */
+    private aspectRatioToSize(aspectRatio?: string): string {
+        switch (aspectRatio) {
+            case '16:9': return '1792x1024';
+            case '9:16': return '1024x1792';
+            case '4:3': return '1024x768';
+            case '3:4': return '768x1024';
+            case '1:1':
+            default: return '1024x1024';
+        }
     }
 
     /**
@@ -97,20 +111,6 @@ export class AntigravityToolsProvider {
     }
 
     /**
-     * 将 aspectRatio 转换为 OpenAI size 格式
-     */
-    private aspectRatioToSize(aspectRatio?: string): string {
-        switch (aspectRatio) {
-            case '16:9': return '1792x1024';
-            case '9:16': return '1024x1792';
-            case '4:3': return '1024x768';
-            case '3:4': return '768x1024';
-            case '1:1':
-            default: return '1024x1024';
-        }
-    }
-
-    /**
      * Generate image - 使用 OpenAI 兼容 /v1/images/generations
      */
     async generateImage(
@@ -126,27 +126,28 @@ export class AntigravityToolsProvider {
         let fullPrompt = '';
 
         // 系统上下文
-        const systemPrompt = this.settings.imageSystemPrompt || 'You are an expert creator.';
-        fullPrompt += systemPrompt + '\n\n';
+        const systemPrompt = this.settings.imageSystemPrompt || '';
+        if (systemPrompt) {
+            fullPrompt += systemPrompt + '\n\n';
+        }
 
-        // 添加参考图片描述（OpenAI 格式不支持直接传图，需要描述）
+        // 添加参考图片描述（OpenAI generations 不支持直接传图，需要描述）
+        // 注意：如果有参考图片，通常需要用 /v1/images/edits 端点
         if (imagesWithRoles.length > 0) {
-            fullPrompt += '[Reference images provided]\n';
-            for (const img of imagesWithRoles) {
-                fullPrompt += `- ${img.role}\n`;
-            }
-            fullPrompt += '\n';
+            fullPrompt += '[Reference images provided - ';
+            fullPrompt += imagesWithRoles.map(img => img.role).join(', ');
+            fullPrompt += ']\n\n';
         }
 
         // 添加上下文文本
         if (contextText && contextText.trim()) {
-            fullPrompt += `[Context]\n${contextText}\n\n`;
+            fullPrompt += contextText + '\n\n';
         }
 
         // 添加指令
-        fullPrompt += `INSTRUCTION: ${instruction}`;
+        fullPrompt += instruction;
 
-        // 构建请求体
+        // 构建请求体 - 遵循 OpenAI API 格式
         const requestBody: {
             model: string;
             prompt: string;
@@ -154,6 +155,7 @@ export class AntigravityToolsProvider {
             size: string;
             response_format: string;
             quality?: string;
+            style?: string;
         } = {
             model: this.getImageModel(),
             prompt: fullPrompt,
@@ -162,7 +164,8 @@ export class AntigravityToolsProvider {
             response_format: 'b64_json'
         };
 
-        console.debug('Canvas AI: [AntigravityTools] Sending image generation request...');
+        console.debug('Canvas AI: [AntigravityTools] Sending image generation request to:', endpoint);
+        console.debug('Canvas AI: [AntigravityTools] Request body:', JSON.stringify(requestBody, null, 2));
 
         const requestParams: RequestUrlParam = {
             url: endpoint,
@@ -180,6 +183,8 @@ export class AntigravityToolsProvider {
             const response = await requestUrlWithTimeout(requestParams, timeoutMs);
             const data = response.json as OpenAIImageResponse;
 
+            console.debug('Canvas AI: [AntigravityTools] Response:', JSON.stringify(data, null, 2).substring(0, 500));
+
             if (data.error) {
                 throw new Error(`AntigravityTools API Error: ${data.error.message}`);
             }
@@ -192,6 +197,10 @@ export class AntigravityToolsProvider {
             if (imageData.b64_json) {
                 return `data:image/png;base64,${imageData.b64_json}`;
             } else if (imageData.url) {
+                // URL 可能是 data URL 或需要 fetch
+                if (imageData.url.startsWith('data:')) {
+                    return imageData.url;
+                }
                 return await this.fetchImageAsDataUrl(imageData.url);
             }
 
