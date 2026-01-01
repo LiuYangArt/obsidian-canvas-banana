@@ -8,8 +8,7 @@ base_url: http://127.0.0.1:8045/v1
 API Key 格式: sk-xxx
 OpenAI API 核心端点：
 
-Chat Completions: POST /v1/chat/completions - 文字生成/编辑
-Images Generation: POST /v1/images/generations - 文生图
+Chat Completions: POST /v1/chat/completions - 文字生成/编辑/图片生成
 Images Edit: POST /v1/images/edits - 图片编辑（需 multipart/form-data）
 User Review Required
 IMPORTANT
@@ -18,9 +17,7 @@ IMPORTANT
 generateImage
  接口的 JSON body + base64 格式不兼容。
 
-建议方案：对于图生图场景，复用 /v1/chat/completions + 多模态输入（类似 AntigravityTools 的 
-generateImageWithChat
-），而非使用 /v1/images/edits。
+建议方案：统一使用 `/v1/chat/completions` 接口进行图片生成（文生图和图生图）。这不仅解决了 `multipart/form-data` 的兼容性问题，也简化了 Provider 的实现逻辑，与 `AntigravityTools` 的处理方式保持一致。
 
 NOTE
 
@@ -107,11 +104,10 @@ chatCompletion
 multimodalChat
 /v1/chat/completions	带图像/PDF 的多模态
 generateImage
-智能选择	纯文本→/v1/images/generations
-有参考图→/v1/chat/completions
+/v1/chat/completions	统一通过 Prompt 指令进行生图（文生图/图生图）
 核心逻辑参考 
 antigravitytools.ts
-，但使用标准 OpenAI 请求/响应格式。
+，所有请求均通过 Chat Completions API 处理。
 
 API Manager
 [MODIFY] 
