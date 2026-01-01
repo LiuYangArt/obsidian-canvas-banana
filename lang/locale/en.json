@@ -164,5 +164,8 @@
     "Text replaced": "Text replaced",
     "No changes needed": "No changes needed",
     "Generate image from context": "Generate image based on context",
-    "Image generated": "Image generated and inserted"
+    "Image generated": "Image generated and inserted",
+    "Max parallel tasks reached": "Maximum parallel image tasks ({max}) reached",
+    "Edit disabled during image generation": "Edit is disabled while images are generating",
+    "Image generation failed": "Image generation failed"
 }

@@ -16,6 +16,7 @@ import { t } from '../../lang/helpers';
 import { SideBarCoPilotView, VIEW_TYPE_SIDEBAR_COPILOT } from './sidebar-copilot-view';
 import { ApiManager } from '../api/api-manager';
 import { ApiProvider } from '../settings/settings';
+import { NoteImageTaskManager } from './note-image-task-manager';
 
 export interface NotesSelectionContext extends SelectionContext {
     editor: Editor;
@@ -43,12 +44,18 @@ export class NotesSelectionHandler {
     private mousedownHandler: (evt: MouseEvent) => void;
     private leafChangeCleanup: EventRef | null = null;
 
+    // 多图并发任务管理器
+    private imageTaskManager: NoteImageTaskManager;
+
     constructor(plugin: CanvasAIPlugin) {
         this.plugin = plugin;
         this.app = plugin.app;
 
         // 创建 UI 组件
         this.floatingButton = new NotesFloatingButton();
+
+        // 创建任务管理器
+        this.imageTaskManager = new NoteImageTaskManager(this.app, this.plugin.settings);
         
         // 只有当 apiManager 存在时才创建 editPalette
         if (this.plugin.apiManager) {
@@ -440,6 +447,12 @@ export class NotesSelectionHandler {
         }
 
         // 以下是原有的 edit 模式逻辑
+        // 检查任务互斥：生图任务进行中禁止 Edit
+        if (this.imageTaskManager.isEditBlocked()) {
+            new Notice(t('Edit disabled during image generation'));
+            return;
+        }
+
         // 禁止并发任务
         if (this.isGenerating) {
             new Notice(t('Generation in progress'));
@@ -694,87 +707,60 @@ export class NotesSelectionHandler {
             return;
         }
 
-        if (this.isGenerating) {
-            new Notice(t('Generation in progress'));
-            return;
-        }
-
         const context = this.lastContext;
         const { editor, file, selectedText } = context;
 
-        // 设置生成状态
-        this.isGenerating = true;
-        this.floatingButton.setGenerating(true);
-        this.floatingButton.show(
-            parseInt(this.floatingButton.getElement().style.left) || 100,
-            parseInt(this.floatingButton.getElement().style.top) || 100
-        );
+        // 获取 Image Options（使用 Canvas 统一配置）
+        const imageOptions = this.editPalette?.getImageOptions() || {
+            resolution: this.plugin.settings.defaultResolution || '1K',
+            aspectRatio: this.plugin.settings.defaultAspectRatio || '1:1'
+        };
 
-        try {
-            // 获取 Image Options（使用 Canvas 统一配置）
-            const imageOptions = this.editPalette?.getImageOptions() || {
-                resolution: this.plugin.settings.defaultResolution || '1K',
-                aspectRatio: this.plugin.settings.defaultAspectRatio || '1:1'
-            };
+        // 创建使用选中 Image 模型的 ApiManager
+        const localApiManager = this.createImageApiManager();
 
-            // 创建使用选中 Image 模型的 ApiManager
-            const localApiManager = this.createImageApiManager();
-
-            // 构建生成指令
-            let instruction = prompt;
-            if (!instruction && selectedText) {
-                instruction = t('Generate image from context');
-            }
-            if (!instruction) {
-                new Notice(t('Enter instructions'));
-                return;
-            }
-
-            // 选中文本作为上下文
-            const contextText = selectedText || '';
-
-            // 提取选中文本中的内嵌图片作为参考
-            const inputImages = await this.extractDocumentImages(contextText, file.path);
-            const imagesWithRoles = inputImages.map(img => ({
-                base64: img.base64,
-                mimeType: img.mimeType,
-                role: 'reference'  // 统一标记为参考图
-            }));
-
-            if (imagesWithRoles.length > 0) {
-                console.debug(`Notes AI Image: Found ${imagesWithRoles.length} reference image(s)`);
-            }
-
-            console.debug(`Notes AI Image: Generating with prompt="${instruction}", context="${contextText.substring(0, 50)}..."`);
-
-            // 调用 API 生成图片
-            const result = await localApiManager.generateImageWithRoles(
-                instruction,
-                imagesWithRoles,  // 选中文本中的图片作为参考
-                contextText,
-                imageOptions.aspectRatio,
-                imageOptions.resolution
-            );
-
-            // 保存图片到 vault
-            const imagePath = await this.saveImageToVault(result, file);
-
-            // 获取插入位置 - 选区末尾或光标位置
-            const endPos = editor.getCursor('to');
-            const insertText = `\n![[${imagePath}]]\n`;
-            editor.replaceRange(insertText, endPos);
-
-            new Notice(t('Image generated'));
-
-        } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            console.error('Notes AI Image: Generation error:', message);
-            new Notice(`Notes AI Error: ${message}`);
-        } finally {
-            this.isGenerating = false;
-            this.floatingButton.setGenerating(false);
-            this.floatingButton.hide();
+        // 构建生成指令
+        let instruction = prompt;
+        if (!instruction && selectedText) {
+            instruction = t('Generate image from context');
         }
+        if (!instruction) {
+            new Notice(t('Enter instructions'));
+            return;
+        }
+
+        // 选中文本作为上下文
+        const contextText = selectedText || '';
+
+        // 提取选中文本中的内嵌图片作为参考
+        const inputImages = await this.extractDocumentImages(contextText, file.path);
+        const imagesWithRoles = inputImages.map(img => ({
+            base64: img.base64,
+            mimeType: img.mimeType,
+            role: 'reference'  // 统一标记为参考图
+        }));
+
+        if (imagesWithRoles.length > 0) {
+            console.debug(`Notes AI Image: Found ${imagesWithRoles.length} reference image(s)`);
+        }
+
+        console.debug(`Notes AI Image: Generating with prompt="${instruction}", context="${contextText.substring(0, 50)}..."`);
+
+        // 获取插入位置 - 选区末尾
+        const insertPos = editor.getCursor('to');
+
+        // 使用 TaskManager 启动异步任务
+        await this.imageTaskManager.startTask(
+            editor,
+            insertPos,
+            instruction,
+            contextText,
+            imagesWithRoles,
+            imageOptions,
+            localApiManager,
+            file,
+            (base64, f) => this.saveImageToVault(base64, f)
+        );
     }
 
     /**
@@ -850,5 +836,8 @@ export class NotesSelectionHandler {
         // 销毁 UI 组件
         this.floatingButton.destroy();
         this.editPalette?.destroy();
+
+        // 销毁任务管理器
+        this.imageTaskManager.destroy();
     }
 }

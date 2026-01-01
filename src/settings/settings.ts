@@ -114,6 +114,9 @@ export interface CanvasAISettings {
     // Notes AI settings
     enableGlobalConsistency: boolean;  // 全局实体一致性检测
     maxConversationTurns: number;      // 侧边栏最大对话轮数
+
+    // Multi-image generation
+    maxParallelImageTasks: number;     // 最大并行生图任务数
 }
 
 // ========== Default Settings ==========
@@ -181,7 +184,9 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
     paletteEditModel: '',
 
     enableGlobalConsistency: true,
-    maxConversationTurns: 5
+    maxConversationTurns: 5,
+
+    maxParallelImageTasks: 3
 };
 
 // ========== Provider Utility Functions ==========

@@ -164,5 +164,8 @@
     "Text replaced": "文本已替换",
     "No changes needed": "无需修改",
     "Generate image from context": "根据上下文生成图片",
-    "Image generated": "图片已生成并插入"
+    "Image generated": "图片已生成并插入",
+    "Max parallel tasks reached": "已达到最大并行任务数 ({max})",
+    "Edit disabled during image generation": "图片生成期间禁用编辑功能",
+    "Image generation failed": "图片生成失败"
 }
