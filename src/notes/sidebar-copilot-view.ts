@@ -7,12 +7,13 @@ import { ItemView, WorkspaceLeaf, Notice, setIcon, Scope } from 'obsidian';
 import type CanvasAIPlugin from '../../main';
 import { ApiManager } from '../api/api-manager';
 import { PromptPreset, QuickSwitchModel, ApiProvider } from '../settings/settings';
-import { InputModal, ConfirmModal, DiffModal } from '../ui/modals';
+import { ConfirmModal, DiffModal } from '../ui/modals';
+import { PresetManager } from '../ui/preset-manager';
 import { buildEditModeSystemPrompt } from '../prompts/edit-mode-prompt';
 import { applyPatches, TextChange } from './text-patcher';
 import { t } from '../../lang/helpers';
 import { formatProviderName } from '../utils/format-utils';
-import { generateId, extractDocumentImages, saveImageToVault } from '../utils/image-utils';
+import { extractDocumentImages, saveImageToVault } from '../utils/image-utils';
 
 export const VIEW_TYPE_SIDEBAR_COPILOT = 'canvas-ai-sidebar-copilot';
 
@@ -61,17 +62,27 @@ export class SideBarCoPilotView extends ItemView {
     // State
     private isGenerating: boolean = false;
     private keyScope: Scope;
+    private presetManager: PresetManager;
 
     constructor(leaf: WorkspaceLeaf, plugin: CanvasAIPlugin) {
         super(leaf);
         this.plugin = plugin;
 
-        // 创建 Scope 用于注册 Ctrl+Enter
         this.keyScope = new Scope(this.app.scope);
         this.keyScope.register(['Ctrl'], 'Enter', (evt: KeyboardEvent) => {
             evt.preventDefault();
             void this.handleGenerate();
             return false;
+        });
+
+        // 初始化 PresetManager
+        this.presetManager = new PresetManager(this.app, {
+            getPresets: () => this.getCurrentPresets(),
+            setPresets: (presets) => this.setCurrentPresets(presets),
+            getInputValue: () => this.inputEl?.value || '',
+            getSelectValue: () => this.presetSelect?.value || '',
+            refreshDropdown: () => this.refreshPresetDropdown(),
+            setSelectValue: (id) => { if (this.presetSelect) this.presetSelect.value = id; }
         });
     }
 
@@ -152,11 +163,10 @@ export class SideBarCoPilotView extends ItemView {
         const presetSaveBtn = createPresetBtn('save', t('Save'), 'save');
         const presetRenameBtn = createPresetBtn('rename', t('Rename Preset'), 'book-a');
 
-        // Bind preset actions
-        presetAddBtn.addEventListener('click', () => this.handlePresetAdd());
-        presetDeleteBtn.addEventListener('click', () => this.handlePresetDelete());
-        presetSaveBtn.addEventListener('click', () => this.handlePresetSave());
-        presetRenameBtn.addEventListener('click', () => this.handlePresetRename());
+        presetAddBtn.addEventListener('click', () => this.presetManager.handleAdd());
+        presetDeleteBtn.addEventListener('click', () => this.presetManager.handleDelete());
+        presetSaveBtn.addEventListener('click', () => this.presetManager.handleSave());
+        presetRenameBtn.addEventListener('click', () => this.presetManager.handleRename());
 
         this.presetSelect.addEventListener('change', () => {
             const selectedId = this.presetSelect.value;
@@ -716,89 +726,7 @@ export class SideBarCoPilotView extends ItemView {
 
     // saveImageToVault - 已移至 src/utils/image-utils.ts
 
-    // ========== Preset Management ==========
-
-    private handlePresetAdd(): void {
-        new InputModal(
-            this.app,
-            t('New Preset'),
-            t('Enter preset name'),
-            '',
-            (name) => {
-                const newPreset: PromptPreset = {
-                    id: generateId(),
-                    name: name,
-                    prompt: this.inputEl.value
-                };
-                const presets = [...this.getCurrentPresets(), newPreset];
-                this.setCurrentPresets(presets);
-                this.refreshPresetDropdown();
-                this.presetSelect.value = newPreset.id;
-            }
-        ).open();
-    }
-
-    private handlePresetDelete(): void {
-        const selectedId = this.presetSelect.value;
-        if (!selectedId) {
-            new Notice(t('Please select preset delete'));
-            return;
-        }
-        const presets = this.getCurrentPresets();
-        const preset = presets.find(p => p.id === selectedId);
-        if (!preset) return;
-
-        new ConfirmModal(
-            this.app,
-            t('Delete Preset Confirm', { name: preset.name }),
-            () => {
-                const newPresets = presets.filter(p => p.id !== selectedId);
-                this.setCurrentPresets(newPresets);
-                this.refreshPresetDropdown();
-            }
-        ).open();
-    }
-
-    private handlePresetSave(): void {
-        const selectedId = this.presetSelect.value;
-        if (!selectedId) {
-            new Notice(t('Please select preset save'));
-            return;
-        }
-        const presets = this.getCurrentPresets();
-        const preset = presets.find(p => p.id === selectedId);
-        if (!preset) return;
-
-        preset.prompt = this.inputEl.value;
-        this.setCurrentPresets([...presets]);
-        new Notice(t('Preset saved', { name: preset.name }));
-    }
-
-    private handlePresetRename(): void {
-        const selectedId = this.presetSelect.value;
-        if (!selectedId) {
-            new Notice(t('Please select preset rename'));
-            return;
-        }
-        const presets = this.getCurrentPresets();
-        const preset = presets.find(p => p.id === selectedId);
-        if (!preset) return;
-
-        new InputModal(
-            this.app,
-            t('Rename Preset'),
-            t('Enter new name'),
-            preset.name,
-            (newName) => {
-                preset.name = newName;
-                this.setCurrentPresets([...presets]);
-                this.refreshPresetDropdown();
-                this.presetSelect.value = selectedId;
-            }
-        ).open();
-    }
-
-    // generateId - 已移至 src/utils/image-utils.ts
+    // Preset Management - 已移至 PresetManager
 
     /**
      * 添加外部消息到对话历史（供悬浮面板调用）

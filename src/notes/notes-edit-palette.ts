@@ -6,7 +6,7 @@
 import { App, Notice, Scope, setIcon } from 'obsidian';
 import { ApiManager } from '../api/api-manager';
 import { PromptPreset, QuickSwitchModel } from '../settings/settings';
-import { InputModal, ConfirmModal } from '../ui/modals';
+import { PresetManager } from '../ui/preset-manager';
 import { t } from '../../lang/helpers';
 import { formatProviderName } from '../utils/format-utils';
 
@@ -67,6 +67,7 @@ export class NotesEditPalette {
 
     private app: App;
     private scope: Scope;
+    private presetManager: PresetManager;
 
     constructor(app: App, apiManager: ApiManager) {
         this.app = app;
@@ -93,6 +94,16 @@ export class NotesEditPalette {
 
         this.promptInput.addEventListener('input', () => {
             this.updateGenerateButtonState();
+        });
+
+        // 初始化 PresetManager
+        this.presetManager = new PresetManager(this.app, {
+            getPresets: () => this.getCurrentPresets(),
+            setPresets: (presets) => this.setCurrentPresets(presets),
+            getInputValue: () => this.promptInput.value,
+            getSelectValue: () => this.presetSelect?.value || '',
+            refreshDropdown: () => this.refreshPresetDropdown(),
+            setSelectValue: (id) => { if (this.presetSelect) this.presetSelect.value = id; }
         });
 
         document.body.appendChild(this.containerEl);
@@ -208,10 +219,10 @@ export class NotesEditPalette {
             }
         });
 
-        presetAddBtn.addEventListener('click', () => this.handlePresetAdd());
-        presetDeleteBtn.addEventListener('click', () => this.handlePresetDelete());
-        presetSaveBtn.addEventListener('click', () => this.handlePresetSave());
-        presetRenameBtn.addEventListener('click', () => this.handlePresetRename());
+        presetAddBtn.addEventListener('click', () => this.presetManager.handleAdd());
+        presetDeleteBtn.addEventListener('click', () => this.presetManager.handleDelete());
+        presetSaveBtn.addEventListener('click', () => this.presetManager.handleSave());
+        presetRenameBtn.addEventListener('click', () => this.presetManager.handleRename());
 
         this.editModelSelectEl.addEventListener('change', () => {
             const value = this.editModelSelectEl!.value;
@@ -314,89 +325,7 @@ export class NotesEditPalette {
         }
     }
 
-    private handlePresetAdd(): void {
-        new InputModal(
-            this.app,
-            t('New Preset'),
-            t('Enter preset name'),
-            '',
-            (name) => {
-                const newPreset: PromptPreset = {
-                    id: this.generateId(),
-                    name: name,
-                    prompt: this.promptInput.value
-                };
-                const presets = [...this.getCurrentPresets(), newPreset];
-                this.setCurrentPresets(presets);
-                this.refreshPresetDropdown();
-                if (this.presetSelect) {
-                    this.presetSelect.value = newPreset.id;
-                }
-            }
-        ).open();
-    }
-
-    private handlePresetDelete(): void {
-        const selectedId = this.presetSelect?.value;
-        if (!selectedId) {
-            new Notice(t('Please select preset delete'));
-            return;
-        }
-        const presets = this.getCurrentPresets();
-        const preset = presets.find(p => p.id === selectedId);
-        if (!preset) return;
-
-        new ConfirmModal(
-            this.app,
-            t('Delete Preset Confirm', { name: preset.name }),
-            () => {
-                const newPresets = presets.filter(p => p.id !== selectedId);
-                this.setCurrentPresets(newPresets);
-                this.refreshPresetDropdown();
-            }
-        ).open();
-    }
-
-    private handlePresetSave(): void {
-        const selectedId = this.presetSelect?.value;
-        if (!selectedId) {
-            new Notice(t('Please select preset save'));
-            return;
-        }
-        const presets = this.getCurrentPresets();
-        const preset = presets.find(p => p.id === selectedId);
-        if (!preset) return;
-
-        preset.prompt = this.promptInput.value;
-        this.setCurrentPresets([...presets]);
-        new Notice(t('Preset saved', { name: preset.name }));
-    }
-
-    private handlePresetRename(): void {
-        const selectedId = this.presetSelect?.value;
-        if (!selectedId) {
-            new Notice(t('Please select preset rename'));
-            return;
-        }
-        const presets = this.getCurrentPresets();
-        const preset = presets.find(p => p.id === selectedId);
-        if (!preset) return;
-
-        new InputModal(
-            this.app,
-            t('Rename Preset'),
-            t('Enter new name'),
-            preset.name,
-            (newName) => {
-                preset.name = newName;
-                this.setCurrentPresets([...presets]);
-                this.refreshPresetDropdown();
-                if (this.presetSelect) {
-                    this.presetSelect.value = selectedId;
-                }
-            }
-        ).open();
-    }
+    // handlePresetAdd/Delete/Save/Rename, generateId - 已移至 PresetManager
 
     private refreshPresetDropdown(): void {
         if (!this.presetSelect) return;
@@ -406,10 +335,6 @@ export class NotesEditPalette {
         presets.forEach(preset => {
             this.presetSelect!.createEl('option', { value: preset.id, text: preset.name });
         });
-    }
-
-    private generateId(): string {
-        return Date.now().toString(36) + Math.random().toString(36).substring(2, 11);
     }
 
     // ========== Model Selection ==========
