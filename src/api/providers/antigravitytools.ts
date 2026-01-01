@@ -95,10 +95,10 @@ export class AntigravityToolsProvider {
     private buildModelWithSuffix(aspectRatio?: string, resolution?: string): string {
         let model = this.getImageModel();
         
-        // 添加分辨率后缀 (2k, 4k)
+        // 添加分辨率后缀 (仅支持 4k/hd，2k 暂不支持)
         if (resolution) {
             const resLower = resolution.toLowerCase();
-            if (resLower === '2k' || resLower === '4k') {
+            if (resLower === '4k' || resLower === 'hd') {
                 model += `-${resLower}`;
             }
         }
@@ -159,15 +159,15 @@ export class AntigravityToolsProvider {
         imagesWithRoles: { base64: string, mimeType: string, role: string }[],
         contextText?: string,
         aspectRatio?: string,
-        _resolution?: string
+        resolution?: string
     ): Promise<string> {
         // 如果有参考图片，使用 chat/completions 端点
         if (imagesWithRoles.length > 0) {
-            return this.generateImageWithChat(instruction, imagesWithRoles, contextText, aspectRatio, _resolution);
+            return this.generateImageWithChat(instruction, imagesWithRoles, contextText, aspectRatio, resolution);
         }
 
         // 纯文生图使用 images/generations 端点
-        return this.generateImageWithImagesApi(instruction, contextText, aspectRatio);
+        return this.generateImageWithImagesApi(instruction, contextText, aspectRatio, resolution);
     }
 
     /**
@@ -176,7 +176,8 @@ export class AntigravityToolsProvider {
     private async generateImageWithImagesApi(
         instruction: string,
         contextText?: string,
-        aspectRatio?: string
+        aspectRatio?: string,
+        resolution?: string
     ): Promise<string> {
         const endpoint = this.getImageEndpoint();
 
@@ -197,8 +198,11 @@ export class AntigravityToolsProvider {
         // 添加指令
         fullPrompt += instruction;
 
+        // 使用模型后缀控制分辨率
+        const model = this.buildModelWithSuffix(aspectRatio, resolution);
+
         const requestBody = {
-            model: this.getImageModel(),
+            model: model,
             prompt: fullPrompt,
             n: 1,
             size: this.aspectRatioToSize(aspectRatio),

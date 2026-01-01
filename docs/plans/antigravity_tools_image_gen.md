@@ -1,58 +1,127 @@
-# Antigravity Manager Image Generation Analysis
+# Antigravity Manager 图像生成接口文档
 
-## 1. 核心结论
+> 本文档记录了 Canvas Banana 插件中 AntigravityTools Provider 的图像生成实现细节。
 
-Antigravity-Manager **主要通过 OpenAI 兼容接口 (`/v1/images/generations`) 提供图像生成服务**。
+## 1. 实现概览
 
-虽然它支持 Gemini 原生协议 (`/v1beta/models/...`)，但图像生成的特定逻辑（如设置 `requestType: "image_gen"` 和构建内部 API 载荷）主要在 **OpenAI Handler** 中实现。
+AntigravityTools Provider 使用两种端点进行图像生成：
 
-底层調用的是 **Google Internal API (`cloudcode-pa.googleapis.com/v1internal`)**，而非公开的 `generativelanguage.googleapis.com`。这意味着它伪装成 Google Cloud Code 插件进行请求。
-
-## 2. 如何正确调用 (最佳实践)
-
-推荐使用 **OpenAI 兼容 API** 进行调用，因为这是目前代码中适配最完善的路径。
-
-### 接口详情
-- **Endpoint**: `POST /v1/images/generations`
-- **Headers**:
-  - `Authorization`: `Bearer <your-token>` (实际上是通过 Antigravity 的 TokenManager 管理的 token)
-  - `Content-Type`: `application/json`
-
-### 支持参数映射
-
-| OpenAI 参数 | 默认值 | 说明 / 映射逻辑 |
+| 场景 | 端点 | 说明 |
 | :--- | :--- | :--- |
-| `model` | `gemini-3-pro-image` | 也支持其他在模型映射中配置的模型 ID |
-| `prompt` | (必填) | 提示词 |
-| `n` | `1` | 生成数量 (通过并发请求实现，Google 底层限制单次1张) |
-| `size` | `1024x1024` | **关键映射**: 映射为 Gemini 的 `aspectRatio`<br>- `1024x1024` -> `1:1`<br>- `1792x1024`, `1920x1080` -> `16:9`<br>- `1024x1792`, `1080x1920` -> `9:16`<br>- `1024x768`, `1280x960` -> `4:3`<br>- `768x1024`, `960x1280` -> `3:4` |
-| `response_format`| `b64_json` | 返回 Base64 编码的 JSON |
-| `quality` | `standard` | 设为 `hd` 时，Prompt 会自动追加 `(high quality, highly detailed, 4k resolution, hdr)` |
-| `style` | `vivid` | **vivid**: 追加 `(vivid colors, dramatic lighting, rich details)`<br>**natural**: 追加 `(natural lighting, realistic, photorealistic)` |
+| **文生图** | `/v1/images/generations` | 纯文本到图像，支持 `size` 参数 |
+| **图生图** | `/v1/chat/completions` | 需要传递参考图片，通过模型后缀控制分辨率/比例 |
 
-### 示例 Payload
+底层调用的是 **Google Internal API** (`cloudcode-pa.googleapis.com/v1internal`)。
 
+---
+
+## 2. 文生图 (Text-to-Image)
+
+### 端点
+```
+POST {baseUrl}/v1/images/generations
+```
+
+### 请求体
 ```json
 {
   "model": "gemini-3-pro-image",
   "prompt": "A futuristic city with flying cars",
   "n": 1,
   "size": "1792x1024",
-  "quality": "hd",
-  "style": "vivid",
   "response_format": "b64_json"
 }
 ```
 
-## 3. 关于 Gemini 原生 API 支持
+### 参数映射
 
-- 项目中确实存在 Gemini 原生接口处理 (`src-tauri/src/proxy/handlers/gemini.rs`)，路径为 `/v1beta/models/:model:generateContent`。
-- **但是**，`openai.rs` 中的 `handle_images_generations` 显式构造了一个特殊的请求体，包含 `requestType: "image_gen"` 和嵌套的 `generationConfig`。
-- 原生 Handler (`gemini.rs`) 主要是透传请求，并未看到针对 Image Generation 的特殊 payload 构造逻辑。因此，如果直接使用原生 Gemini 图像生成协议调用 `/v1beta/models/...`，除非手动构造出符合其内部 `v1internal` 要求的特殊 JSON 结构（包含 `requestType: "image_gen"`），否则可能会失败或被识别为普通文本对话。
+| 参数 | 默认值 | 说明 |
+| :--- | :--- | :--- |
+| `model` | `gemini-3-pro-image` | 图像生成模型 |
+| `prompt` | (必填) | 提示词 |
+| `n` | `1` | 生成数量 |
+| `size` | `1024x1024` | 尺寸，自动映射为 `aspectRatio` |
+| `response_format` | `b64_json` | 响应格式 |
 
-## 4. 底层实现细节
+### Size 到 AspectRatio 映射
 
-- **API Endpoint**: `https://cloudcode-pa.googleapis.com/v1internal:generateContent`
-- **Request ID**: 自动生成 `img-{uuid}`
-- **User Agent**: 强制设置为 `antigravity`
-- **Safety Settings**: 默认全部设置为 `OFF` (BLOCK_NONE)，允许生成更多内容。
+| size | aspectRatio |
+| :--- | :--- |
+| `1024x1024` | `1:1` |
+| `1792x1024` | `16:9` |
+| `1024x1792` | `9:16` |
+| `1024x768` | `4:3` |
+| `768x1024` | `3:4` |
+
+---
+
+## 3. 图生图 (Image-to-Image)
+
+### 端点
+```
+POST {baseUrl}/v1/chat/completions
+```
+
+### 请求体
+```json
+{
+  "model": "gemini-3-pro-image-4k-16x9",
+  "messages": [{
+    "role": "user",
+    "content": [
+      { "type": "text", "text": "System prompt..." },
+      { "type": "text", "text": "\n[Ref: reference image]" },
+      { "type": "image_url", "image_url": { "url": "data:image/png;base64,..." } },
+      { "type": "text", "text": "\nINSTRUCTION: Transform this image..." }
+    ]
+  }]
+}
+```
+
+### 模型后缀控制
+
+通过模型名后缀控制分辨率和比例：
+
+| 后缀 | 说明 | 示例 |
+| :--- | :--- | :--- |
+| `-4k` 或 `-hd` | 4K 分辨率 | `gemini-3-pro-image-4k` |
+| `-16x9` | 16:9 比例 | `gemini-3-pro-image-16x9` |
+| `-9x16` | 9:16 比例 | `gemini-3-pro-image-9x16` |
+| `-4x3` | 4:3 比例 | `gemini-3-pro-image-4x3` |
+| `-3x4` | 3:4 比例 | `gemini-3-pro-image-3x4` |
+
+可组合使用：`gemini-3-pro-image-4k-16x9`
+
+> [!WARNING]
+> `-2k` 后缀目前不被 Antigravity-Manager 支持（已提交 Issue）。
+
+---
+
+## 4. 响应解析
+
+### /v1/images/generations 响应
+```json
+{
+  "created": 1713833628,
+  "data": [{ "b64_json": "..." }]
+}
+```
+
+### /v1/chat/completions 响应
+
+图片可能以多种形式返回：
+1. `choices[0].message.content` 数组中的 `image_url` 类型
+2. Markdown 格式的图片链接 `![](url)`
+3. 纯文本 URL
+
+---
+
+## 5. 代码实现
+
+相关文件：[antigravitytools.ts](file:///f:/CodeProjects/ObsidianCanvasAI/src/api/providers/antigravitytools.ts)
+
+核心方法：
+- `generateImage()` - 入口，根据是否有参考图片选择端点
+- `generateImageWithImagesApi()` - 文生图
+- `generateImageWithChat()` - 图生图
+- `buildModelWithSuffix()` - 构建带后缀的模型名
