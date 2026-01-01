@@ -3,7 +3,7 @@
  * 监听 Notes 编辑器中的文本选中，管理悬浮按钮和面板的显示
  */
 
-import { App, MarkdownView, Editor, TFile, Notice, EventRef } from 'obsidian';
+import { App, MarkdownView, Editor, TFile, Notice, EventRef, EditorPosition } from 'obsidian';
 import type CanvasAIPlugin from '../../main';
 import { NotesFloatingButton } from './notes-floating-button';
 import { NotesEditPalette, NotesPaletteMode } from './notes-edit-palette';
@@ -326,6 +326,24 @@ export class NotesSelectionHandler {
         scrollerEl.appendChild(this.highlightContainer);
     }
 
+    /**
+     * Flash highlight the provided range and fade out
+     */
+    /**
+     * Select the generated text after a short delay
+     */
+    private selectGeneratedText(editor: Editor, startPos: EditorPosition, endPos: EditorPosition): void {
+        // Ensure editor has focus first
+        editor.focus();
+
+        // Delay to allow Modal to close and focus to settle
+        setTimeout(() => {
+            // Set editor selection
+            editor.setSelection(startPos, endPos);
+            editor.focus();
+        }, 100);
+    }
+
     private captureContext(): void {
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (!view || !view.file) return;
@@ -606,7 +624,14 @@ export class NotesSelectionHandler {
                 replacementText,
                 () => {
                     // 先替换选区
+                    // 计算新光标位置
+                    const startOffset = editor.posToOffset(savedFromCursor);
                     editor.replaceRange(replacementText, savedFromCursor, savedToCursor);
+                    
+                    // 触发选区选中
+                    const newEndOffset = startOffset + replacementText.length;
+                    const newEndCursor = editor.offsetToPos(newEndOffset);
+                    this.selectGeneratedText(editor, savedFromCursor, newEndCursor);
 
                     // 如果有全局变更，应用它们
                     if (globalChanges.length > 0) {
