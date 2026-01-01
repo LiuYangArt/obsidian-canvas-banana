@@ -488,9 +488,6 @@ export class NotesSelectionHandler {
                 enableGlobal
             );
 
-            // 提取文档中的内嵌图片 ![[image.png]]
-            const images = await this.extractDocumentImages(context.fullText, context.file.path);
-
             // 构建用户消息 - 如果开启全局一致性，包含全文
             let userMessage: string;
             if (enableGlobal) {
@@ -499,23 +496,12 @@ export class NotesSelectionHandler {
                 userMessage = `Target text to edit:\n\`\`\`\n${selectedText}\n\`\`\`\n\nInstruction: ${prompt}`;
             }
 
-            // 使用 multimodalChat 或 chatCompletion
-            let response: string;
-            if (images.length > 0) {
-                console.debug(`Notes AI: Sending request with ${images.length} images as context`);
-                response = await this.plugin.apiManager.multimodalChat(
-                    userMessage,
-                    images,
-                    systemPrompt,
-                    1 // temperature
-                );
-            } else {
-                response = await this.plugin.apiManager.chatCompletion(
-                    userMessage,
-                    systemPrompt,
-                    1 // temperature
-                );
-            }
+            // Edit 模式只使用文本 API
+            const response = await this.plugin.apiManager.chatCompletion(
+                userMessage,
+                systemPrompt,
+                1 // temperature
+            );
 
             // 解析 JSON 响应
             let replacementText = response;
