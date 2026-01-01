@@ -1,0 +1,313 @@
+/**
+ * OpenRouter Provider
+ * 处理 OpenRouter API 调用（OpenAI 兼容格式）
+ */
+
+import { requestUrl } from 'obsidian';
+import type { CanvasAISettings } from '../../settings/settings';
+import type {
+    OpenRouterMessage,
+    OpenRouterContentPart,
+    OpenRouterRequest,
+    OpenRouterResponse
+} from '../types';
+import { isHttpError, getErrorMessage, requestUrlWithTimeout } from '../utils';
+
+export class OpenRouterProvider {
+    private settings: CanvasAISettings;
+
+    constructor(settings: CanvasAISettings) {
+        this.settings = settings;
+    }
+
+    updateSettings(settings: CanvasAISettings): void {
+        this.settings = settings;
+    }
+
+    getApiKey(): string {
+        return this.settings.openRouterApiKey || '';
+    }
+
+    getTextModel(): string {
+        return this.settings.openRouterTextModel || 'google/gemini-2.0-flash-001';
+    }
+
+    getImageModel(): string {
+        return this.settings.openRouterImageModel || 'google/gemini-2.0-flash-001';
+    }
+
+    private getChatEndpoint(): string {
+        const base = this.settings.openRouterBaseUrl || 'https://openrouter.ai';
+        return `${base}/api/v1/chat/completions`;
+    }
+
+    /**
+     * Chat completion
+     */
+    async chatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): Promise<string> {
+        const messages: OpenRouterMessage[] = [];
+
+        if (systemPrompt) {
+            messages.push({ role: 'system', content: systemPrompt });
+        }
+        messages.push({ role: 'user', content: prompt });
+
+        const requestBody: OpenRouterRequest = {
+            model: this.getTextModel(),
+            messages: messages,
+            temperature: temperature
+        };
+
+        console.debug('Canvas AI: [OpenRouter] Sending chat request...');
+        const response = await this.sendRequest(requestBody);
+
+        if (response.error) {
+            throw new Error(`OpenRouter API Error: ${response.error.message}`);
+        }
+
+        if (!response.choices || response.choices.length === 0) {
+            throw new Error('OpenRouter returned no choices');
+        }
+
+        const content = response.choices[0].message.content;
+        console.debug('Canvas AI: Received response:', typeof content === 'string' ? content.substring(0, 100) : 'multimodal content');
+
+        return typeof content === 'string' ? content : content.map(p => p.text || '').join('');
+    }
+
+    /**
+     * Generate image (basic)
+     */
+    async generateImageBasic(
+        prompt: string,
+        aspectRatio?: '1:1' | '16:9' | '4:3' | '9:16',
+        imageSize?: string,
+        inputImages?: { base64: string, mimeType: string }[]
+    ): Promise<string> {
+        const contentParts: OpenRouterContentPart[] = [];
+
+        // Add images first
+        if (inputImages && inputImages.length > 0) {
+            for (const img of inputImages) {
+                const mime = img.mimeType || 'image/png';
+                const url = `data:${mime};base64,${img.base64}`;
+                contentParts.push({ type: 'image_url', image_url: { url } });
+            }
+        }
+
+        // Add text prompt
+        contentParts.push({ type: 'text', text: prompt });
+
+        const messages: OpenRouterMessage[] = [{ role: 'user', content: contentParts }];
+
+        const requestBody: OpenRouterRequest = {
+            model: this.getImageModel(),
+            messages: messages,
+            modalities: ['image', 'text']
+        };
+
+        if (aspectRatio || imageSize) {
+            requestBody.image_config = {};
+            if (aspectRatio) requestBody.image_config.aspect_ratio = aspectRatio;
+            if (imageSize) requestBody.image_config.image_size = imageSize;
+        }
+
+        console.debug('Canvas AI: Sending image generation request to OpenRouter...');
+
+        const timeoutMs = (this.settings.imageGenerationTimeout || 120) * 1000;
+        const response = await this.sendRequest(requestBody, timeoutMs);
+
+        if (response.error) {
+            throw new Error(`OpenRouter API Error: ${response.error.message}`);
+        }
+
+        if (!response.choices || response.choices.length === 0) {
+            throw new Error('OpenRouter returned no choices');
+        }
+
+        const message = response.choices[0].message;
+
+        if (message.images && message.images.length > 0) {
+            const firstImage = message.images[0];
+            const imageUrl = typeof firstImage === 'string' ? firstImage : firstImage.image_url.url;
+            console.debug('Canvas AI: Received image, length:', imageUrl.length);
+            return imageUrl;
+        }
+
+        const textContent = typeof message.content === 'string'
+            ? message.content
+            : Array.isArray(message.content)
+                ? message.content.map(p => p.text || '').join('')
+                : 'No image returned';
+        throw new Error(`Image generation failed: ${textContent || 'No image returned'}`);
+    }
+
+    /**
+     * Generate image with roles
+     */
+    async generateImage(
+        instruction: string,
+        imagesWithRoles: { base64: string, mimeType: string, role: string }[],
+        contextText?: string,
+        aspectRatio?: string,
+        resolution?: string
+    ): Promise<string> {
+        const contentParts: OpenRouterContentPart[] = [];
+
+        // System context
+        contentParts.push({
+            type: 'text',
+            text: this.settings.imageSystemPrompt || 'You are an expert creator. Use the following references.'
+        });
+
+        // Add images with role annotations
+        for (const img of imagesWithRoles) {
+            const mime = img.mimeType || 'image/png';
+            const url = `data:${mime};base64,${img.base64}`;
+
+            contentParts.push({ type: 'text', text: `\n[Ref: ${img.role}]` });
+            contentParts.push({ type: 'image_url', image_url: { url } });
+        }
+
+        // Add context text
+        if (contextText && contextText.trim()) {
+            contentParts.push({ type: 'text', text: `\n[Context]\n${contextText}` });
+        }
+
+        // Add instruction
+        contentParts.push({ type: 'text', text: `\nINSTRUCTION: ${instruction}` });
+
+        const messages: OpenRouterMessage[] = [{ role: 'user', content: contentParts }];
+
+        const requestBody: OpenRouterRequest = {
+            model: this.getImageModel(),
+            messages,
+            modalities: ['image']
+        };
+
+        if (aspectRatio || resolution) {
+            requestBody.image_config = {};
+            if (aspectRatio) {
+                requestBody.image_config.aspect_ratio = aspectRatio as '1:1' | '16:9' | '4:3' | '9:16';
+            }
+            if (resolution) {
+                requestBody.image_config.image_size = resolution;
+            }
+        }
+
+        console.debug('Canvas AI: [OpenRouter] Sending image generation request...');
+
+        const timeoutMs = (this.settings.imageGenerationTimeout || 120) * 1000;
+        const response = await this.sendRequest(requestBody, timeoutMs);
+
+        if (response.error) {
+            throw new Error(`OpenRouter API Error: ${response.error.message}`);
+        }
+
+        if (!response.choices || response.choices.length === 0) {
+            throw new Error('OpenRouter returned no choices');
+        }
+
+        const message = response.choices[0].message;
+
+        if (message.images && message.images.length > 0) {
+            const firstImage = message.images[0];
+            const imageUrl = typeof firstImage === 'string' ? firstImage : firstImage.image_url.url;
+            console.debug('Canvas AI: Received image, length:', imageUrl.length);
+            return imageUrl;
+        }
+
+        const textContent = typeof message.content === 'string'
+            ? message.content
+            : Array.isArray(message.content)
+                ? message.content.map(p => p.text || '').join('')
+                : 'No image returned';
+        throw new Error(`Image generation failed: ${textContent || 'No image returned'}`);
+    }
+
+    /**
+     * Multimodal chat
+     */
+    async multimodalChat(
+        prompt: string,
+        mediaList: { base64: string, mimeType: string, type: 'image' | 'pdf' }[],
+        systemPrompt?: string,
+        temperature: number = 0.5
+    ): Promise<string> {
+        const messages: OpenRouterMessage[] = [];
+
+        if (systemPrompt) {
+            messages.push({ role: 'system', content: systemPrompt });
+        }
+
+        const contentParts: OpenRouterContentPart[] = [{ type: 'text', text: prompt }];
+
+        for (const media of mediaList) {
+            const mime = media.mimeType || 'image/png';
+            const url = `data:${mime};base64,${media.base64}`;
+            contentParts.push({ type: 'image_url', image_url: { url } });
+        }
+
+        messages.push({ role: 'user', content: contentParts });
+
+        const requestBody: OpenRouterRequest = {
+            model: this.getTextModel(),
+            messages: messages,
+            temperature: temperature
+        };
+
+        console.debug('Canvas AI: [OpenRouter] Sending multimodal chat request...');
+        const response = await this.sendRequest(requestBody);
+
+        if (response.error) {
+            throw new Error(`OpenRouter API Error: ${response.error.message}`);
+        }
+
+        if (!response.choices || response.choices.length === 0) {
+            throw new Error('OpenRouter returned no choices');
+        }
+
+        const content = response.choices[0].message.content;
+        return typeof content === 'string' ? content : content.map(p => p.text || '').join('');
+    }
+
+    private async sendRequest(body: OpenRouterRequest, timeoutMs?: number): Promise<OpenRouterResponse> {
+        const apiKey = this.getApiKey();
+
+        const requestParams = {
+            url: this.getChatEndpoint(),
+            method: 'POST' as const,
+            headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+                'HTTP-Referer': 'https://obsidian.md',
+                'X-Title': 'Obsidian Canvas AI'
+            },
+            body: JSON.stringify(body)
+        };
+
+        try {
+            let response;
+            if (timeoutMs) {
+                console.debug(`Canvas AI: Request timeout set to ${timeoutMs / 1000}s`);
+                response = await requestUrlWithTimeout(requestParams, timeoutMs);
+            } else {
+                response = await requestUrl(requestParams);
+            }
+            return response.json as OpenRouterResponse;
+        } catch (error: unknown) {
+            const errMsg = getErrorMessage(error);
+            if (errMsg.startsWith('TIMEOUT:')) {
+                const timeoutSec = parseInt(errMsg.split(':')[1]) / 1000;
+                throw new Error(`Request timed out after ${timeoutSec} seconds.`);
+            }
+            if (isHttpError(error)) {
+                const errorBody = error.json || { message: error.message };
+                const errorMessage = (errorBody as Record<string, Record<string, string>>).error?.message || error.message;
+                console.error('Canvas AI: HTTP Error', error.status, errorBody);
+                throw new Error(`HTTP ${error.status}: ${errorMessage}`);
+            }
+            throw error;
+        }
+    }
+}
