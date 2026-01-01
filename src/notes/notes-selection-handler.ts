@@ -193,17 +193,13 @@ export class NotesSelectionHandler {
             return;
         }
 
-        // Edit 模式生成中通常锁定交互，暂不移动？
-        // 但 Image 模式（并发）需要允许移动按钮到新选区
-        if (this.isGenerating) {
-            return;
-        }
+        // 如果正在生成中，我们也允许移动按钮跟随新的选区（类似 Image 模式）
+        // 所以移除此之外的 isGenerating 检查
 
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (!view || view.getMode() !== 'source') {
             // 不在 Source Mode (Live Preview 或 Reading Mode)
-            // 如果有生图任务，尽量保持显示（或者隐藏？用户切换视图了）
-            // 这里保持原逻辑，切换视图隐藏合理
+            // 切换视图隐藏
             this.floatingButton.hide();
             return;
         }
@@ -213,9 +209,8 @@ export class NotesSelectionHandler {
 
         if (!selection || selection.trim().length === 0) {
             // 没有选中文本
-            // 如果有生图任务进行中，不要隐藏按钮，保持在最后位置（或者当前光标位置？）
-            // 简单策略：不隐藏，保持可见
-            if (this.imageTaskManager.getActiveTaskCount() > 0) {
+            // 如果有生图任务或编辑任务进行中，不要隐藏按钮
+            if (this.imageTaskManager.getActiveTaskCount() > 0 || this.isGenerating) {
                 return;
             }
             this.floatingButton.hide();
