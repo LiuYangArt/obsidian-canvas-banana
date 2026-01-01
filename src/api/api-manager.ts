@@ -7,6 +7,7 @@ import type { CanvasAISettings } from '../settings/settings';
 import { OpenRouterProvider } from './providers/openrouter';
 import { GeminiProvider } from './providers/gemini';
 import { GptGodProvider } from './providers/gptgod';
+import { AntigravityToolsProvider } from './providers/antigravitytools';
 
 // Re-export types for backward compatibility
 export type {
@@ -30,6 +31,7 @@ export class ApiManager {
     private gemini: GeminiProvider;
     private yunwu: GeminiProvider;
     private gptgod: GptGodProvider;
+    private antigravitytools: AntigravityToolsProvider;
 
     constructor(settings: CanvasAISettings) {
         this.settings = settings;
@@ -37,6 +39,7 @@ export class ApiManager {
         this.gemini = new GeminiProvider(settings, false);
         this.yunwu = new GeminiProvider(settings, true);
         this.gptgod = new GptGodProvider(settings);
+        this.antigravitytools = new AntigravityToolsProvider(settings);
     }
 
     /**
@@ -48,12 +51,13 @@ export class ApiManager {
         this.gemini.updateSettings(settings);
         this.yunwu.updateSettings(settings);
         this.gptgod.updateSettings(settings);
+        this.antigravitytools.updateSettings(settings);
     }
 
     /**
      * Get the current active provider
      */
-    private getActiveProvider(): 'openrouter' | 'yunwu' | 'gemini' | 'gptgod' {
+    private getActiveProvider(): 'openrouter' | 'yunwu' | 'gemini' | 'gptgod' | 'antigravitytools' {
         return this.settings.apiProvider || 'openrouter';
     }
 
@@ -69,6 +73,8 @@ export class ApiManager {
                 return this.yunwu.getApiKey();
             case 'gptgod':
                 return this.gptgod.getApiKey();
+            case 'antigravitytools':
+                return this.antigravitytools.getApiKey();
             default:
                 return this.openrouter.getApiKey();
         }
@@ -97,6 +103,8 @@ export class ApiManager {
                 return this.yunwu.chatCompletion(prompt, systemPrompt, temperature);
             case 'gptgod':
                 return this.gptgod.chatCompletion(prompt, systemPrompt, temperature);
+            case 'antigravitytools':
+                return this.antigravitytools.chatCompletion(prompt, systemPrompt, temperature);
             default:
                 return this.openrouter.chatCompletion(prompt, systemPrompt, temperature);
         }
@@ -140,6 +148,8 @@ export class ApiManager {
                 return this.yunwu.generateImage(instruction, imagesWithRoles, contextText, aspectRatio, resolution);
             case 'gptgod':
                 return this.gptgod.generateImage(instruction, imagesWithRoles, contextText, aspectRatio, resolution);
+            case 'antigravitytools':
+                return this.antigravitytools.generateImage(instruction, imagesWithRoles, contextText, aspectRatio, resolution);
             default:
                 return this.openrouter.generateImage(instruction, imagesWithRoles, contextText, aspectRatio, resolution);
         }
@@ -166,6 +176,8 @@ export class ApiManager {
                 return this.yunwu.multimodalChat(prompt, mediaList, systemPrompt, temperature);
             case 'gptgod':
                 return this.gptgod.multimodalChat(prompt, mediaList, systemPrompt, temperature);
+            case 'antigravitytools':
+                return this.antigravitytools.multimodalChat(prompt, mediaList, systemPrompt, temperature);
             default:
                 return this.openrouter.multimodalChat(prompt, mediaList, systemPrompt, temperature);
         }

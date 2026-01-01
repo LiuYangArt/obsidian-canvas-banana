@@ -43,3 +43,4 @@ main.ts            # 插件入口
 ## 文档
 - 设计文档: `docs/design_doc.md`
 - 审核规范: `docs/audit-checklist.md` (提交 PR 前检查)
+- 已实现功能索引: `docs/implementedfeatures.md` (实现新功能前必看)

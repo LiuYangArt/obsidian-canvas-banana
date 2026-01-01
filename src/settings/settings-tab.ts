@@ -33,7 +33,7 @@ export class CanvasAISettingTab extends PluginSettingTab {
 
     /**
      * Fetch models from API (OpenRouter or Yunwu based on provider)
-     * For Gemini, use hardcoded model list
+     * For Gemini and AntigravityTools, use hardcoded model list
      */
     private async fetchModels(): Promise<void> {
         if (this.isFetching) return;
@@ -42,12 +42,14 @@ export class CanvasAISettingTab extends PluginSettingTab {
         const isYunwu = provider === 'yunwu';
         const isGemini = provider === 'gemini';
         const isGptGod = provider === 'gptgod';
+        const isAntigravityTools = provider === 'antigravitytools';
 
-        // Gemini uses hardcoded model list (no API endpoint)
-        if (isGemini) {
+        // Gemini and AntigravityTools use hardcoded model list (no API endpoint)
+        if (isGemini || isAntigravityTools) {
             this.modelCache = this.getGeminiHardcodedModels();
             this.modelsFetched = true;
-            console.debug(`Canvas Banana Settings: Loaded ${this.modelCache.length} hardcoded Gemini models`);
+            const source = isGemini ? 'Gemini' : 'AntigravityTools';
+            console.debug(`Canvas Banana Settings: Loaded ${this.modelCache.length} hardcoded ${source} models`);
             void this.display();
             return;
         }
@@ -318,6 +320,7 @@ export class CanvasAISettingTab extends PluginSettingTab {
                 .addOption('yunwu', t('Yunwu'))
 
                 .addOption('gptgod', t('GPTGod'))
+                .addOption('antigravitytools', t('AntigravityTools'))
                 .setValue(this.plugin.settings.apiProvider)
                 .onChange(async (value) => {
                     this.plugin.settings.apiProvider = value as ApiProvider;
@@ -336,6 +339,7 @@ export class CanvasAISettingTab extends PluginSettingTab {
 
         const isGemini = provider === 'gemini';
         const isGptGod = provider === 'gptgod';
+        const isAntigravityTools = provider === 'antigravitytools';
 
         // ========== Configuration Section ==========
         if (provider === 'openrouter') {
@@ -441,6 +445,31 @@ export class CanvasAISettingTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                         this.plugin.apiManager?.updateSettings(this.plugin.settings);
                     }));
+        } else if (provider === 'antigravitytools') {
+            const antigravityKeySetting = new Setting(containerEl)
+                .setName(t('AntigravityTools API key'))
+                .setDesc(t('Enter your AntigravityTools API key'))
+                .addText(text => text
+                    .setPlaceholder(t('Placeholder API key'))
+                    .setValue(this.plugin.settings.antigravityToolsApiKey)
+                    .onChange(async (value) => {
+                        this.plugin.settings.antigravityToolsApiKey = value;
+                        await this.plugin.saveSettings();
+                    }));
+
+            this.addTestButton(antigravityKeySetting.controlEl, containerEl);
+
+            new Setting(containerEl)
+                .setName(t('API base URL'))
+                .setDesc(t('API base URL'))
+                .addText(text => text
+                    .setPlaceholder('http://127.0.0.1:8045')
+                    .setValue(this.plugin.settings.antigravityToolsBaseUrl)
+                    .onChange(async (value) => {
+                        this.plugin.settings.antigravityToolsBaseUrl = value;
+                        await this.plugin.saveSettings();
+                        this.plugin.apiManager?.updateSettings(this.plugin.settings);
+                    }));
         }
 
         // ========== 模型配置区域 ==========
@@ -454,7 +483,9 @@ export class CanvasAISettingTab extends PluginSettingTab {
                 ? this.plugin.settings.yunwuApiKey
                 : isGptGod
                     ? this.plugin.settings.gptGodApiKey
-                    : this.plugin.settings.openRouterApiKey;
+                    : isAntigravityTools
+                        ? this.plugin.settings.antigravityToolsApiKey
+                        : this.plugin.settings.openRouterApiKey;
         if (!this.modelsFetched && apiKey && !this.isFetching) {
             setTimeout(() => void this.fetchModels(), 0);
         }
@@ -464,7 +495,7 @@ export class CanvasAISettingTab extends PluginSettingTab {
         if (this.isFetching) {
             statusText = t('Fetching...');
         } else if (this.modelsFetched) {
-            const source = isGemini ? 'Gemini (Hardcoded)' : isYunwu ? 'Yunwu' : isGptGod ? 'GPTGod' : 'OpenRouter';
+            const source = isGemini ? 'Gemini (Hardcoded)' : isYunwu ? 'Yunwu' : isGptGod ? 'GPTGod' : isAntigravityTools ? 'AntigravityTools (Hardcoded)' : 'OpenRouter';
             statusText = t('Loaded models', {
                 count: this.modelCache.length,
                 textCount: this.getTextModels().length,
@@ -477,8 +508,8 @@ export class CanvasAISettingTab extends PluginSettingTab {
             .setName(t('Model list'))
             .setDesc(statusText);
 
-        // Only show refresh button for OpenRouter/Yunwu (not Gemini)
-        if (!isGemini) {
+        // Only show refresh button for OpenRouter/Yunwu (not Gemini or AntigravityTools)
+        if (!isGemini && !isAntigravityTools) {
             const refreshBtn = refreshSetting.controlEl.createEl('button', {
                 text: this.isFetching ? t('Refreshing...') : t('Refresh model list'),
                 cls: 'canvas-ai-refresh-btn'
@@ -501,9 +532,9 @@ export class CanvasAISettingTab extends PluginSettingTab {
         // ========== Text Model Setting ==========
         // Get model keys based on provider
         // Get model keys based on provider
-        const textModelKey = isGemini ? 'geminiTextModel' : isYunwu ? 'yunwuTextModel' : isGptGod ? 'gptGodTextModel' : 'openRouterTextModel';
-        const textCustomKey = isGemini ? 'geminiUseCustomTextModel' : isYunwu ? 'yunwuUseCustomTextModel' : isGptGod ? 'gptGodUseCustomTextModel' : 'openRouterUseCustomTextModel';
-        const textPlaceholder = isGemini ? 'gemini-2.5-flash' : isYunwu ? 'gemini-2.5-flash' : isGptGod ? 'gemini-2.5-flash' : 'google/gemini-2.5-flash';
+        const textModelKey = isGemini ? 'geminiTextModel' : isYunwu ? 'yunwuTextModel' : isGptGod ? 'gptGodTextModel' : isAntigravityTools ? 'antigravityToolsTextModel' : 'openRouterTextModel';
+        const textCustomKey = isGemini ? 'geminiUseCustomTextModel' : isYunwu ? 'yunwuUseCustomTextModel' : isGptGod ? 'gptGodUseCustomTextModel' : isAntigravityTools ? 'antigravityToolsUseCustomTextModel' : 'openRouterUseCustomTextModel';
+        const textPlaceholder = isGemini ? 'gemini-2.5-flash' : isYunwu ? 'gemini-2.5-flash' : isGptGod ? 'gemini-2.5-flash' : isAntigravityTools ? 'gemini-3-flash' : 'google/gemini-2.5-flash';
 
 
         this.renderModelSetting(containerEl, {
@@ -517,9 +548,9 @@ export class CanvasAISettingTab extends PluginSettingTab {
 
         // ========== Image Model Setting ==========
         // ========== Image Model Setting ==========
-        const imageModelKey = isGemini ? 'geminiImageModel' : isYunwu ? 'yunwuImageModel' : isGptGod ? 'gptGodImageModel' : 'openRouterImageModel';
-        const imageCustomKey = isGemini ? 'geminiUseCustomImageModel' : isYunwu ? 'yunwuUseCustomImageModel' : isGptGod ? 'gptGodUseCustomImageModel' : 'openRouterUseCustomImageModel';
-        const imagePlaceholder = isGemini ? 'gemini-3-pro-image-preview' : isYunwu ? 'gemini-3-pro-image-preview' : isGptGod ? 'gemini-3-pro-image-preview' : 'google/gemini-3-pro-image-preview';
+        const imageModelKey = isGemini ? 'geminiImageModel' : isYunwu ? 'yunwuImageModel' : isGptGod ? 'gptGodImageModel' : isAntigravityTools ? 'antigravityToolsImageModel' : 'openRouterImageModel';
+        const imageCustomKey = isGemini ? 'geminiUseCustomImageModel' : isYunwu ? 'yunwuUseCustomImageModel' : isGptGod ? 'gptGodUseCustomImageModel' : isAntigravityTools ? 'antigravityToolsUseCustomImageModel' : 'openRouterUseCustomImageModel';
+        const imagePlaceholder = isGemini ? 'gemini-3-pro-image-preview' : isYunwu ? 'gemini-3-pro-image-preview' : isGptGod ? 'gemini-3-pro-image-preview' : isAntigravityTools ? 'gemini-3-pro-image' : 'google/gemini-3-pro-image-preview';
 
         this.renderModelSetting(containerEl, {
             name: t('Image generation model'),
