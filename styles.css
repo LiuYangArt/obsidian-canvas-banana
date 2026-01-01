@@ -1169,7 +1169,7 @@
 /* ========== Notes AI Palette ========== */
 .notes-ai-palette {
   position: fixed;
-  z-index: 95;
+  z-index: 50; /* 降低 z-index 避免遮挡 Modal 对话框 */
   /* 禁用位置过渡动画，避免每次显示时的"飞入"效果 */
   transition: none;
 }
