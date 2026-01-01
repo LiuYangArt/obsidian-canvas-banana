@@ -10,7 +10,7 @@ import { NotesEditPalette, NotesPaletteMode } from './notes-edit-palette';
 import { SelectionContext } from '../types';
 import { DiffModal } from '../ui/modals';
 import { buildEditModeSystemPrompt } from '../prompts/edit-mode-prompt';
-import { CanvasConverter } from '../canvas/canvas-converter';
+import { extractDocumentImages, saveImageToVault } from '../utils/image-utils';
 import { applyPatches, TextChange } from './text-patcher';
 import { t } from '../../lang/helpers';
 import { SideBarCoPilotView, VIEW_TYPE_SIDEBAR_COPILOT } from './sidebar-copilot-view';
@@ -508,7 +508,7 @@ export class NotesSelectionHandler {
 
             // 从选中文本提取内嵌图片 ![[image.png]] 作为上下文
             // 注意：只从选中文本提取图片，而非全文档，避免发送过多图片
-            const images = await this.extractDocumentImages(selectedText, context.file.path);
+            const images = await extractDocumentImages(this.app, selectedText, context.file.path, this.plugin.settings);
 
             // 构建用户消息 - 如果开启全局一致性，包含全文
             let userMessage: string;
@@ -640,82 +640,9 @@ export class NotesSelectionHandler {
         }
     }
 
-    /**
-     * 提取文档中的内嵌图片 ![[image.png]] 并读取为 base64
-     */
-    private async extractDocumentImages(
-        content: string,
-        filePath: string
-    ): Promise<{ base64: string; mimeType: string; type: 'image' }[]> {
-        const images: { base64: string; mimeType: string; type: 'image' }[] = [];
-        
-        // 解析 ![[image.png]] 语法
-        const regex = /!\[\[([^\]]+\.(png|jpg|jpeg|gif|webp|svg|bmp))\]\]/gi;
-        const matches: string[] = [];
-        let match;
-        while ((match = regex.exec(content)) !== null) {
-            matches.push(match[1]);
-        }
+    // extractDocumentImages - 已移至 src/utils/image-utils.ts
 
-        if (matches.length === 0) {
-            return images;
-        }
-
-        const settings = this.plugin.settings;
-        const MAX_IMAGES = 14;
-
-        for (const imgPath of matches) {
-            if (images.length >= MAX_IMAGES) {
-                console.debug(`Notes AI: Image limit (${MAX_IMAGES}) reached, skipping remaining`);
-                break;
-            }
-
-            // 解析图片路径
-            const resolvedPath = this.resolveImagePath(filePath, imgPath);
-            if (!resolvedPath) continue;
-
-            try {
-                const imgData = await CanvasConverter.readSingleImageFile(
-                    this.app,
-                    resolvedPath,
-                    settings.imageCompressionQuality,
-                    settings.imageMaxSize
-                );
-                if (imgData) {
-                    images.push({
-                        base64: imgData.base64,
-                        mimeType: imgData.mimeType,
-                        type: 'image'
-                    });
-                }
-            } catch (e) {
-                console.warn('Notes AI: Failed to read embedded image:', imgPath, e);
-            }
-        }
-
-        return images;
-    }
-
-    /**
-     * 解析图片路径（相对于文件所在目录或 vault 根目录）
-     */
-    private resolveImagePath(filePath: string, imgPath: string): string | null {
-        // 先尝试从 vault 根目录查找
-        const file = this.app.vault.getAbstractFileByPath(imgPath);
-        if (file) {
-            return imgPath;
-        }
-
-        // 尝试相对于文件所在目录
-        const fileDir = filePath.substring(0, filePath.lastIndexOf('/'));
-        const relativePath = fileDir ? `${fileDir}/${imgPath}` : imgPath;
-        const relativeFile = this.app.vault.getAbstractFileByPath(relativePath);
-        if (relativeFile) {
-            return relativePath;
-        }
-
-        return null;
-    }
+    // resolveImagePath - 已移至 src/utils/image-utils.ts
 
     /**
      * 处理 Image 模式的图片生成
@@ -752,7 +679,7 @@ export class NotesSelectionHandler {
         const contextText = selectedText || '';
 
         // 提取选中文本中的内嵌图片作为参考
-        const inputImages = await this.extractDocumentImages(contextText, file.path);
+        const inputImages = await extractDocumentImages(this.app, contextText, file.path, this.plugin.settings);
         const imagesWithRoles = inputImages.map(img => ({
             base64: img.base64,
             mimeType: img.mimeType,
@@ -790,7 +717,7 @@ export class NotesSelectionHandler {
                 imageOptions,
                 localApiManager,
                 file,
-                (base64, f) => this.saveImageToVault(base64, f)
+                (base64, f) => saveImageToVault(this.app.vault, base64, f)
             );
         } finally {
             // 检查是否还有其他图片任务进行中
@@ -833,28 +760,7 @@ export class NotesSelectionHandler {
         return new ApiManager(localSettings);
     }
 
-    /**
-     * 保存生成的图片到 vault
-     */
-    private async saveImageToVault(base64DataUrl: string, currentFile: TFile): Promise<string> {
-        const timestamp = Date.now();
-        const fileName = `ai-generated-${timestamp}.png`;
-
-        // 保存到与当前文件相同目录
-        const folder = currentFile.parent?.path || '';
-        const filePath = folder ? `${folder}/${fileName}` : fileName;
-
-        // 转换 base64 并写入
-        const base64 = base64DataUrl.replace(/^data:image\/\w+;base64,/, '');
-        const binary = atob(base64);
-        const bytes = new Uint8Array(binary.length);
-        for (let i = 0; i < binary.length; i++) {
-            bytes[i] = binary.charCodeAt(i);
-        }
-
-        await this.app.vault.createBinary(filePath, bytes.buffer);
-        return fileName;  // 返回相对路径供 ![[]] 使用
-    }
+    // saveImageToVault - 已移至 src/utils/image-utils.ts
 
     /**
      * 从设置刷新所有配置（供 main.ts 的 notifySettingsChanged 调用）
