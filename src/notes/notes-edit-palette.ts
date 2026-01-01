@@ -215,7 +215,10 @@ export class NotesEditPalette {
             if (selectedId) {
                 const presets = this.currentMode === 'edit' ? this.editPresets : this.imagePresets;
                 const p = presets.find(x => x.id === selectedId);
-                if (p) this.promptInput.value = p.prompt;
+                if (p) {
+                    this.promptInput.value = p.prompt;
+                    this.updateGenerateButtonState();
+                }
             }
         });
 

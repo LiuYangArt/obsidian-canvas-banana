@@ -328,7 +328,10 @@ export class FloatingPalette {
                             ? this.nodePresets
                             : this.editPresets;
                 const p = presets.find(x => x.id === selectedId);
-                if (p) this.promptInput.value = p.prompt;
+                if (p) {
+                    this.promptInput.value = p.prompt;
+                    this.updateGenerateButtonState();
+                }
             }
         });
 
