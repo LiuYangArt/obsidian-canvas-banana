@@ -179,7 +179,8 @@ export class NotesSelectionHandler {
 
     private checkSelection(): void {
         // 生成中或面板打开时，不响应选区变化
-        if (this.isGenerating || this.editPalette?.visible) {
+        // 注意：Image 任务是异步的，也需要阻止按钮被隐藏
+        if (this.isGenerating || this.editPalette?.visible || this.imageTaskManager.getActiveTaskCount() > 0) {
             return;
         }
 
@@ -359,19 +360,24 @@ export class NotesSelectionHandler {
     }
 
     private onButtonClick(): void {
-        // 确保已捕获上下文
-        if (!this.lastContext) {
+        // 如果没有上下文，且没有正在进行的图片任务，尝试捕获
+        const hasActiveTasks = this.imageTaskManager.getActiveTaskCount() > 0;
+        if (!this.lastContext && !hasActiveTasks) {
             this.captureContext();
         }
 
-        if (!this.lastContext || !this.editPalette) {
+        // 如果既没有上下文，也没有活跃任务，则不显示
+        if ((!this.lastContext && !hasActiveTasks) || !this.editPalette) {
             return;
         }
 
         // 标记编辑器容器，让 CSS 保持选区样式
-        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (view) {
-            view.containerEl.addClass('notes-ai-selection-active');
+        // 只有当还有选区时才标记
+        if (this.lastContext) {
+            const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+            if (view) {
+                view.containerEl.addClass('notes-ai-selection-active');
+            }
         }
 
         // 获取按钮位置，在按钮右侧显示面板
@@ -750,18 +756,40 @@ export class NotesSelectionHandler {
         // 获取插入位置 - 选区末尾
         const insertPos = editor.getCursor('to');
 
-        // 使用 TaskManager 启动异步任务
-        await this.imageTaskManager.startTask(
-            editor,
-            insertPos,
-            instruction,
-            contextText,
-            imagesWithRoles,
-            imageOptions,
-            localApiManager,
-            file,
-            (base64, f) => this.saveImageToVault(base64, f)
+        // 显示生成状态 - 悬浮按钮变绿色动态效果
+        this.floatingButton.setGenerating(true);
+        const btnPos = this.floatingButton.getPosition();
+        this.floatingButton.show(
+            parseInt(this.floatingButton.getElement().style.left) || btnPos.x,
+            parseInt(this.floatingButton.getElement().style.top) || btnPos.y
         );
+
+        // 禁用 Edit Tab
+        this.editPalette?.setEditBlocked(true);
+
+        try {
+            // 使用 TaskManager 启动异步任务
+            await this.imageTaskManager.startTask(
+                editor,
+                insertPos,
+                instruction,
+                contextText,
+                imagesWithRoles,
+                imageOptions,
+                localApiManager,
+                file,
+                (base64, f) => this.saveImageToVault(base64, f)
+            );
+        } finally {
+            // 检查是否还有其他图片任务进行中
+            if (this.imageTaskManager.getActiveTaskCount() === 0) {
+                this.floatingButton.setGenerating(false);
+                this.floatingButton.hide();
+            }
+            
+            // 更新 Edit Tab 禁用状态
+            this.editPalette?.setEditBlocked(this.imageTaskManager.isEditBlocked());
+        }
     }
 
     /**

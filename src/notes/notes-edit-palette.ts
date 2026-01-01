@@ -62,6 +62,9 @@ export class NotesEditPalette {
     private defaultAspectRatio: string = '16:9';
     private onImageOptionsChange: ((options: NotesImageOptions) => void) | null = null;
 
+    // State
+    private isEditBlocked: boolean = false;
+
     private app: App;
     private scope: Scope;
 
@@ -235,6 +238,12 @@ export class NotesEditPalette {
     }
 
     private switchMode(mode: NotesPaletteMode): void {
+        // 如果 Edit 模式被禁用，强制切换到 Image 模式
+        if (mode === 'edit' && this.isEditBlocked) {
+            new Notice(t('Edit disabled during image generation'));
+            return;
+        }
+
         if (this.currentMode === mode) return;
         this.currentMode = mode;
 
@@ -259,6 +268,25 @@ export class NotesEditPalette {
 
         // 刷新 preset dropdown
         this.refreshPresetDropdown();
+        this.updateGenerateButtonState();
+    }
+
+    setEditBlocked(blocked: boolean): void {
+        this.isEditBlocked = blocked;
+        
+        if (this.editTabBtn) {
+            this.editTabBtn.toggleClass('disabled', blocked);
+            if (blocked) {
+                this.editTabBtn.setAttr('disabled', 'true');
+            } else {
+                this.editTabBtn.removeAttribute('disabled');
+            }
+        }
+
+        // 如果当前是 Edit 模式且刚被禁用，自动切换到 Image
+        if (blocked && this.currentMode === 'edit') {
+            this.switchMode('image');
+        }
     }
 
     private emitImageOptionsChange(): void {
@@ -621,6 +649,9 @@ export class NotesEditPalette {
 
         // 自动聚焦输入框
         setTimeout(() => this.promptInput.focus(), 50);
+
+        // 更新按钮状态（确保 pending count 正确显示）
+        this.updateGenerateButtonState();
     }
 
     hide(): void {

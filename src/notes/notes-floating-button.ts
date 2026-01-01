@@ -28,7 +28,7 @@ export class NotesFloatingButton {
         btn.addEventListener('click', (e) => {
             e.stopPropagation();
             e.preventDefault();
-            if (this.isGenerating) return;
+            // 允许在生成中点击打开面板查看进度
             this.onClick?.();
         });
 
