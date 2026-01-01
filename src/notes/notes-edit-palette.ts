@@ -461,6 +461,24 @@ export class NotesEditPalette {
         this.refreshPresetDropdown();
     }
 
+    /**
+     * 刷新所有配置（用于配置变更通知）
+     */
+    refreshFromSettings(
+        editPresets: PromptPreset[],
+        imagePresets: PromptPreset[],
+        textModels: QuickSwitchModel[],
+        selectedTextModel: string,
+        imageModels: QuickSwitchModel[],
+        selectedImageModel: string,
+        resolution: string,
+        aspectRatio: string
+    ): void {
+        this.initPresets(editPresets, imagePresets);
+        this.initQuickSwitchModels(textModels, selectedTextModel, imageModels, selectedImageModel);
+        this.initImageOptions(resolution, aspectRatio);
+    }
+
     setOnEditPresetChange(callback: (presets: PromptPreset[]) => void): void {
         this.onEditPresetChange = callback;
     }

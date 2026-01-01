@@ -1000,6 +1000,32 @@ export class FloatingPalette {
     }
 
     /**
+     * 从设置刷新所有配置（供 main.ts 的 notifySettingsChanged 调用）
+     */
+    refreshFromSettings(
+        chatPresets: PromptPreset[],
+        imagePresets: PromptPreset[],
+        nodePresets: PromptPreset[],
+        editPresets: PromptPreset[],
+        textModels: QuickSwitchModel[],
+        imageModels: QuickSwitchModel[],
+        selectedTextModel: string,
+        selectedImageModel: string,
+        selectedNodeModel: string,
+        selectedEditModel: string
+    ): void {
+        this.initPresets(chatPresets, imagePresets, nodePresets, editPresets);
+        this.initQuickSwitchModels(
+            textModels,
+            imageModels,
+            selectedTextModel,
+            selectedImageModel,
+            selectedNodeModel,
+            selectedEditModel
+        );
+    }
+
+    /**
      * 清理 DOM
      */
     destroy(): void {

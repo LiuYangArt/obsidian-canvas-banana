@@ -296,6 +296,32 @@ export class SideBarCoPilotView extends ItemView {
         }
     }
 
+    /**
+     * 从设置刷新所有配置（供 main.ts 的 notifySettingsChanged 调用）
+     */
+    public refreshFromSettings(): void {
+        // 刷新 presets
+        this.editPresets = [...(this.plugin.settings.editPresets || [])];
+        this.imagePresets = [...(this.plugin.settings.imagePresets || [])];
+        this.refreshPresetDropdown();
+
+        // 刷新 quick switch models
+        this.quickSwitchTextModels = [...(this.plugin.settings.quickSwitchTextModels || [])];
+        this.quickSwitchImageModels = [...(this.plugin.settings.quickSwitchImageModels || [])];
+        this.selectedTextModel = this.plugin.settings.paletteEditModel || '';
+        this.selectedImageModel = this.plugin.settings.paletteImageModel || '';
+        this.updateTextModelSelect();
+        this.updateImageModelSelect();
+
+        // 刷新 image options
+        if (this.resolutionSelect) {
+            this.resolutionSelect.value = this.plugin.settings.defaultResolution || '1K';
+        }
+        if (this.aspectRatioSelect) {
+            this.aspectRatioSelect.value = this.plugin.settings.defaultAspectRatio || '1:1';
+        }
+    }
+
     private getCurrentPresets(): PromptPreset[] {
         return this.currentMode === 'edit' ? this.editPresets : this.imagePresets;
     }

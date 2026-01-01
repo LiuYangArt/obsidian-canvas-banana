@@ -55,6 +55,7 @@ export class NotesSelectionHandler {
             this.editPalette = new NotesEditPalette(this.app, this.plugin.apiManager);
             this.editPalette.setOnGenerate((prompt, mode) => this.handleGeneration(prompt, mode));
             this.editPalette.setOnClose(() => this.clearSelectionHighlight());
+            this.setupCallbacks();
             this.initFromSettings();
         }
 
@@ -70,41 +71,41 @@ export class NotesSelectionHandler {
 
         const settings = this.plugin.settings;
 
-        // 初始化 Presets（Edit 和 Image 都使用 Canvas 的配置）
-        this.editPalette.initPresets(
+        // 使用统一刷新方法
+        this.editPalette.refreshFromSettings(
             settings.editPresets || [],
-            settings.imagePresets || []  // 统一使用 Canvas imagePresets
+            settings.imagePresets || [],
+            settings.quickSwitchTextModels || [],
+            settings.paletteEditModel || '',
+            settings.quickSwitchImageModels || [],
+            settings.paletteImageModel || '',
+            settings.defaultResolution || '1K',
+            settings.defaultAspectRatio || '1:1'
         );
+    }
+
+    /**
+     * 设置回调（只在构造函数中调用一次）
+     */
+    private setupCallbacks(): void {
+        if (!this.editPalette) return;
+
         this.editPalette.setOnEditPresetChange((presets) => {
             this.plugin.settings.editPresets = presets;
             void this.plugin.saveSettings();
         });
         this.editPalette.setOnImagePresetChange((presets) => {
-            this.plugin.settings.imagePresets = presets;  // 统一保存到 Canvas imagePresets
+            this.plugin.settings.imagePresets = presets;
             void this.plugin.saveSettings();
         });
-
-        // 初始化 Model 选择（统一使用 Canvas 的配置）
-        this.editPalette.initQuickSwitchModels(
-            settings.quickSwitchTextModels || [],
-            settings.paletteEditModel || '',
-            settings.quickSwitchImageModels || [],
-            settings.paletteImageModel || ''  // 统一使用 Canvas paletteImageModel
-        );
         this.editPalette.setOnTextModelChange((modelKey) => {
             this.plugin.settings.paletteEditModel = modelKey;
             void this.plugin.saveSettings();
         });
         this.editPalette.setOnImageModelChange((modelKey) => {
-            this.plugin.settings.paletteImageModel = modelKey;  // 统一保存到 Canvas paletteImageModel
+            this.plugin.settings.paletteImageModel = modelKey;
             void this.plugin.saveSettings();
         });
-
-        // 初始化 Image Options（统一使用 Canvas 的配置）
-        this.editPalette.initImageOptions(
-            settings.defaultResolution || '1K',
-            settings.defaultAspectRatio || '1:1'
-        );
         this.editPalette.setOnImageOptionsChange((options) => {
             this.plugin.settings.defaultResolution = options.resolution;
             this.plugin.settings.defaultAspectRatio = options.aspectRatio;
@@ -814,6 +815,13 @@ export class NotesSelectionHandler {
 
         await this.app.vault.createBinary(filePath, bytes.buffer);
         return fileName;  // 返回相对路径供 ![[]] 使用
+    }
+
+    /**
+     * 从设置刷新所有配置（供 main.ts 的 notifySettingsChanged 调用）
+     */
+    public refreshFromSettings(): void {
+        this.initFromSettings();
     }
 
     destroy(): void {

@@ -2028,5 +2028,36 @@ ${intent.instruction}
         await this.saveData(this.settings);
         // Update ApiManager settings reference
         this.apiManager?.updateSettings(this.settings);
+        // 通知所有组件刷新配置
+        this.notifySettingsChanged();
+    }
+
+    /**
+     * 通知所有相关组件配置已变更
+     */
+    private notifySettingsChanged(): void {
+        // 刷新 Canvas FloatingPalette
+        this.floatingPalette?.refreshFromSettings(
+            this.settings.chatPresets || [],
+            this.settings.imagePresets || [],
+            this.settings.nodePresets || [],
+            this.settings.editPresets || [],
+            this.settings.quickSwitchTextModels || [],
+            this.settings.quickSwitchImageModels || [],
+            this.settings.paletteTextModel || '',
+            this.settings.paletteImageModel || '',
+            this.settings.paletteNodeModel || '',
+            this.settings.paletteEditModel || ''
+        );
+
+        // 刷新 Notes Handler
+        this.notesHandler?.refreshFromSettings();
+
+        // 刷新 Sidebar CoPilot View
+        const leaves = this.app.workspace.getLeavesOfType(VIEW_TYPE_SIDEBAR_COPILOT);
+        leaves.forEach(leaf => {
+            const view = leaf.view as SideBarCoPilotView;
+            view.refreshFromSettings?.();
+        });
     }
 }
