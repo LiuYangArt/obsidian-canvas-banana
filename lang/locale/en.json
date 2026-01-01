@@ -162,5 +162,7 @@
     "Applied changes with global updates": "Changes applied with {count} global updates",
     "Changes rejected by user": "Changes rejected by user",
     "Text replaced": "Text replaced",
-    "No changes needed": "No changes needed"
+    "No changes needed": "No changes needed",
+    "Generate image from context": "Generate image based on context",
+    "Image generated": "Image generated and inserted"
 }

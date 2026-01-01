@@ -114,6 +114,12 @@ export interface CanvasAISettings {
     // Notes AI settings
     enableGlobalConsistency: boolean;  // 全局实体一致性检测
     maxConversationTurns: number;      // 侧边栏最大对话轮数
+
+    // Note Image Generation
+    noteImagePresets: PromptPreset[];  // Note 模式 Image Tab 专用预设
+    noteImageResolution: string;       // 默认分辨率 '1K'
+    noteImageAspectRatio: string;      // 默认比例 '16:9'
+    noteSelectedImageModel: string;    // Quick Switch 选中的图片模型
 }
 
 // ========== Default Settings ==========
@@ -181,7 +187,13 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
     paletteEditModel: '',
 
     enableGlobalConsistency: true,
-    maxConversationTurns: 5
+    maxConversationTurns: 5,
+
+    // Note Image Generation
+    noteImagePresets: [],
+    noteImageResolution: '1K',
+    noteImageAspectRatio: '16:9',
+    noteSelectedImageModel: ''
 };
 
 // ========== Provider Utility Functions ==========

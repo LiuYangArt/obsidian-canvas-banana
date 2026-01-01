@@ -162,5 +162,7 @@
     "Applied changes with global updates": "修改已应用，包含 {count} 处全局更新",
     "Changes rejected by user": "用户拒绝了更改",
     "Text replaced": "文本已替换",
-    "No changes needed": "无需修改"
+    "No changes needed": "无需修改",
+    "Generate image from context": "根据上下文生成图片",
+    "Image generated": "图片已生成并插入"
 }

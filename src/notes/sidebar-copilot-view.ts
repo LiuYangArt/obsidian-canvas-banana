@@ -1,9 +1,9 @@
 /**
  * Sidebar CoPilot View
- * Notes AI 侧边栏视图，提供多轮对话和文档编辑功能
+ * Notes AI 侧边栏视图，提供多轮对话、文档编辑和图片生成功能
  */
 
-import { ItemView, WorkspaceLeaf, Notice, setIcon, Scope } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, setIcon, Scope, TFile } from 'obsidian';
 import type CanvasAIPlugin from '../../main';
 import { ApiManager } from '../api/api-manager';
 import { PromptPreset, QuickSwitchModel, ApiProvider } from '../settings/settings';
@@ -15,6 +15,8 @@ import { formatProviderName } from '../utils/format-utils';
 import { CanvasConverter } from '../canvas/canvas-converter';
 
 export const VIEW_TYPE_SIDEBAR_COPILOT = 'canvas-ai-sidebar-copilot';
+
+type SidebarMode = 'edit' | 'image';
 
 interface ChatMessage {
     role: 'user' | 'assistant';
@@ -34,12 +36,27 @@ export class SideBarCoPilotView extends ItemView {
     private footerEl: HTMLElement;
     private notSupportedEl: HTMLElement;
 
+    // Tab & Mode
+    private currentMode: SidebarMode = 'edit';
+    private editTabBtn: HTMLButtonElement | null = null;
+    private imageTabBtn: HTMLButtonElement | null = null;
+    private editOptionsEl: HTMLElement | null = null;
+    private imageOptionsEl: HTMLElement | null = null;
+
     // Settings
     private presetSelect: HTMLSelectElement;
     private modelSelect: HTMLSelectElement;
     private editPresets: PromptPreset[] = [];
-    private quickSwitchModels: QuickSwitchModel[] = [];
-    private selectedModel: string = '';
+    private imagePresets: PromptPreset[] = [];
+    private quickSwitchTextModels: QuickSwitchModel[] = [];
+    private quickSwitchImageModels: QuickSwitchModel[] = [];
+    private selectedTextModel: string = '';
+    private selectedImageModel: string = '';
+
+    // Image Options
+    private resolutionSelect: HTMLSelectElement | null = null;
+    private aspectRatioSelect: HTMLSelectElement | null = null;
+    private imageModelSelect: HTMLSelectElement | null = null;
 
     // State
     private isGenerating: boolean = false;
@@ -48,7 +65,7 @@ export class SideBarCoPilotView extends ItemView {
     constructor(leaf: WorkspaceLeaf, plugin: CanvasAIPlugin) {
         super(leaf);
         this.plugin = plugin;
-        
+
         // 创建 Scope 用于注册 Ctrl+Enter
         this.keyScope = new Scope(this.app.scope);
         this.keyScope.register(['Ctrl'], 'Enter', (evt: KeyboardEvent) => {
@@ -88,9 +105,17 @@ export class SideBarCoPilotView extends ItemView {
     }
 
     private createDOM(container: HTMLElement): void {
-        // Header
+        // Header with Tabs
         const header = container.createDiv('sidebar-copilot-header');
-        header.createEl('span', { cls: 'sidebar-copilot-title', text: t('Canvas Banana') });
+
+        // Tab 容器
+        const tabsEl = header.createDiv('canvas-ai-tabs');
+        this.editTabBtn = tabsEl.createEl('button', { cls: 'canvas-ai-tab active', text: t('Edit') });
+        this.imageTabBtn = tabsEl.createEl('button', { cls: 'canvas-ai-tab', text: t('Image') });
+
+        // Tab 切换事件
+        this.editTabBtn.addEventListener('click', () => this.switchMode('edit'));
+        this.imageTabBtn.addEventListener('click', () => this.switchMode('image'));
 
         // Messages Area
         this.messagesContainer = container.createDiv('sidebar-chat-messages');
@@ -135,7 +160,8 @@ export class SideBarCoPilotView extends ItemView {
         this.presetSelect.addEventListener('change', () => {
             const selectedId = this.presetSelect.value;
             if (selectedId) {
-                const p = this.editPresets.find(x => x.id === selectedId);
+                const presets = this.getCurrentPresets();
+                const p = presets.find(x => x.id === selectedId);
                 if (p) this.inputEl.value = p.prompt;
             }
         });
@@ -146,16 +172,57 @@ export class SideBarCoPilotView extends ItemView {
             attr: { placeholder: t('Enter instructions'), rows: '3' }
         });
 
-        // Model Selection Row
-        const modelRow = this.footerEl.createDiv('sidebar-model-row');
-        const modelGrp = modelRow.createEl('span', 'sidebar-model-group');
-        modelGrp.createEl('label', { text: t('Palette Model') });
-        this.modelSelect = modelGrp.createEl('select', 'sidebar-model-select dropdown');
+        // Edit Model Selection Row (visible in edit mode)
+        this.editOptionsEl = this.footerEl.createDiv('sidebar-model-row');
+        const editModelGrp = this.editOptionsEl.createEl('span', 'sidebar-model-group');
+        editModelGrp.createEl('label', { text: t('Palette Model') });
+        this.modelSelect = editModelGrp.createEl('select', 'sidebar-model-select dropdown');
 
         this.modelSelect.addEventListener('change', () => {
-            this.selectedModel = this.modelSelect.value;
-            // Save to settings
-            this.plugin.settings.paletteEditModel = this.selectedModel;
+            this.selectedTextModel = this.modelSelect.value;
+            this.plugin.settings.paletteEditModel = this.selectedTextModel;
+            void this.plugin.saveSettings();
+        });
+
+        // Image Options Row (hidden by default)
+        this.imageOptionsEl = this.footerEl.createDiv('canvas-ai-image-options is-hidden');
+
+        // Resolution & Ratio row
+        const imageOptRow1 = this.imageOptionsEl.createDiv('canvas-ai-option-row');
+
+        const resGrp = imageOptRow1.createEl('span', 'canvas-ai-option-group');
+        resGrp.createEl('label', { text: t('Resolution') });
+        this.resolutionSelect = resGrp.createEl('select', 'dropdown');
+        ['1K', '2K', '4K'].forEach(res => {
+            this.resolutionSelect!.createEl('option', { value: res, text: res });
+        });
+
+        const ratioGrp = imageOptRow1.createEl('span', 'canvas-ai-option-group');
+        ratioGrp.createEl('label', { text: t('Ratio') });
+        this.aspectRatioSelect = ratioGrp.createEl('select', 'dropdown');
+        ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'].forEach(ratio => {
+            this.aspectRatioSelect!.createEl('option', { value: ratio, text: ratio });
+        });
+
+        // Image Model row
+        const imageOptRow2 = this.imageOptionsEl.createDiv('canvas-ai-option-row canvas-ai-model-select-row');
+        const imageModelGrp = imageOptRow2.createEl('span', 'canvas-ai-option-group');
+        imageModelGrp.createEl('label', { text: t('Palette Model') });
+        this.imageModelSelect = imageModelGrp.createEl('select', 'sidebar-model-select dropdown');
+
+        this.imageModelSelect.addEventListener('change', () => {
+            this.selectedImageModel = this.imageModelSelect!.value;
+            this.plugin.settings.noteSelectedImageModel = this.selectedImageModel;
+            void this.plugin.saveSettings();
+        });
+
+        this.resolutionSelect.addEventListener('change', () => {
+            this.plugin.settings.noteImageResolution = this.resolutionSelect!.value;
+            void this.plugin.saveSettings();
+        });
+
+        this.aspectRatioSelect.addEventListener('change', () => {
+            this.plugin.settings.noteImageAspectRatio = this.aspectRatioSelect!.value;
             void this.plugin.saveSettings();
         });
 
@@ -178,40 +245,114 @@ export class SideBarCoPilotView extends ItemView {
         this.inputEl.addEventListener('keypress', (e) => e.stopPropagation());
     }
 
+    private switchMode(mode: SidebarMode): void {
+        if (this.currentMode === mode) return;
+        this.currentMode = mode;
+
+        // 更新 Tab 状态
+        if (this.editTabBtn && this.imageTabBtn) {
+            this.editTabBtn.toggleClass('active', mode === 'edit');
+            this.imageTabBtn.toggleClass('active', mode === 'image');
+        }
+
+        // 更新 options 显示
+        if (this.editOptionsEl && this.imageOptionsEl) {
+            this.editOptionsEl.toggleClass('is-hidden', mode !== 'edit');
+            this.imageOptionsEl.toggleClass('is-hidden', mode !== 'image');
+        }
+
+        // 更新 placeholder
+        if (mode === 'edit') {
+            this.inputEl.placeholder = t('Enter instructions');
+        } else {
+            this.inputEl.placeholder = t('Describe the image');
+        }
+
+        // 刷新 preset dropdown
+        this.refreshPresetDropdown();
+    }
+
     private initFromSettings(): void {
         // Load presets
         this.editPresets = [...(this.plugin.settings.editPresets || [])];
+        this.imagePresets = [...(this.plugin.settings.noteImagePresets || [])];
         this.refreshPresetDropdown();
 
         // Load quick switch models
-        this.quickSwitchModels = [...(this.plugin.settings.quickSwitchTextModels || [])];
-        this.selectedModel = this.plugin.settings.paletteEditModel || '';
-        this.updateModelSelect();
+        this.quickSwitchTextModels = [...(this.plugin.settings.quickSwitchTextModels || [])];
+        this.quickSwitchImageModels = [...(this.plugin.settings.quickSwitchImageModels || [])];
+        this.selectedTextModel = this.plugin.settings.paletteEditModel || '';
+        this.selectedImageModel = this.plugin.settings.noteSelectedImageModel || '';
+        this.updateTextModelSelect();
+        this.updateImageModelSelect();
+
+        // Load image options
+        if (this.resolutionSelect) {
+            this.resolutionSelect.value = this.plugin.settings.noteImageResolution || '1K';
+        }
+        if (this.aspectRatioSelect) {
+            this.aspectRatioSelect.value = this.plugin.settings.noteImageAspectRatio || '16:9';
+        }
+    }
+
+    private getCurrentPresets(): PromptPreset[] {
+        return this.currentMode === 'edit' ? this.editPresets : this.imagePresets;
+    }
+
+    private setCurrentPresets(presets: PromptPreset[]): void {
+        if (this.currentMode === 'edit') {
+            this.editPresets = presets;
+            this.plugin.settings.editPresets = presets;
+        } else {
+            this.imagePresets = presets;
+            this.plugin.settings.noteImagePresets = presets;
+        }
+        void this.plugin.saveSettings();
     }
 
     private refreshPresetDropdown(): void {
         this.presetSelect.empty();
         this.presetSelect.createEl('option', { value: '', text: t('Select prompt preset') });
-        this.editPresets.forEach(preset => {
+        const presets = this.getCurrentPresets();
+        presets.forEach(preset => {
             this.presetSelect.createEl('option', { value: preset.id, text: preset.name });
         });
     }
 
-    private updateModelSelect(): void {
+    private updateTextModelSelect(): void {
         this.modelSelect.empty();
 
-        this.quickSwitchModels.forEach(model => {
+        this.quickSwitchTextModels.forEach(model => {
             const key = `${model.provider}|${model.modelId}`;
             const displayName = `${model.displayName || model.modelId} | ${formatProviderName(model.provider)}`;
             this.modelSelect.createEl('option', { value: key, text: displayName });
         });
 
-        if (this.selectedModel && this.modelSelect.querySelector(`option[value="${this.selectedModel}"]`)) {
-            this.modelSelect.value = this.selectedModel;
-        } else if (this.quickSwitchModels.length > 0) {
-            const firstKey = `${this.quickSwitchModels[0].provider}|${this.quickSwitchModels[0].modelId}`;
+        if (this.selectedTextModel && this.modelSelect.querySelector(`option[value="${this.selectedTextModel}"]`)) {
+            this.modelSelect.value = this.selectedTextModel;
+        } else if (this.quickSwitchTextModels.length > 0) {
+            const firstKey = `${this.quickSwitchTextModels[0].provider}|${this.quickSwitchTextModels[0].modelId}`;
             this.modelSelect.value = firstKey;
-            this.selectedModel = firstKey;
+            this.selectedTextModel = firstKey;
+        }
+    }
+
+    private updateImageModelSelect(): void {
+        if (!this.imageModelSelect) return;
+        this.imageModelSelect.empty();
+
+        this.quickSwitchImageModels.forEach(model => {
+            const key = `${model.provider}|${model.modelId}`;
+            const displayName = `${model.displayName || model.modelId} | ${formatProviderName(model.provider)}`;
+            this.imageModelSelect!.createEl('option', { value: key, text: displayName });
+        });
+
+        if (this.selectedImageModel && this.imageModelSelect.querySelector(`option[value="${this.selectedImageModel}"]`)) {
+            this.imageModelSelect.value = this.selectedImageModel;
+        } else if (this.quickSwitchImageModels.length > 0) {
+            const firstKey = `${this.quickSwitchImageModels[0].provider}|${this.quickSwitchImageModels[0].modelId}`;
+            this.imageModelSelect.value = firstKey;
+            this.selectedImageModel = firstKey;
         }
     }
 
@@ -280,6 +421,13 @@ export class SideBarCoPilotView extends ItemView {
     }
 
     private async handleGenerate(): Promise<void> {
+        if (this.currentMode === 'image') {
+            return this.handleImageGenerate();
+        }
+        return this.handleEditGenerate();
+    }
+
+    private async handleEditGenerate(): Promise<void> {
         const prompt = this.inputEl.value.trim();
         if (!prompt) {
             new Notice(t('Enter instructions'));
@@ -291,7 +439,7 @@ export class SideBarCoPilotView extends ItemView {
             return;
         }
 
-        // 获取当前文档 - 支持多种视图类型
+        // 获取当前文档
         const activeFile = this.app.workspace.getActiveFile();
         if (!activeFile || activeFile.extension !== 'md') {
             new Notice(t('No active file'));
@@ -312,7 +460,7 @@ export class SideBarCoPilotView extends ItemView {
 
         try {
             // 创建 ApiManager
-            const localApiManager = this.createLocalApiManager();
+            const localApiManager = this.createLocalApiManager('text');
 
             // 构建系统提示
             const systemPrompt = buildEditModeSystemPrompt(this.plugin.settings.editSystemPrompt);
@@ -356,8 +504,7 @@ export class SideBarCoPilotView extends ItemView {
                 const parsed = JSON.parse(jsonStr);
                 replacementText = parsed.replacement || '';
                 globalChanges = parsed.globalChanges || [];
-                
-                // 优先使用 AI 返回的 summary，否则根据修改内容生成
+
                 if (parsed.summary) {
                     summary = parsed.summary;
                 } else if (globalChanges.length > 0) {
@@ -368,20 +515,18 @@ export class SideBarCoPilotView extends ItemView {
                     summary = t('No changes needed');
                 }
             } catch {
-                // 非 JSON 响应，当作纯文本回复
                 summary = response.substring(0, 200) + (response.length > 200 ? '...' : '');
             }
 
-            // 添加 AI 回复（仅显示摘要）
+            // 添加 AI 回复
             this.addMessage('assistant', summary);
 
             // 如果有具体修改，使用 patch 方式应用
             if (globalChanges.length > 0) {
-                // 有 patch 修改，显示确认对话框
-                const changesSummary = globalChanges.map((c, i) => 
+                const changesSummary = globalChanges.map((c, i) =>
                     `${i + 1}. "${c.original.substring(0, 30)}${c.original.length > 30 ? '...' : ''}" → "${c.new.substring(0, 30)}${c.new.length > 30 ? '...' : ''}"`
                 ).join('\n');
-                
+
                 new ConfirmModal(
                     this.app,
                     `${t('Apply')} ${globalChanges.length} ${t('changes')}?\n\n${changesSummary}`,
@@ -396,7 +541,6 @@ export class SideBarCoPilotView extends ItemView {
                     }
                 ).open();
             } else if (replacementText && replacementText !== docContent) {
-                // 有全文替换，显示 Diff Modal
                 const context = {
                     nodeId: '',
                     selectedText: docContent,
@@ -431,29 +575,138 @@ export class SideBarCoPilotView extends ItemView {
         }
     }
 
-    private createLocalApiManager(): ApiManager {
-        if (!this.selectedModel) {
+    private async handleImageGenerate(): Promise<void> {
+        const prompt = this.inputEl.value.trim();
+
+        if (this.isGenerating) {
+            new Notice(t('Generation in progress'));
+            return;
+        }
+
+        // 获取当前文档
+        const activeFile = this.app.workspace.getActiveFile();
+        if (!activeFile || activeFile.extension !== 'md') {
+            new Notice(t('No active file'));
+            return;
+        }
+
+        const file = activeFile;
+
+        // Image mode 允许空 prompt
+        const instruction = prompt || t('Generate image from context');
+
+        // 添加用户消息
+        this.addMessage('user', instruction);
+        this.inputEl.value = '';
+
+        // 更新 UI 状态
+        this.isGenerating = true;
+        this.generateBtn.textContent = t('Generating');
+        this.generateBtn.addClass('generating');
+
+        try {
+            // 创建 ApiManager
+            const localApiManager = this.createLocalApiManager('image');
+
+            // 获取 Image Options
+            const aspectRatio = this.aspectRatioSelect?.value || '16:9';
+            const resolution = this.resolutionSelect?.value || '1K';
+
+            console.debug(`Sidebar Image: Generating with prompt="${instruction}"`);
+
+            // 调用 API 生成图片
+            const result = await localApiManager.generateImageWithRoles(
+                instruction,
+                [],  // 无输入图片
+                '',  // 无上下文
+                aspectRatio,
+                resolution
+            );
+
+            // 保存图片到 vault
+            const imagePath = await this.saveImageToVault(result, file);
+
+            // 获取当前 editor 并插入图片
+            const editor = this.app.workspace.activeEditor?.editor;
+            if (editor) {
+                const cursor = editor.getCursor();
+                const insertText = `\n![[${imagePath}]]\n`;
+                editor.replaceRange(insertText, cursor);
+            }
+
+            this.addMessage('assistant', t('Image generated'));
+            new Notice(t('Image generated'));
+
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            this.addMessage('assistant', `Error: ${errorMsg}`);
+            console.error('Sidebar Image Error:', error);
+        } finally {
+            this.isGenerating = false;
+            this.generateBtn.textContent = t('Generate');
+            this.generateBtn.removeClass('generating');
+        }
+    }
+
+    private createLocalApiManager(type: 'text' | 'image'): ApiManager {
+        const selectedModel = type === 'text' ? this.selectedTextModel : this.selectedImageModel;
+        if (!selectedModel) {
             return new ApiManager(this.plugin.settings);
         }
 
-        const [provider, modelId] = this.selectedModel.split('|');
+        const [provider, modelId] = selectedModel.split('|');
         if (!provider || !modelId) {
             return new ApiManager(this.plugin.settings);
         }
 
         const localSettings = { ...this.plugin.settings, apiProvider: provider as ApiProvider };
 
-        if (provider === 'openrouter') {
-            localSettings.openRouterTextModel = modelId;
-        } else if (provider === 'gemini') {
-            localSettings.geminiTextModel = modelId;
-        } else if (provider === 'yunwu') {
-            localSettings.yunwuTextModel = modelId;
-        } else if (provider === 'gptgod') {
-            localSettings.gptGodTextModel = modelId;
+        if (type === 'text') {
+            if (provider === 'openrouter') {
+                localSettings.openRouterTextModel = modelId;
+            } else if (provider === 'gemini') {
+                localSettings.geminiTextModel = modelId;
+            } else if (provider === 'yunwu') {
+                localSettings.yunwuTextModel = modelId;
+            } else if (provider === 'gptgod') {
+                localSettings.gptGodTextModel = modelId;
+            }
+        } else {
+            if (provider === 'openrouter') {
+                localSettings.openRouterImageModel = modelId;
+            } else if (provider === 'gemini') {
+                localSettings.geminiImageModel = modelId;
+            } else if (provider === 'yunwu') {
+                localSettings.yunwuImageModel = modelId;
+            } else if (provider === 'gptgod') {
+                localSettings.gptGodImageModel = modelId;
+            }
         }
 
         return new ApiManager(localSettings);
+    }
+
+    /**
+     * 保存生成的图片到 vault
+     */
+    private async saveImageToVault(base64DataUrl: string, currentFile: TFile): Promise<string> {
+        const timestamp = Date.now();
+        const fileName = `ai-generated-${timestamp}.png`;
+
+        // 保存到与当前文件相同目录
+        const folder = currentFile.parent?.path || '';
+        const filePath = folder ? `${folder}/${fileName}` : fileName;
+
+        // 转换 base64 并写入
+        const base64 = base64DataUrl.replace(/^data:image\/\w+;base64,/, '');
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+
+        await this.app.vault.createBinary(filePath, bytes.buffer);
+        return fileName;
     }
 
     // ========== Preset Management ==========
@@ -470,9 +723,8 @@ export class SideBarCoPilotView extends ItemView {
                     name: name,
                     prompt: this.inputEl.value
                 };
-                this.editPresets.push(newPreset);
-                this.plugin.settings.editPresets = this.editPresets;
-                void this.plugin.saveSettings();
+                const presets = [...this.getCurrentPresets(), newPreset];
+                this.setCurrentPresets(presets);
                 this.refreshPresetDropdown();
                 this.presetSelect.value = newPreset.id;
             }
@@ -485,16 +737,16 @@ export class SideBarCoPilotView extends ItemView {
             new Notice(t('Please select preset delete'));
             return;
         }
-        const preset = this.editPresets.find(p => p.id === selectedId);
+        const presets = this.getCurrentPresets();
+        const preset = presets.find(p => p.id === selectedId);
         if (!preset) return;
 
         new ConfirmModal(
             this.app,
             t('Delete Preset Confirm', { name: preset.name }),
             () => {
-                this.editPresets = this.editPresets.filter(p => p.id !== selectedId);
-                this.plugin.settings.editPresets = this.editPresets;
-                void this.plugin.saveSettings();
+                const newPresets = presets.filter(p => p.id !== selectedId);
+                this.setCurrentPresets(newPresets);
                 this.refreshPresetDropdown();
             }
         ).open();
@@ -506,12 +758,12 @@ export class SideBarCoPilotView extends ItemView {
             new Notice(t('Please select preset save'));
             return;
         }
-        const preset = this.editPresets.find(p => p.id === selectedId);
+        const presets = this.getCurrentPresets();
+        const preset = presets.find(p => p.id === selectedId);
         if (!preset) return;
 
         preset.prompt = this.inputEl.value;
-        this.plugin.settings.editPresets = this.editPresets;
-        void this.plugin.saveSettings();
+        this.setCurrentPresets([...presets]);
         new Notice(t('Preset saved', { name: preset.name }));
     }
 
@@ -521,7 +773,8 @@ export class SideBarCoPilotView extends ItemView {
             new Notice(t('Please select preset rename'));
             return;
         }
-        const preset = this.editPresets.find(p => p.id === selectedId);
+        const presets = this.getCurrentPresets();
+        const preset = presets.find(p => p.id === selectedId);
         if (!preset) return;
 
         new InputModal(
@@ -531,8 +784,7 @@ export class SideBarCoPilotView extends ItemView {
             preset.name,
             (newName) => {
                 preset.name = newName;
-                this.plugin.settings.editPresets = this.editPresets;
-                void this.plugin.saveSettings();
+                this.setCurrentPresets([...presets]);
                 this.refreshPresetDropdown();
                 this.presetSelect.value = selectedId;
             }
@@ -551,7 +803,7 @@ export class SideBarCoPilotView extends ItemView {
     }
 
     /**
-     * 更新最后一条 AI 消息的内容（用于 Diff 拒绝后的状态更新）
+     * 更新最后一条 AI 消息的内容
      */
     public updateLastAssistantMessage(content: string): void {
         if (this.chatHistory.length === 0) return;
@@ -559,7 +811,7 @@ export class SideBarCoPilotView extends ItemView {
         const lastMsg = this.chatHistory[this.chatHistory.length - 1];
         if (lastMsg.role === 'assistant') {
             lastMsg.content = content;
-            
+
             // 更新 DOM
             const lastMsgEl = this.messagesContainer.lastElementChild;
             if (lastMsgEl) {
@@ -579,7 +831,7 @@ export class SideBarCoPilotView extends ItemView {
         filePath: string
     ): Promise<{ base64: string; mimeType: string; type: 'image' }[]> {
         const images: { base64: string; mimeType: string; type: 'image' }[] = [];
-        
+
         // 解析 ![[image.png]] 语法
         const regex = /!\[\[([^\]]+\.(png|jpg|jpeg|gif|webp|svg|bmp))\]\]/gi;
         const matches: string[] = [];
@@ -628,7 +880,7 @@ export class SideBarCoPilotView extends ItemView {
     }
 
     /**
-     * 解析图片路径（相对于文件所在目录或 vault 根目录）
+     * 解析图片路径
      */
     private resolveImagePath(filePath: string, imgPath: string): string | null {
         // 先尝试从 vault 根目录查找

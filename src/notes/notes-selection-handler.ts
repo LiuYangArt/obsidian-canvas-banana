@@ -6,7 +6,7 @@
 import { App, MarkdownView, Editor, TFile, Notice, EventRef } from 'obsidian';
 import type CanvasAIPlugin from '../../main';
 import { NotesFloatingButton } from './notes-floating-button';
-import { NotesEditPalette } from './notes-edit-palette';
+import { NotesEditPalette, NotesPaletteMode } from './notes-edit-palette';
 import { SelectionContext } from '../types';
 import { DiffModal } from '../ui/modals';
 import { buildEditModeSystemPrompt } from '../prompts/edit-mode-prompt';
@@ -14,6 +14,8 @@ import { CanvasConverter } from '../canvas/canvas-converter';
 import { applyPatches, TextChange } from './text-patcher';
 import { t } from '../../lang/helpers';
 import { SideBarCoPilotView, VIEW_TYPE_SIDEBAR_COPILOT } from './sidebar-copilot-view';
+import { ApiManager } from '../api/api-manager';
+import { ApiProvider } from '../settings/settings';
 
 export interface NotesSelectionContext extends SelectionContext {
     editor: Editor;
@@ -51,7 +53,7 @@ export class NotesSelectionHandler {
         // 只有当 apiManager 存在时才创建 editPalette
         if (this.plugin.apiManager) {
             this.editPalette = new NotesEditPalette(this.app, this.plugin.apiManager);
-            this.editPalette.setOnGenerate((prompt) => this.handleGeneration(prompt));
+            this.editPalette.setOnGenerate((prompt, mode) => this.handleGeneration(prompt, mode));
             this.editPalette.setOnClose(() => this.clearSelectionHighlight());
             this.initFromSettings();
         }
@@ -65,23 +67,47 @@ export class NotesSelectionHandler {
 
     private initFromSettings(): void {
         if (!this.editPalette) return;
-        
+
         const settings = this.plugin.settings;
-        
-        // 初始化 Presets
-        this.editPalette.initPresets(settings.editPresets || []);
-        this.editPalette.setOnPresetChange((presets) => {
+
+        // 初始化 Presets（Edit 和 Image 分开）
+        this.editPalette.initPresets(
+            settings.editPresets || [],
+            settings.noteImagePresets || []
+        );
+        this.editPalette.setOnEditPresetChange((presets) => {
             this.plugin.settings.editPresets = presets;
             void this.plugin.saveSettings();
         });
+        this.editPalette.setOnImagePresetChange((presets) => {
+            this.plugin.settings.noteImagePresets = presets;
+            void this.plugin.saveSettings();
+        });
 
-        // 初始化 Model 选择
+        // 初始化 Model 选择（Text 和 Image 分开）
         this.editPalette.initQuickSwitchModels(
             settings.quickSwitchTextModels || [],
-            settings.paletteEditModel || ''
+            settings.paletteEditModel || '',
+            settings.quickSwitchImageModels || [],
+            settings.noteSelectedImageModel || ''
         );
-        this.editPalette.setOnModelChange((modelKey) => {
+        this.editPalette.setOnTextModelChange((modelKey) => {
             this.plugin.settings.paletteEditModel = modelKey;
+            void this.plugin.saveSettings();
+        });
+        this.editPalette.setOnImageModelChange((modelKey) => {
+            this.plugin.settings.noteSelectedImageModel = modelKey;
+            void this.plugin.saveSettings();
+        });
+
+        // 初始化 Image Options
+        this.editPalette.initImageOptions(
+            settings.noteImageResolution || '1K',
+            settings.noteImageAspectRatio || '16:9'
+        );
+        this.editPalette.setOnImageOptionsChange((options) => {
+            this.plugin.settings.noteImageResolution = options.resolution;
+            this.plugin.settings.noteImageAspectRatio = options.aspectRatio;
             void this.plugin.saveSettings();
         });
     }
@@ -402,11 +428,17 @@ export class NotesSelectionHandler {
         return null;
     }
 
-    private async handleGeneration(prompt: string): Promise<void> {
+    private async handleGeneration(prompt: string, mode: NotesPaletteMode = 'edit'): Promise<void> {
         if (!this.lastContext || !this.plugin.apiManager) {
             return;
         }
 
+        // 根据模式分发到不同的处理器
+        if (mode === 'image') {
+            return this.handleImageGeneration(prompt);
+        }
+
+        // 以下是原有的 edit 模式逻辑
         // 禁止并发任务
         if (this.isGenerating) {
             new Notice(t('Generation in progress'));
@@ -650,6 +682,138 @@ export class NotesSelectionHandler {
         }
 
         return null;
+    }
+
+    /**
+     * 处理 Image 模式的图片生成
+     */
+    private async handleImageGeneration(prompt: string): Promise<void> {
+        if (!this.lastContext) {
+            new Notice(t('No active file'));
+            return;
+        }
+
+        if (this.isGenerating) {
+            new Notice(t('Generation in progress'));
+            return;
+        }
+
+        const context = this.lastContext;
+        const { editor, file, selectedText } = context;
+
+        // 设置生成状态
+        this.isGenerating = true;
+        this.floatingButton.setGenerating(true);
+        this.floatingButton.show(
+            parseInt(this.floatingButton.getElement().style.left) || 100,
+            parseInt(this.floatingButton.getElement().style.top) || 100
+        );
+
+        try {
+            // 获取 Image Options
+            const imageOptions = this.editPalette?.getImageOptions() || {
+                resolution: this.plugin.settings.noteImageResolution || '1K',
+                aspectRatio: this.plugin.settings.noteImageAspectRatio || '16:9'
+            };
+
+            // 创建使用选中 Image 模型的 ApiManager
+            const localApiManager = this.createImageApiManager();
+
+            // 构建生成指令
+            let instruction = prompt;
+            if (!instruction && selectedText) {
+                instruction = t('Generate image from context');
+            }
+            if (!instruction) {
+                new Notice(t('Enter instructions'));
+                return;
+            }
+
+            // 选中文本作为上下文
+            const contextText = selectedText || '';
+
+            console.debug(`Notes AI Image: Generating with prompt="${instruction}", context="${contextText.substring(0, 50)}..."`);
+
+            // 调用 API 生成图片
+            const result = await localApiManager.generateImageWithRoles(
+                instruction,
+                [],  // 无输入图片
+                contextText,
+                imageOptions.aspectRatio,
+                imageOptions.resolution
+            );
+
+            // 保存图片到 vault
+            const imagePath = await this.saveImageToVault(result, file);
+
+            // 获取插入位置 - 选区末尾或光标位置
+            const endPos = editor.getCursor('to');
+            const insertText = `\n![[${imagePath}]]\n`;
+            editor.replaceRange(insertText, endPos);
+
+            new Notice(t('Image generated'));
+
+        } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            console.error('Notes AI Image: Generation error:', message);
+            new Notice(`Notes AI Error: ${message}`);
+        } finally {
+            this.isGenerating = false;
+            this.floatingButton.setGenerating(false);
+            this.floatingButton.hide();
+        }
+    }
+
+    /**
+     * 创建使用选中 Image 模型的 ApiManager
+     */
+    private createImageApiManager(): ApiManager {
+        const selectedModel = this.editPalette?.getSelectedImageModel() || '';
+        if (!selectedModel) {
+            return new ApiManager(this.plugin.settings);
+        }
+
+        const [provider, modelId] = selectedModel.split('|');
+        if (!provider || !modelId) {
+            return new ApiManager(this.plugin.settings);
+        }
+
+        const localSettings = { ...this.plugin.settings, apiProvider: provider as ApiProvider };
+
+        if (provider === 'openrouter') {
+            localSettings.openRouterImageModel = modelId;
+        } else if (provider === 'gemini') {
+            localSettings.geminiImageModel = modelId;
+        } else if (provider === 'yunwu') {
+            localSettings.yunwuImageModel = modelId;
+        } else if (provider === 'gptgod') {
+            localSettings.gptGodImageModel = modelId;
+        }
+
+        return new ApiManager(localSettings);
+    }
+
+    /**
+     * 保存生成的图片到 vault
+     */
+    private async saveImageToVault(base64DataUrl: string, currentFile: TFile): Promise<string> {
+        const timestamp = Date.now();
+        const fileName = `ai-generated-${timestamp}.png`;
+
+        // 保存到与当前文件相同目录
+        const folder = currentFile.parent?.path || '';
+        const filePath = folder ? `${folder}/${fileName}` : fileName;
+
+        // 转换 base64 并写入
+        const base64 = base64DataUrl.replace(/^data:image\/\w+;base64,/, '');
+        const binary = atob(base64);
+        const bytes = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+            bytes[i] = binary.charCodeAt(i);
+        }
+
+        await this.app.vault.createBinary(filePath, bytes.buffer);
+        return fileName;  // 返回相对路径供 ![[]] 使用
     }
 
     destroy(): void {
