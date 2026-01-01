@@ -228,19 +228,20 @@ async saveImageToVault(base64DataUrl: string, currentFile: TFile): Promise<strin
 
 ---
 
-## 5. Settings 扩展
+## 5. Settings 说明
 
-```typescript
-interface CanvasAISettings {
-    // ... 现有设置 ...
-    
-    // Note Image Generation
-    noteImagePresets: PromptPreset[];      // Image Mode 预设
-    noteImageResolution: string;           // 默认 '1K'
-    noteImageAspectRatio: string;          // 默认 '16:9'
-    noteSelectedImageModel: string;        // Quick Switch 选中的模型
-}
-```
+> [!NOTE]
+> Note 模式的图片生成 **统一复用 Canvas 配置**，无需新增独立设置项。
+
+复用的配置项：
+
+| 配置项 | 说明 |
+|--------|------|
+| `imagePresets` | Image Mode 预设（共享） |
+| `defaultResolution` | 默认分辨率 '1K' |
+| `defaultAspectRatio` | 默认宽高比 '1:1' |
+| `paletteImageModel` | Quick Switch 选中的 Image 模型 |
+| `quickSwitchImageModels` | 可选的 Image 模型列表 |
 
 ---
 
@@ -282,8 +283,103 @@ interface CanvasAISettings {
 
 ---
 
-## 8. 未来扩展 (Out of Scope)
+## 8. 未来扩展
 
-- [ ] 支持文档内嵌图片 `![[image.png]]` 作为图片生成的输入参考
-- [ ] 图片编辑 (Image-to-Image)
-- [ ] 批量生成多张图片
+### 8.1 [ ] 图片输入参考 (Image-to-Image Context)
+
+**目标**：支持选中文档内嵌图片 `![[image.png]]` 作为图片生成的输入参考，实现类似 Canvas 图生图的功能。
+
+#### 交互流程
+
+```mermaid
+sequenceDiagram
+    participant User
+    participant Palette
+    participant Handler
+    participant API
+
+    User->>User: 选中 "![[ref.png]]" 或含图片的文本
+    User->>Palette: 打开 Image Tab
+    User->>Palette: 输入 "基于这张图生成卡通版本"
+    Palette->>Handler: handleImageGeneration(prompt)
+    Handler->>Handler: 解析选区中的 ![[image]]
+    Handler->>Handler: 读取图片 + WebP 压缩
+    Handler->>API: generateImageWithRoles(prompt, inputImages, ...)
+    API-->>Handler: 返回新图片
+    Handler->>User: 插入生成的图片
+```
+
+#### 技术实现
+
+```typescript
+// notes-selection-handler.ts - handleImageGeneration 增强
+private async handleImageGeneration(prompt: string): Promise<void> {
+    // 1. 解析选中文本中的内嵌图片
+    const embeddedImages = this.extractEmbeddedImages(selectedText);
+    
+    // 2. 读取并压缩图片（复用 Canvas 机制）
+    const inputImages: ImageContext[] = [];
+    for (const imgPath of embeddedImages) {
+        const resolved = this.resolveImagePath(file.path, imgPath);
+        if (resolved) {
+            const imgData = await CanvasConverter.readSingleImageFile(
+                this.app,
+                resolved,
+                settings.imageCompressionQuality,  // WebP 压缩质量
+                settings.imageMaxSize               // 最大尺寸限制
+            );
+            if (imgData) {
+                inputImages.push({
+                    base64: imgData.base64,
+                    mimeType: imgData.mimeType,
+                    type: 'image'
+                });
+            }
+        }
+    }
+    
+    // 3. 调用 API（inputImages 作为参考图）
+    const result = await localApiManager.generateImageWithRoles(
+        instruction,
+        inputImages,      // 参考图片
+        contextText,       // 文本上下文
+        aspectRatio,
+        resolution
+    );
+}
+
+// 提取内嵌图片语法
+private extractEmbeddedImages(text: string): string[] {
+    const regex = /!\[\[([^\]]+\.(png|jpg|jpeg|gif|webp|bmp))\]\]/gi;
+    const matches: string[] = [];
+    let match;
+    while ((match = regex.exec(text)) !== null) {
+        matches.push(match[1]);
+    }
+    return matches;
+}
+```
+
+#### 复用模块
+
+| 模块 | 来源 | 功能 |
+|------|------|------|
+| `CanvasConverter.readSingleImageFile` | `canvas-converter.ts` | 读取图片 + WebP 压缩 |
+| `resolveImagePath` | 已在 handler 中实现 | 解析相对/绝对路径 |
+| `generateImageWithRoles` | `api-manager.ts` | 支持 inputImages 参数 |
+
+#### 验证计划
+
+1. 选中 `![[photo.png]]` → 输入 "转成水彩风格" → 验证生成的图片基于参考图
+2. 选中 "一只猫 ![[cat.jpg]]" → 输入 "生成类似的狗" → 验证同时使用文本和图片上下文
+3. 选中多张图片 → 验证最多处理 MAX_IMAGES (14) 张
+
+---
+
+### 8.2 [ ] 图片编辑 (Image-to-Image)
+
+基于 8.1 实现，增加对已有图片的编辑能力。
+
+### 8.3 [ ] 批量生成多张图片
+
+支持一次生成多张候选图片，用户选择后插入。
