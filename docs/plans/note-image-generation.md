@@ -376,10 +376,205 @@ private extractEmbeddedImages(text: string): string[] {
 
 ---
 
-### 8.2 [ ] 图片编辑 (Image-to-Image)
 
-基于 8.1 实现，增加对已有图片的编辑能力。
 
-### 8.3 [ ] 批量生成多张图片
+### 8.2 [ ] 生成多张图片（并发任务支持）
 
-支持一次生成多张候选图片，用户选择后插入。
+#### 目标
+
+支持多个生图任务并发执行。用户可以在文档不同位置发起生图任务，无需等待前一个任务完成。
+
+#### 核心机制：Marker 占位符
+
+**问题**：多个生图任务并发时，任务 A 完成插入图片会改变行号，导致任务 B 无法定位原插入位置。
+
+**解决方案**：启动任务时立即在文档中插入可见的 Marker 占位符，任务完成后搜索 Marker 并替换为图片。
+
+```
+Marker 格式：<!-- 🍌 AI generating image #01... -->
+```
+
+**流程**：
+```mermaid
+sequenceDiagram
+    participant User
+    participant Handler
+    participant API
+    participant Editor
+
+    User->>Handler: 发起生图任务 #01
+    Handler->>Editor: 插入 Marker "<!-- 🍌 AI generating image #01... -->"
+    Handler->>API: 开始生成（异步）
+    
+    User->>Handler: 发起生图任务 #02
+    Handler->>Editor: 插入 Marker "<!-- 🍌 AI generating image #02... -->"
+    Handler->>API: 开始生成（异步）
+    
+    API-->>Handler: 任务 #01 完成
+    Handler->>Editor: 搜索 Marker #01，替换为 ![[image-01.png]]
+    
+    API-->>Handler: 任务 #02 完成
+    Handler->>Editor: 搜索 Marker #02，替换为 ![[image-02.png]]
+```
+
+#### 任务互斥规则
+
+| 当前状态 | 允许操作 | 原因 |
+|----------|----------|------|
+| 无任何任务 | ✅ Edit / ✅ Image | 正常状态 |
+| 生图任务进行中 | ❌ Edit / ✅ Image | Edit 会大幅改动文档，破坏 Marker 位置 |
+| AI Edit 进行中 | ❌ Edit / ❌ Image | 避免混合状态冲突 |
+
+#### 超时处理
+
+复用 Canvas 配置项 `imageGenerationTimeout`（默认 120s）。
+
+超时时：
+1. 弹出 `Notice` 提示：`图片生成超时，请重试`
+2. 从文档中删除对应 Marker
+3. 从任务队列中移除该任务
+
+#### 任务上限
+
+新增配置项 `maxParallelImageTasks`（默认 3）。
+
+超过上限时：
+- 弹出 `Notice` 提示：`已达到最大并行任务数 (3)，请等待当前任务完成`
+- 不启动新任务
+
+#### 悬浮面板状态
+
+| 场景 | 悬浮按钮 | 面板可展开 | Image Tab | Edit Tab | Generate 按钮 |
+|------|----------|------------|-----------|----------|---------------|
+| 无任务 | 可见 | ✅ | ✅ 可用 | ✅ 可用 | 正常 |
+| 生图任务进行中 | 可见 | ✅ | ✅ 可用 | ❌ 禁用 | 显示任务数 badge（如 `2`） |
+| AI Edit 进行中 | 生成动画 | ✅ | ❌ 禁用 | ❌ 禁用 | 禁用 |
+
+#### 技术实现
+
+```typescript
+interface ImageTask {
+    id: string;                    // 唯一 ID，如 '01', '02'
+    markerId: string;              // Marker 文本标识
+    status: 'generating' | 'completed' | 'failed' | 'timeout';
+    startTime: number;
+    abortController: AbortController;
+}
+
+class NoteImageTaskManager {
+    private tasks: Map<string, ImageTask> = new Map();
+    private taskCounter = 0;
+    
+    canStartImageTask(): boolean {
+        const max = this.settings.maxParallelImageTasks || 3;
+        return this.tasks.size < max && !this.isEditInProgress;
+    }
+    
+    async startTask(editor: Editor, insertPos: EditorPosition, prompt: string): Promise<void> {
+        if (!this.canStartImageTask()) {
+            new Notice(t('Max parallel tasks reached'));
+            return;
+        }
+        
+        // 1. 生成 Marker
+        const taskNum = String(++this.taskCounter).padStart(2, '0');
+        const markerId = `<!-- 🍌 AI generating image #${taskNum}... -->`;
+        const task: ImageTask = {
+            id: taskNum,
+            markerId,
+            status: 'generating',
+            startTime: Date.now(),
+            abortController: new AbortController()
+        };
+        this.tasks.set(taskNum, task);
+        
+        // 2. 插入 Marker 到文档
+        editor.replaceRange(`\n${markerId}\n`, insertPos);
+        
+        // 3. 设置超时
+        const timeoutMs = (this.settings.imageGenerationTimeout || 120) * 1000;
+        const timeoutId = setTimeout(() => this.handleTimeout(task, editor), timeoutMs);
+        
+        try {
+            // 4. 调用 API
+            const result = await this.generateImage(prompt, task.abortController.signal);
+            clearTimeout(timeoutId);
+            
+            // 5. 替换 Marker 为图片
+            await this.replaceMarkerWithImage(editor, markerId, result);
+            task.status = 'completed';
+        } catch (e) {
+            clearTimeout(timeoutId);
+            if (e.name !== 'AbortError') {
+                task.status = 'failed';
+                this.removeMarker(editor, markerId);
+                new Notice(t('Image generation failed'));
+            }
+        } finally {
+            this.tasks.delete(taskNum);
+        }
+    }
+    
+    private replaceMarkerWithImage(editor: Editor, markerId: string, imagePath: string): void {
+        const content = editor.getValue();
+        const markerIndex = content.indexOf(markerId);
+        if (markerIndex === -1) {
+            // Marker 被用户删除，放弃插入
+            console.warn('Marker not found, skipping image insertion');
+            return;
+        }
+        
+        // 计算 Marker 位置并替换
+        const beforeMarker = content.substring(0, markerIndex);
+        const line = beforeMarker.split('\n').length - 1;
+        const startPos = { line, ch: 0 };
+        const endPos = { line, ch: markerId.length };
+        
+        editor.replaceRange(`![[${imagePath}]]`, startPos, endPos);
+    }
+    
+    private handleTimeout(task: ImageTask, editor: Editor): void {
+        task.abortController.abort();
+        task.status = 'timeout';
+        this.removeMarker(editor, task.markerId);
+        this.tasks.delete(task.id);
+        new Notice(t('Image generation timed out'));
+    }
+    
+    private removeMarker(editor: Editor, markerId: string): void {
+        const content = editor.getValue();
+        const newContent = content.replace(`\n${markerId}\n`, '\n');
+        if (content !== newContent) {
+            editor.setValue(newContent);
+        }
+    }
+}
+```
+
+#### 复用配置项
+
+| 配置项 | 说明 | 复用来源 |
+|--------|------|----------|
+| `imageGenerationTimeout` | 生图超时时间（秒） | Canvas 配置 |
+| `maxParallelImageTasks` | 最大并行任务数 | **新增**，默认 3 |
+
+#### 验证计划
+
+1. **并发生成测试**
+   - 在文档位置 A 发起生图任务 #01
+   - 立即在位置 B 发起生图任务 #02
+   - 验证两个 Marker 正确显示
+   - 验证图片分别插入到正确位置
+
+2. **任务互斥测试**
+   - 生图任务进行中，尝试使用 Edit 功能
+   - 验证 Edit Tab 显示禁用状态
+
+3. **超时测试**
+   - 模拟 API 超时（或设置极短超时时间）
+   - 验证超时 Notice 弹出
+   - 验证 Marker 被正确删除
+
+4. **上限测试**
+   - 连续发起 4 个生图任务（上限 3）
+   - 验证第 4 个任务被拒绝并显示提示
