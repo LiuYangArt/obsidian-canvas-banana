@@ -8,16 +8,6 @@ import type { CanvasAISettings } from '../../settings/settings';
 import type { GeminiRequest, GeminiResponse, GeminiPart } from '../types';
 import { isHttpError, getErrorMessage, requestUrlWithTimeout } from '../utils';
 
-// OpenAI Images API 响应格式
-interface OpenAIImageResponse {
-    created: number;
-    data: Array<{
-        b64_json?: string;
-        url?: string;
-        revised_prompt?: string;
-    }>;
-    error?: { message: string };
-}
 
 export class AntigravityToolsProvider {
     private settings: CanvasAISettings;
@@ -70,6 +60,7 @@ export class AntigravityToolsProvider {
      */
     private aspectRatioToSize(aspectRatio?: string): string {
         switch (aspectRatio) {
+            case '21:9': return '1792x768';
             case '16:9': return '1792x1024';
             case '9:16': return '1024x1792';
             case '4:3': return '1024x768';
@@ -150,9 +141,8 @@ export class AntigravityToolsProvider {
     }
 
     /**
-     * Generate image - 智能选择端点
-     * 文生图: 使用 /v1/images/generations
-     * 图生图: 使用 /v1/chat/completions (类似 GptGod)
+     * Generate image - 统一使用 /v1/chat/completions 端点
+     * 文生图和图生图都走同一路径，后端通过模型后缀控制比例和分辨率
      */
     async generateImage(
         instruction: string,
@@ -161,99 +151,9 @@ export class AntigravityToolsProvider {
         aspectRatio?: string,
         resolution?: string
     ): Promise<string> {
-        // 如果有参考图片，使用 chat/completions 端点
-        if (imagesWithRoles.length > 0) {
-            return this.generateImageWithChat(instruction, imagesWithRoles, contextText, aspectRatio, resolution);
-        }
-
-        // 纯文生图使用 images/generations 端点
-        return this.generateImageWithImagesApi(instruction, contextText, aspectRatio, resolution);
+        return this.generateImageWithChat(instruction, imagesWithRoles, contextText, aspectRatio, resolution);
     }
 
-    /**
-     * 文生图 - 使用 OpenAI /v1/images/generations
-     */
-    private async generateImageWithImagesApi(
-        instruction: string,
-        contextText?: string,
-        aspectRatio?: string,
-        resolution?: string
-    ): Promise<string> {
-        const endpoint = this.getImageEndpoint();
-
-        // 构建 prompt
-        let fullPrompt = '';
-
-        // 系统上下文
-        const systemPrompt = this.settings.imageSystemPrompt || '';
-        if (systemPrompt) {
-            fullPrompt += systemPrompt + '\n\n';
-        }
-
-        // 添加上下文文本
-        if (contextText && contextText.trim()) {
-            fullPrompt += contextText + '\n\n';
-        }
-
-        // 添加指令
-        fullPrompt += instruction;
-
-        // 使用模型后缀控制分辨率
-        const model = this.buildModelWithSuffix(aspectRatio, resolution);
-
-        const requestBody = {
-            model: model,
-            prompt: fullPrompt,
-            n: 1,
-            size: this.aspectRatioToSize(aspectRatio),
-            response_format: 'b64_json'
-        };
-
-        console.debug('Canvas AI: [AntigravityTools] Text-to-Image via /v1/images/generations');
-
-        const requestParams: RequestUrlParam = {
-            url: endpoint,
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${this.getApiKey()}`,
-                'Content-Type': 'application/json'
-            },
-            body: JSON.stringify(requestBody)
-        };
-
-        try {
-            const timeoutMs = (this.settings.imageGenerationTimeout || 120) * 1000;
-            const response = await requestUrlWithTimeout(requestParams, timeoutMs);
-            const data = response.json as OpenAIImageResponse;
-
-            if (data.error) {
-                throw new Error(`AntigravityTools API Error: ${data.error.message}`);
-            }
-
-            if (!data.data || data.data.length === 0) {
-                throw new Error('AntigravityTools returned no image data');
-            }
-
-            const imageData = data.data[0];
-            if (imageData.b64_json) {
-                return `data:image/png;base64,${imageData.b64_json}`;
-            } else if (imageData.url) {
-                if (imageData.url.startsWith('data:')) {
-                    return imageData.url;
-                }
-                return await this.fetchImageAsDataUrl(imageData.url);
-            }
-
-            throw new Error('No valid image data in response');
-        } catch (error: unknown) {
-            const errMsg = getErrorMessage(error);
-            if (errMsg.startsWith('TIMEOUT:')) {
-                const timeoutSec = parseInt(errMsg.split(':')[1]) / 1000;
-                throw new Error(`Image generation timed out after ${timeoutSec} seconds.`);
-            }
-            this.handleError(error);
-        }
-    }
 
     /**
      * 图生图 - 使用 OpenAI /v1/chat/completions (类似 GptGod)
