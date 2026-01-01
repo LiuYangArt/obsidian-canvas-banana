@@ -178,15 +178,22 @@ export class NotesSelectionHandler {
     }
 
     private checkSelection(): void {
-        // 生成中或面板打开时，不响应选区变化
-        // 注意：Image 任务是异步的，也需要阻止按钮被隐藏
-        if (this.isGenerating || this.editPalette?.visible || this.imageTaskManager.getActiveTaskCount() > 0) {
+        // 面板打开时，不响应选区变化
+        if (this.editPalette?.visible) {
+            return;
+        }
+
+        // Edit 模式生成中通常锁定交互，暂不移动？
+        // 但 Image 模式（并发）需要允许移动按钮到新选区
+        if (this.isGenerating) {
             return;
         }
 
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (!view || view.getMode() !== 'source') {
             // 不在 Source Mode (Live Preview 或 Reading Mode)
+            // 如果有生图任务，尽量保持显示（或者隐藏？用户切换视图了）
+            // 这里保持原逻辑，切换视图隐藏合理
             this.floatingButton.hide();
             return;
         }
@@ -196,11 +203,16 @@ export class NotesSelectionHandler {
 
         if (!selection || selection.trim().length === 0) {
             // 没有选中文本
+            // 如果有生图任务进行中，不要隐藏按钮，保持在最后位置（或者当前光标位置？）
+            // 简单策略：不隐藏，保持可见
+            if (this.imageTaskManager.getActiveTaskCount() > 0) {
+                return;
+            }
             this.floatingButton.hide();
             return;
         }
 
-        // 有选中文本，显示悬浮按钮
+        // 有选中文本，显示悬浮按钮（更新位置）
         this.showButtonNearSelection(editor);
     }
 
