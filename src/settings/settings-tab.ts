@@ -456,7 +456,7 @@ export class CanvasAISettingTab extends PluginSettingTab {
                     ? this.plugin.settings.gptGodApiKey
                     : this.plugin.settings.openRouterApiKey;
         if (!this.modelsFetched && apiKey && !this.isFetching) {
-            void this.fetchModels();
+            setTimeout(() => void this.fetchModels(), 0);
         }
 
         // Refresh button - show status for all providers
