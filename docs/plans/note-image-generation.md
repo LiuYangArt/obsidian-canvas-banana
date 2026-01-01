@@ -285,7 +285,7 @@ async saveImageToVault(base64DataUrl: string, currentFile: TFile): Promise<strin
 
 ## 8. 未来扩展
 
-### 8.1 [ ] 图片输入参考 (Image-to-Image Context)
+### 8.1 [x] 图片输入参考 (Image-to-Image Context)
 
 **目标**：支持选中文档内嵌图片 `![[image.png]]` 作为图片生成的输入参考，实现类似 Canvas 图生图的功能。
 

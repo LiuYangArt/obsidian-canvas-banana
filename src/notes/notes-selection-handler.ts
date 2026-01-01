@@ -733,12 +733,24 @@ export class NotesSelectionHandler {
             // 选中文本作为上下文
             const contextText = selectedText || '';
 
+            // 提取选中文本中的内嵌图片作为参考
+            const inputImages = await this.extractDocumentImages(contextText, file.path);
+            const imagesWithRoles = inputImages.map(img => ({
+                base64: img.base64,
+                mimeType: img.mimeType,
+                role: 'reference'  // 统一标记为参考图
+            }));
+
+            if (imagesWithRoles.length > 0) {
+                console.debug(`Notes AI Image: Found ${imagesWithRoles.length} reference image(s)`);
+            }
+
             console.debug(`Notes AI Image: Generating with prompt="${instruction}", context="${contextText.substring(0, 50)}..."`);
 
             // 调用 API 生成图片
             const result = await localApiManager.generateImageWithRoles(
                 instruction,
-                [],  // 无输入图片
+                imagesWithRoles,  // 选中文本中的图片作为参考
                 contextText,
                 imageOptions.aspectRatio,
                 imageOptions.resolution
