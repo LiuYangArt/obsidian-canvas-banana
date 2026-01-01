@@ -123,8 +123,8 @@ export class SideBarCoPilotView extends ItemView {
         // Footer (Input Area with Tabs)
         this.footerEl = container.createDiv('sidebar-copilot-footer');
 
-        // Tab 容器 - 移到 Footer 顶部
-        const tabsEl = this.footerEl.createDiv('canvas-ai-tabs sidebar-tabs');
+        // Tab 容器 - 复用悬浮面板样式
+        const tabsEl = this.footerEl.createDiv('canvas-ai-tabs');
         this.editTabBtn = tabsEl.createEl('button', { cls: 'canvas-ai-tab active', text: t('Edit') });
         this.imageTabBtn = tabsEl.createEl('button', { cls: 'canvas-ai-tab', text: t('Image') });
 
@@ -132,15 +132,15 @@ export class SideBarCoPilotView extends ItemView {
         this.editTabBtn.addEventListener('click', () => this.switchMode('edit'));
         this.imageTabBtn.addEventListener('click', () => this.switchMode('image'));
 
-        // Preset Row
-        const presetRow = this.footerEl.createDiv('sidebar-preset-row');
-        this.presetSelect = presetRow.createEl('select', 'sidebar-preset-select dropdown');
+        // Preset Row - 复用悬浮面板样式
+        const presetRow = this.footerEl.createDiv('canvas-ai-preset-row');
+        this.presetSelect = presetRow.createEl('select', 'canvas-ai-preset-select dropdown');
         this.presetSelect.createEl('option', { value: '', text: t('Select prompt preset') });
 
-        const presetActions = presetRow.createDiv('sidebar-preset-actions');
+        const presetActions = presetRow.createDiv('canvas-ai-preset-actions');
         const createPresetBtn = (action: string, titleText: string, icon: string) => {
             const btn = presetActions.createEl('button', {
-                cls: 'sidebar-preset-btn',
+                cls: 'canvas-ai-preset-btn',
                 attr: { 'data-action': action, 'title': titleText }
             });
             setIcon(btn, icon);
@@ -167,17 +167,18 @@ export class SideBarCoPilotView extends ItemView {
             }
         });
 
-        // Input Textarea
+        // Input Textarea - 复用悬浮面板样式
         this.inputEl = this.footerEl.createEl('textarea', {
-            cls: 'sidebar-prompt-input',
+            cls: 'canvas-ai-prompt-input',
             attr: { placeholder: t('Enter instructions'), rows: '3' }
         });
 
-        // Edit Model Selection Row (visible in edit mode)
-        this.editOptionsEl = this.footerEl.createDiv('sidebar-model-row');
-        const editModelGrp = this.editOptionsEl.createEl('span', 'sidebar-model-group');
+        // Edit Model Selection Row - 复用悬浮面板样式
+        this.editOptionsEl = this.footerEl.createDiv('canvas-ai-chat-options');
+        const editModelRow = this.editOptionsEl.createDiv('canvas-ai-option-row canvas-ai-model-select-row');
+        const editModelGrp = editModelRow.createEl('span', 'canvas-ai-option-group');
         editModelGrp.createEl('label', { text: t('Palette Model') });
-        this.modelSelect = editModelGrp.createEl('select', 'sidebar-model-select dropdown');
+        this.modelSelect = editModelGrp.createEl('select', 'dropdown');
 
         this.modelSelect.addEventListener('change', () => {
             this.selectedTextModel = this.modelSelect.value;
@@ -205,11 +206,11 @@ export class SideBarCoPilotView extends ItemView {
             this.aspectRatioSelect!.createEl('option', { value: ratio, text: ratio });
         });
 
-        // Image Model row
+        // Image Model row - 复用悬浮面板样式
         const imageOptRow2 = this.imageOptionsEl.createDiv('canvas-ai-option-row canvas-ai-model-select-row');
         const imageModelGrp = imageOptRow2.createEl('span', 'canvas-ai-option-group');
         imageModelGrp.createEl('label', { text: t('Palette Model') });
-        this.imageModelSelect = imageModelGrp.createEl('select', 'sidebar-model-select dropdown');
+        this.imageModelSelect = imageModelGrp.createEl('select', 'dropdown');
 
         this.imageModelSelect.addEventListener('change', () => {
             this.selectedImageModel = this.imageModelSelect!.value;
@@ -227,9 +228,9 @@ export class SideBarCoPilotView extends ItemView {
             void this.plugin.saveSettings();
         });
 
-        // Action Row
-        const actionRow = this.footerEl.createDiv('sidebar-action-row');
-        this.generateBtn = actionRow.createEl('button', { cls: 'sidebar-generate-btn', text: t('Generate') });
+        // Action Row - 复用悬浮面板样式
+        const actionRow = this.footerEl.createDiv('canvas-ai-action-row');
+        this.generateBtn = actionRow.createEl('button', { cls: 'canvas-ai-generate-btn', text: t('Generate') });
         this.generateBtn.addEventListener('click', () => void this.handleGenerate());
 
         // Scope 管理：focus 时激活 Ctrl+Enter，blur 时取消
