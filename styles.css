@@ -1420,3 +1420,13 @@
   max-width: 280px;
 }
 
+/* ========== Sidebar Tabs (in Footer) ========== */
+.sidebar-tabs {
+  margin-bottom: 10px;
+}
+
+.sidebar-tabs .canvas-ai-tab {
+  padding: 4px 10px;
+  font-size: 12px;
+}
+

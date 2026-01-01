@@ -70,44 +70,44 @@ export class NotesSelectionHandler {
 
         const settings = this.plugin.settings;
 
-        // 初始化 Presets（Edit 和 Image 分开）
+        // 初始化 Presets（Edit 和 Image 都使用 Canvas 的配置）
         this.editPalette.initPresets(
             settings.editPresets || [],
-            settings.noteImagePresets || []
+            settings.imagePresets || []  // 统一使用 Canvas imagePresets
         );
         this.editPalette.setOnEditPresetChange((presets) => {
             this.plugin.settings.editPresets = presets;
             void this.plugin.saveSettings();
         });
         this.editPalette.setOnImagePresetChange((presets) => {
-            this.plugin.settings.noteImagePresets = presets;
+            this.plugin.settings.imagePresets = presets;  // 统一保存到 Canvas imagePresets
             void this.plugin.saveSettings();
         });
 
-        // 初始化 Model 选择（Text 和 Image 分开）
+        // 初始化 Model 选择（统一使用 Canvas 的配置）
         this.editPalette.initQuickSwitchModels(
             settings.quickSwitchTextModels || [],
             settings.paletteEditModel || '',
             settings.quickSwitchImageModels || [],
-            settings.noteSelectedImageModel || ''
+            settings.paletteImageModel || ''  // 统一使用 Canvas paletteImageModel
         );
         this.editPalette.setOnTextModelChange((modelKey) => {
             this.plugin.settings.paletteEditModel = modelKey;
             void this.plugin.saveSettings();
         });
         this.editPalette.setOnImageModelChange((modelKey) => {
-            this.plugin.settings.noteSelectedImageModel = modelKey;
+            this.plugin.settings.paletteImageModel = modelKey;  // 统一保存到 Canvas paletteImageModel
             void this.plugin.saveSettings();
         });
 
-        // 初始化 Image Options
+        // 初始化 Image Options（统一使用 Canvas 的配置）
         this.editPalette.initImageOptions(
-            settings.noteImageResolution || '1K',
-            settings.noteImageAspectRatio || '16:9'
+            settings.defaultResolution || '1K',
+            settings.defaultAspectRatio || '1:1'
         );
         this.editPalette.setOnImageOptionsChange((options) => {
-            this.plugin.settings.noteImageResolution = options.resolution;
-            this.plugin.settings.noteImageAspectRatio = options.aspectRatio;
+            this.plugin.settings.defaultResolution = options.resolution;
+            this.plugin.settings.defaultAspectRatio = options.aspectRatio;
             void this.plugin.saveSettings();
         });
     }
@@ -710,10 +710,10 @@ export class NotesSelectionHandler {
         );
 
         try {
-            // 获取 Image Options
+            // 获取 Image Options（使用 Canvas 统一配置）
             const imageOptions = this.editPalette?.getImageOptions() || {
-                resolution: this.plugin.settings.noteImageResolution || '1K',
-                aspectRatio: this.plugin.settings.noteImageAspectRatio || '16:9'
+                resolution: this.plugin.settings.defaultResolution || '1K',
+                aspectRatio: this.plugin.settings.defaultAspectRatio || '1:1'
             };
 
             // 创建使用选中 Image 模型的 ApiManager

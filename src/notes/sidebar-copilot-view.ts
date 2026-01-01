@@ -43,15 +43,15 @@ export class SideBarCoPilotView extends ItemView {
     private editOptionsEl: HTMLElement | null = null;
     private imageOptionsEl: HTMLElement | null = null;
 
-    // Settings
+    // Settings - 使用 Canvas 统一配置
     private presetSelect: HTMLSelectElement;
     private modelSelect: HTMLSelectElement;
     private editPresets: PromptPreset[] = [];
-    private imagePresets: PromptPreset[] = [];
+    private imagePresets: PromptPreset[] = [];  // 共用 Canvas imagePresets
     private quickSwitchTextModels: QuickSwitchModel[] = [];
     private quickSwitchImageModels: QuickSwitchModel[] = [];
     private selectedTextModel: string = '';
-    private selectedImageModel: string = '';
+    private selectedImageModel: string = '';  // 共用 Canvas paletteImageModel
 
     // Image Options
     private resolutionSelect: HTMLSelectElement | null = null;
@@ -105,17 +105,9 @@ export class SideBarCoPilotView extends ItemView {
     }
 
     private createDOM(container: HTMLElement): void {
-        // Header with Tabs
+        // Header (无 Tab，Tab 移到 Footer)
         const header = container.createDiv('sidebar-copilot-header');
-
-        // Tab 容器
-        const tabsEl = header.createDiv('canvas-ai-tabs');
-        this.editTabBtn = tabsEl.createEl('button', { cls: 'canvas-ai-tab active', text: t('Edit') });
-        this.imageTabBtn = tabsEl.createEl('button', { cls: 'canvas-ai-tab', text: t('Image') });
-
-        // Tab 切换事件
-        this.editTabBtn.addEventListener('click', () => this.switchMode('edit'));
-        this.imageTabBtn.addEventListener('click', () => this.switchMode('image'));
+        header.createDiv({ cls: 'sidebar-copilot-title', text: t('Canvas Banana') });
 
         // Messages Area
         this.messagesContainer = container.createDiv('sidebar-chat-messages');
@@ -128,8 +120,17 @@ export class SideBarCoPilotView extends ItemView {
             text: t('Notes AI only works with markdown files')
         });
 
-        // Footer (Input Area)
+        // Footer (Input Area with Tabs)
         this.footerEl = container.createDiv('sidebar-copilot-footer');
+
+        // Tab 容器 - 移到 Footer 顶部
+        const tabsEl = this.footerEl.createDiv('canvas-ai-tabs sidebar-tabs');
+        this.editTabBtn = tabsEl.createEl('button', { cls: 'canvas-ai-tab active', text: t('Edit') });
+        this.imageTabBtn = tabsEl.createEl('button', { cls: 'canvas-ai-tab', text: t('Image') });
+
+        // Tab 切换事件
+        this.editTabBtn.addEventListener('click', () => this.switchMode('edit'));
+        this.imageTabBtn.addEventListener('click', () => this.switchMode('image'));
 
         // Preset Row
         const presetRow = this.footerEl.createDiv('sidebar-preset-row');
@@ -212,17 +213,17 @@ export class SideBarCoPilotView extends ItemView {
 
         this.imageModelSelect.addEventListener('change', () => {
             this.selectedImageModel = this.imageModelSelect!.value;
-            this.plugin.settings.noteSelectedImageModel = this.selectedImageModel;
+            this.plugin.settings.paletteImageModel = this.selectedImageModel;  // 统一保存
             void this.plugin.saveSettings();
         });
 
         this.resolutionSelect.addEventListener('change', () => {
-            this.plugin.settings.noteImageResolution = this.resolutionSelect!.value;
+            this.plugin.settings.defaultResolution = this.resolutionSelect!.value;  // 统一配置
             void this.plugin.saveSettings();
         });
 
         this.aspectRatioSelect.addEventListener('change', () => {
-            this.plugin.settings.noteImageAspectRatio = this.aspectRatioSelect!.value;
+            this.plugin.settings.defaultAspectRatio = this.aspectRatioSelect!.value;  // 统一配置
             void this.plugin.saveSettings();
         });
 
@@ -273,25 +274,25 @@ export class SideBarCoPilotView extends ItemView {
     }
 
     private initFromSettings(): void {
-        // Load presets
+        // 使用 Canvas 统一配置
         this.editPresets = [...(this.plugin.settings.editPresets || [])];
-        this.imagePresets = [...(this.plugin.settings.noteImagePresets || [])];
+        this.imagePresets = [...(this.plugin.settings.imagePresets || [])];  // 共用 Canvas imagePresets
         this.refreshPresetDropdown();
 
         // Load quick switch models
         this.quickSwitchTextModels = [...(this.plugin.settings.quickSwitchTextModels || [])];
         this.quickSwitchImageModels = [...(this.plugin.settings.quickSwitchImageModels || [])];
         this.selectedTextModel = this.plugin.settings.paletteEditModel || '';
-        this.selectedImageModel = this.plugin.settings.noteSelectedImageModel || '';
+        this.selectedImageModel = this.plugin.settings.paletteImageModel || '';  // 共用 Canvas paletteImageModel
         this.updateTextModelSelect();
         this.updateImageModelSelect();
 
-        // Load image options
+        // Load image options（使用 Canvas 统一配置）
         if (this.resolutionSelect) {
-            this.resolutionSelect.value = this.plugin.settings.noteImageResolution || '1K';
+            this.resolutionSelect.value = this.plugin.settings.defaultResolution || '1K';
         }
         if (this.aspectRatioSelect) {
-            this.aspectRatioSelect.value = this.plugin.settings.noteImageAspectRatio || '16:9';
+            this.aspectRatioSelect.value = this.plugin.settings.defaultAspectRatio || '1:1';
         }
     }
 
@@ -305,7 +306,7 @@ export class SideBarCoPilotView extends ItemView {
             this.plugin.settings.editPresets = presets;
         } else {
             this.imagePresets = presets;
-            this.plugin.settings.noteImagePresets = presets;
+            this.plugin.settings.imagePresets = presets;  // 统一保存到 Canvas imagePresets
         }
         void this.plugin.saveSettings();
     }
