@@ -325,4 +325,89 @@ export class GeminiProvider {
         }
         throw error;
     }
+    /**
+     * Chat completion with streaming
+     */
+    async *streamChatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): AsyncGenerator<string, void, unknown> {
+        const model = this.getTextModel();
+        // Append :streamGenerateContent and alt=sse for streaming
+        const endpoint = `${this.getBaseUrl()}/v1beta/models/${model}:streamGenerateContent?key=${this.getApiKey()}&alt=sse`;
+
+        const parts: Array<{ text: string }> = [];
+        parts.push({ text: prompt });
+
+        const requestBody: GeminiRequest = {
+            contents: [{ role: 'user', parts: parts }],
+            generationConfig: { temperature: temperature }
+        };
+
+        if (systemPrompt) {
+            requestBody.systemInstruction = { parts: [{ text: systemPrompt }] };
+        }
+
+        console.debug(`Canvas AI: [${this.providerName}] Sending stream chat request...`);
+
+        try {
+            // eslint-disable-next-line no-restricted-globals -- Fetch is required for streaming as requestUrl does not support it
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`${this.providerName} API Error: ${response.status} ${errorText}`);
+            }
+
+            if (!response.body) {
+                throw new Error('Response body is null');
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+                const lines = buffer.split('\n');
+                
+                // Process all complete lines
+                buffer = lines.pop() || ''; 
+
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed) continue;
+                    
+                    if (trimmed.startsWith('data: ')) {
+                        try {
+                            const dataStr = trimmed.slice(6);
+                            const data = JSON.parse(dataStr) as GeminiResponse;
+                            
+                            // Extract text from candidates
+                            if (data.candidates && data.candidates.length > 0) {
+                                const parts = data.candidates[0].content?.parts;
+                                if (parts) {
+                                    for (const part of parts) {
+                                        if (part.text) {
+                                            yield part.text;
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Error parsing stream chunk:', e);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error(`Canvas AI: ${this.providerName} Stream Error`, error);
+            throw error;
+        }
+    }
 }

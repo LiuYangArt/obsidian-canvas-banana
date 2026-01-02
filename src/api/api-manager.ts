@@ -126,6 +126,11 @@ export class ApiManager {
              return;
         }
 
+        if (provider === 'gemini' || provider === 'yunwu') {
+             yield* this.gemini.streamChatCompletion(prompt, systemPrompt, temperature);
+             return;
+        }
+
         // Fallback for others: wait for full response and yield it
         const fullResponse = await this.chatCompletion(prompt, systemPrompt, temperature);
         yield fullResponse;
