@@ -1284,29 +1284,35 @@
   min-height: unset !important;
 }
 
-/* Reset .markdown-preview-sizer inside if it exists */
-.sidebar-message-content .markdown-preview-sizer {
+/* Reset .markdown-preview-sizer and any pusher/spacer elements */
+.sidebar-message-content .markdown-preview-sizer,
+.sidebar-message-content .markdown-preview-pusher {
   min-height: unset !important;
-  padding-bottom: 0 !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  height: auto !important;
 }
 
-/* Remove default margins from markdown elements inside message bubble */
-.sidebar-message-content p,
-.sidebar-message-content ul,
-.sidebar-message-content ol,
-.sidebar-message-content blockquote,
-.sidebar-message-content pre,
-.sidebar-message-content h1,
-.sidebar-message-content h2,
-.sidebar-message-content h3,
-.sidebar-message-content h4,
-.sidebar-message-content h5,
-.sidebar-message-content h6 {
+/* Remove default margins from ALL elements inside message bubble */
+.sidebar-message-content * {
   margin-block-start: 0;
-  margin-block-end: 0.5em;
+  margin-block-end: 0;
 }
 
-.sidebar-message-content > :first-child {
+/* Add small spacing between paragraphs, but not at the end */
+.sidebar-message-content p + p,
+.sidebar-message-content p + ul,
+.sidebar-message-content p + ol,
+.sidebar-message-content ul + p,
+.sidebar-message-content ol + p,
+.sidebar-message-content h1 + p,
+.sidebar-message-content h2 + p,
+.sidebar-message-content h3 + p {
+  margin-top: 0.5em;
+}
+
+.sidebar-message-content > :first-child,
+.sidebar-message-content .markdown-preview-sizer > :first-child {
   margin-top: 0 !important;
 }
 
