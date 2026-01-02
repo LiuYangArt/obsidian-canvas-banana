@@ -1250,23 +1250,36 @@
 /* ========== Sidebar Message Header (Removed) - Keeping commented out styles if needed later or just clean up ========== */
 /* .sidebar-message-header { ... } */
 
+/* ========== Chat Message Wrapper ========== */
+.sidebar-chat-message-wrapper {
+  display: flex;
+  flex-direction: column;
+  margin-bottom: 8px;
+}
+
+.sidebar-chat-message-wrapper.user {
+  align-items: flex-end;
+}
+
+.sidebar-chat-message-wrapper.assistant {
+  align-items: flex-start;
+}
+
+/* ========== Chat Message Bubble ========== */
 .sidebar-chat-message {
   padding: 8px 10px;
   border-radius: 8px;
-  max-width: 95%; /* Limit width slightly for bubble effect */
-  margin-bottom: 4px; /* Reduced vertical gap between messages */
+  max-width: 95%;
 }
 
 .sidebar-chat-message.user {
   background: var(--interactive-accent);
   color: var(--text-on-accent);
-  align-self: flex-end;
 }
 
 .sidebar-chat-message.assistant {
   background: var(--background-secondary);
   color: var(--text-normal);
-  align-self: flex-start;
   border: 1px solid var(--background-modifier-border);
 }
 
@@ -1336,7 +1349,7 @@
   transition: height 0.15s ease, opacity 0.15s ease, margin 0.15s ease, padding 0.15s ease;
 }
 
-.sidebar-chat-message:hover .sidebar-message-actions {
+.sidebar-chat-message-wrapper:hover .sidebar-message-actions {
   /* Expanded on hover */
   height: auto;
   overflow: visible;
@@ -1346,7 +1359,7 @@
   opacity: 1;
 }
 
-.sidebar-chat-message.user:hover .sidebar-message-actions {
+.sidebar-chat-message-wrapper.user:hover .sidebar-message-actions {
   border-top-color: rgba(255, 255, 255, 0.2);
 }
 

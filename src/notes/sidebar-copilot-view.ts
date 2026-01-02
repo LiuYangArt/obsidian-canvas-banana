@@ -424,14 +424,16 @@ export class SideBarCoPilotView extends ItemView {
     }
 
     private renderMessage(msg: ChatMessage): void {
-        const msgEl = this.messagesContainer.createDiv(`sidebar-chat-message ${msg.role}`);
+        // Wrapper for hover detection (contains both bubble and actions)
+        const wrapperEl = this.messagesContainer.createDiv(`sidebar-chat-message-wrapper ${msg.role}`);
         
-        // Content
+        // Message bubble (content only)
+        const msgEl = wrapperEl.createDiv(`sidebar-chat-message ${msg.role}`);
         const contentEl = msgEl.createDiv('sidebar-message-content markdown-preview-view');
         void MarkdownRenderer.render(this.app, msg.content, contentEl, this.currentDocPath || '', this);
 
-        // Actions (bottom row, hidden by default, shown on hover)
-        const actionsEl = msgEl.createDiv('sidebar-message-actions');
+        // Actions (outside bubble, inside wrapper)
+        const actionsEl = wrapperEl.createDiv('sidebar-message-actions');
         
         // Copy
         const copyBtn = actionsEl.createEl('button', { cls: 'clickable-icon', attr: { 'aria-label': t('Copy') } });
@@ -446,7 +448,7 @@ export class SideBarCoPilotView extends ItemView {
         // Delete
         const deleteBtn = actionsEl.createEl('button', { cls: 'clickable-icon', attr: { 'aria-label': t('Delete') } });
         setIcon(deleteBtn, 'trash-2');
-        deleteBtn.addEventListener('click', () => void this.handleDeleteMessage(msg, msgEl));
+        deleteBtn.addEventListener('click', () => void this.handleDeleteMessage(msg, wrapperEl));
         
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
     }
