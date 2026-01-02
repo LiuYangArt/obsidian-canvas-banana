@@ -282,14 +282,15 @@ export class NotesSelectionHandler {
             return;
         }
 
-        // 如果正在生成中，我们也允许移动按钮跟随新的选区（类似 Image 模式）
-        // 所以移除此之外的 isGenerating 检查
+        const isGenerating = this.floatingButton.generating || this.isGenerating || this.imageTaskManager.getActiveTaskCount() > 0;
 
         const view = this.app.workspace.getActiveViewOfType(MarkdownView);
         if (!view || view.getMode() !== 'source') {
             // 不在 Source Mode (Live Preview 或 Reading Mode)
-            // 切换视图隐藏
-            this.floatingButton.hide();
+            // 生成时不隐藏按钮（活动视图可能是侧栏）
+            if (!isGenerating) {
+                this.floatingButton.hide();
+            }
             return;
         }
 
@@ -298,15 +299,15 @@ export class NotesSelectionHandler {
 
         if (!selection || selection.trim().length === 0) {
             // 没有选中文本
-            // 如果有生图任务或编辑任务进行中，不要隐藏按钮
-            if (this.imageTaskManager.getActiveTaskCount() > 0 || this.isGenerating) {
-                return;
+            // 生成时不隐藏按钮
+            if (!isGenerating) {
+                this.floatingButton.hide();
             }
-            this.floatingButton.hide();
             return;
         }
 
         // 有选中文本，显示悬浮按钮（更新位置）
+        // 即使正在生成，也更新位置跟随新选区
         this.showButtonNearSelection(editor);
     }
 
@@ -1014,7 +1015,7 @@ export class NotesSelectionHandler {
     public setFloatingButtonGenerating(generating: boolean): void {
         this.floatingButton.setGenerating(generating);
         if (generating && this.plugin.settings.noteFloatingIconEnabled) {
-            // 如果需要显示悬浮图标，显示在最后已知位置
+            // 使用按钮的当前位置（已由 showButtonNearSelection 更新）
             const btn = this.floatingButton.getElement();
             const left = parseInt(btn.style.left) || 100;
             const top = parseInt(btn.style.top) || 100;
