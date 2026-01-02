@@ -570,6 +570,8 @@ export class SideBarCoPilotView extends ItemView {
         // 同步悬浮图标状态
         const notesHandler = this.plugin.getNotesHandler();
         notesHandler?.setFloatingButtonGenerating(true);
+        // 点击生成时立即清除选区高亮（与悬浮按钮行为一致）
+        notesHandler?.clearHighlightForSidebar();
 
         try {
             // 创建 ApiManager
