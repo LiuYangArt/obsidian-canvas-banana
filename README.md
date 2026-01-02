@@ -20,6 +20,7 @@ Canvas Banana 是一个原名为 Obsidian Canvas AI 的插件，现在它不仅�
     *   智能识别选中的 Canvas 节点内容作为对话背景。
     *   在白板中直接与 AI 探讨想法、总结内容或扩展思路。
     *   支持调节 "Temperature" 以控制回答的创造性。
+    *   **流式响应 (Streaming)**：支持所有主流 Provider (Gemini, OpenAI, GptGod, Antigravity等) 的打字机流式输出。
 
 *   **🎨 AI 图像生成 (Image Generation)**
     *   将文字描述转化为高质量图片。
@@ -153,6 +154,7 @@ The core philosophy is "**Context Awareness**"—whether it's a node on a whiteb
     *   Intelligently recognizes selected Canvas node content as conversation context.
     *   Discuss ideas, summarize content, or brainstorm with AI directly on the canvas.
     *   Supports "Temperature" adjustment to control the creativity of responses.
+    *   **Streaming Support**: Typewriter-style streaming response for all major providers (Gemini, OpenAI, GptGod, Antigravity, etc.).
 
 *   **🎨 AI Image Generation**
     *   Transforms text descriptions into high-quality images.

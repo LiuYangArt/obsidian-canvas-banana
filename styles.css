@@ -1093,22 +1093,38 @@
   height: auto !important;
 }
 
-/* Remove default margins from ALL elements inside message bubble */
-.sidebar-message-content * {
-  margin-block-start: 0;
-  margin-block-end: 0;
+/* Tighten markdown spacing */
+.sidebar-message-content h1,
+.sidebar-message-content h2,
+.sidebar-message-content h3,
+.sidebar-message-content h4,
+.sidebar-message-content h5,
+.sidebar-message-content h6 {
+  margin-top: 12px !important;
+  margin-bottom: 4px !important;
+  line-height: 1.3;
 }
 
-/* Add small spacing between paragraphs, but not at the end */
-.sidebar-message-content p + p,
-.sidebar-message-content p + ul,
-.sidebar-message-content p + ol,
-.sidebar-message-content ul + p,
-.sidebar-message-content ol + p,
-.sidebar-message-content h1 + p,
-.sidebar-message-content h2 + p,
-.sidebar-message-content h3 + p {
-  margin-top: 0.5em;
+.sidebar-message-content p {
+  margin-top: 0 !important;
+  margin-bottom: 6px !important;
+}
+
+.sidebar-message-content ul,
+.sidebar-message-content ol {
+  margin-top: 2px !important;
+  margin-bottom: 6px !important;
+  padding-left: 20px !important;
+}
+
+.sidebar-message-content li {
+  margin-top: 0 !important;
+  margin-bottom: 0 !important;
+}
+
+.sidebar-message-content blockquote {
+  margin-top: 4px !important;
+  margin-bottom: 8px !important;
 }
 
 .sidebar-message-content > :first-child,
