@@ -85,6 +85,7 @@
   background: transparent;
   color: var(--text-muted);
   font-size: 18px;
+  line-height: 1;
   cursor: pointer;
   border-radius: 4px;
   display: flex;
@@ -967,6 +968,11 @@
   flex-direction: column;
   height: 100%;
   overflow: hidden;
+}
+
+/* Sidebar footer tabs need bottom margin */
+.sidebar-copilot-container .canvas-ai-tabs {
+  margin-bottom: 12px;
 }
 
 .sidebar-copilot-header {
