@@ -3,7 +3,7 @@
  * 浮动面板，包含 Edit Mode 和 Image Mode 两个 Tab
  */
 
-import { App, Notice, Scope } from 'obsidian';
+import { App, Notice, Scope, setIcon } from 'obsidian';
 import { ApiManager } from '../api/api-manager';
 import { PromptPreset, QuickSwitchModel } from '../settings/settings';
 import { PresetManager } from '../ui/preset-manager';
@@ -139,7 +139,8 @@ export class NotesEditPalette {
         this.tabs = createTabs(header);
         // 浮动面板不需要 Chat Tab，隐藏它
         this.tabs.chatBtn.addClass('is-hidden');
-        const closeBtn = header.createEl('button', { cls: 'canvas-ai-close-btn', text: '×' });
+        const closeBtn = header.createEl('button', { cls: 'canvas-ai-close-btn' });
+        setIcon(closeBtn, 'x');
 
         // Body
         const body = container.createDiv('canvas-ai-palette-body');

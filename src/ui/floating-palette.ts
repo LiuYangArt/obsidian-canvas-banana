@@ -174,7 +174,8 @@ export class FloatingPalette {
             btn.dataset.mode = mode;
         });
 
-        const closeBtn = header.createEl('button', { cls: 'canvas-ai-close-btn', text: '×' });
+        const closeBtn = header.createEl('button', { cls: 'canvas-ai-close-btn' });
+        setIcon(closeBtn, 'x');
 
         // Body
         const body = container.createDiv('canvas-ai-palette-body');
