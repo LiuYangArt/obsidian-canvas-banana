@@ -3,7 +3,7 @@
  * Notes AI 侧边栏视图，提供多轮对话、文档编辑和图片生成功能
  */
 
-import { ItemView, WorkspaceLeaf, Notice, setIcon, Scope } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, setIcon, Scope, Editor, EditorPosition } from 'obsidian';
 import type CanvasAIPlugin from '../../main';
 import { ApiManager } from '../api/api-manager';
 import { PromptPreset, QuickSwitchModel, ApiProvider } from '../settings/settings';
@@ -14,6 +14,7 @@ import { applyPatches, TextChange } from './text-patcher';
 import { t } from '../../lang/helpers';
 import { formatProviderName } from '../utils/format-utils';
 import { extractDocumentImages, saveImageToVault } from '../utils/image-utils';
+import { NotesSelectionContext } from './notes-selection-handler';
 
 export const VIEW_TYPE_SIDEBAR_COPILOT = 'canvas-ai-sidebar-copilot';
 
@@ -63,7 +64,10 @@ export class SideBarCoPilotView extends ItemView {
     private isGenerating: boolean = false;
     private isEditBlocked: boolean = false;
     private isImageBlocked: boolean = false;
-    
+
+    // Selection context captured when sidebar receives focus
+    private capturedContext: NotesSelectionContext | null = null;
+
     private onModeChange: ((mode: SidebarMode) => void) | null = null;
     
     private keyScope: Scope;
@@ -251,6 +255,8 @@ export class SideBarCoPilotView extends ItemView {
         // Scope 管理：focus 时激活 Ctrl+Enter，blur 时取消
         this.inputEl.addEventListener('focus', () => {
             this.app.keymap.pushScope(this.keyScope);
+            // 捕获选区
+            this.captureSelectionOnFocus();
         });
         this.inputEl.addEventListener('blur', () => {
             this.app.keymap.popScope(this.keyScope);
@@ -545,6 +551,10 @@ export class SideBarCoPilotView extends ItemView {
         const file = activeFile;
         const docContent = await this.app.vault.read(file);
 
+        // 判断是否使用选区模式
+        const context = this.capturedContext;
+        const hasSelection = context && context.selectedText && context.selectedText.trim().length > 0;
+
         // 添加用户消息
         this.addMessage('user', prompt);
         this.inputEl.value = '';
@@ -557,6 +567,10 @@ export class SideBarCoPilotView extends ItemView {
         // 禁用 Image Tab
         this.setImageBlocked(true);
 
+        // 同步悬浮图标状态
+        const notesHandler = this.plugin.getNotesHandler();
+        notesHandler?.setFloatingButtonGenerating(true);
+
         try {
             // 创建 ApiManager
             const localApiManager = this.createLocalApiManager('text');
@@ -564,11 +578,22 @@ export class SideBarCoPilotView extends ItemView {
             // 构建系统提示
             const systemPrompt = buildEditModeSystemPrompt(this.plugin.settings.editSystemPrompt);
 
-            // 提取文档中的内嵌图片
-            const images = await extractDocumentImages(this.app, docContent, file.path, this.plugin.settings);
+            // 根据是否有选区，构建不同的 userMsg
+            let userMsg: string;
+            let images: { base64: string; mimeType: string; type: 'image' | 'pdf' }[] = [];
 
-            // 构建用户消息（包含完整文档上下文）
-            let userMsg = `Document content:\n${docContent}\n\nInstruction:\n${prompt}`;
+            if (hasSelection) {
+                // 选区模式：只编辑选中的文本
+                userMsg = `Target Text:\n${context.selectedText}\n\nInstruction:\n${prompt}`;
+                // 提取选区中的图片
+                const extractedImages = await extractDocumentImages(this.app, context.selectedText, file.path, this.plugin.settings);
+                images = extractedImages.map(img => ({ ...img, type: 'image' as const }));
+            } else {
+                // 全文档模式
+                userMsg = `Document content:\n${docContent}\n\nInstruction:\n${prompt}`;
+                const extractedImages = await extractDocumentImages(this.app, docContent, file.path, this.plugin.settings);
+                images = extractedImages.map(img => ({ ...img, type: 'image' as const }));
+            }
 
             // 添加对话历史上下文
             if (this.chatHistory.length > 2) {
@@ -639,28 +664,49 @@ export class SideBarCoPilotView extends ItemView {
                         })();
                     }
                 ).open();
-            } else if (replacementText && replacementText !== docContent) {
-                const context = {
-                    nodeId: '',
-                    selectedText: docContent,
-                    preText: '',
-                    postText: '',
-                    fullText: docContent,
-                    fileNode: file
-                };
+            } else if (replacementText) {
+                // 根据是否有选区决定如何替换
+                let originalText: string;
+                let proposedText: string;
 
-                new DiffModal(
-                    this.app,
-                    context,
-                    replacementText,
-                    async () => {
-                        await this.app.vault.modify(file, replacementText);
-                        new Notice(t('File updated'));
-                    },
-                    () => {
-                        // 取消
-                    }
-                ).open();
+                if (hasSelection && context) {
+                    // 选区模式：只替换选中的部分
+                    originalText = context.selectedText;
+                    proposedText = context.preText + replacementText + context.postText;
+                } else {
+                    // 全文档模式
+                    originalText = docContent;
+                    proposedText = replacementText;
+                }
+
+                if (proposedText !== docContent) {
+                    const diffContext = {
+                        nodeId: '',
+                        selectedText: originalText,
+                        preText: hasSelection && context ? context.preText : '',
+                        postText: hasSelection && context ? context.postText : '',
+                        fullText: docContent,
+                        fileNode: file
+                    };
+
+                    new DiffModal(
+                        this.app,
+                        diffContext,
+                        replacementText,
+                        async () => {
+                            await this.app.vault.modify(file, proposedText);
+                            new Notice(t('File updated'));
+                            // Diff 确认后选中新生成的文本
+                            if (hasSelection && context?.editor) {
+                                const newEndOffset = context.preText.length + replacementText.length;
+                                this.selectTextRange(context.editor, context.preText.length, newEndOffset);
+                            }
+                        },
+                        () => {
+                            // 取消
+                        }
+                    ).open();
+                }
             }
 
         } catch (error) {
@@ -673,6 +719,10 @@ export class SideBarCoPilotView extends ItemView {
             this.generateBtn.removeClass('generating');
             // 恢复 Image Tab
             this.setImageBlocked(false);
+            // 恢复悬浮图标状态并清除高亮
+            const notesHandler = this.plugin.getNotesHandler();
+            notesHandler?.setFloatingButtonGenerating(false);
+            this.clearCapturedContext();
         }
     }
 
@@ -693,8 +743,12 @@ export class SideBarCoPilotView extends ItemView {
 
         const file = activeFile;
 
-        // Image mode 允许空 prompt
-        const instruction = prompt || t('Generate image from context');
+        // 判断是否使用选区模式
+        const context = this.capturedContext;
+        const hasSelection = context && context.selectedText && context.selectedText.trim().length > 0;
+
+        // Image mode 允许空 prompt，使用选区或默认文案
+        const instruction = prompt || (hasSelection ? context.selectedText : t('Generate image from context'));
 
         // 添加用户消息
         this.addMessage('user', instruction);
@@ -708,6 +762,10 @@ export class SideBarCoPilotView extends ItemView {
         // 禁用 Edit Tab
         this.setEditBlocked(true);
 
+        // 同步悬浮图标状态
+        const notesHandler = this.plugin.getNotesHandler();
+        notesHandler?.setFloatingButtonGenerating(true);
+
         try {
             // 创建 ApiManager
             const localApiManager = this.createLocalApiManager('image');
@@ -716,13 +774,26 @@ export class SideBarCoPilotView extends ItemView {
             const aspectRatio = this.aspectRatioSelect?.value || '16:9';
             const resolution = this.resolutionSelect?.value || '1K';
 
+            // 提取选区中的图片作为输入
+            let inputImages: { base64: string; mimeType: string; role: string }[] = [];
+            let contextText = '';
+
+            if (hasSelection) {
+                // 使用选区文本作为上下文
+                contextText = context.selectedText;
+                // 提取选区中的图片
+                const extractedImages = await extractDocumentImages(this.app, context.selectedText, file.path, this.plugin.settings);
+                inputImages = extractedImages.map(img => ({ ...img, role: 'reference' }));
+                console.debug(`Sidebar Image: Using selection as context, found ${inputImages.length} images`);
+            }
+
             console.debug(`Sidebar Image: Generating with prompt="${instruction}"`);
 
             // 调用 API 生成图片
             const result = await localApiManager.generateImageWithRoles(
                 instruction,
-                [],  // 无输入图片
-                '',  // 无上下文
+                inputImages,
+                contextText,
                 aspectRatio,
                 resolution
             );
@@ -751,6 +822,10 @@ export class SideBarCoPilotView extends ItemView {
             this.generateBtn.removeClass('generating');
             // 恢复 Edit Tab
             this.setEditBlocked(false);
+            // 恢复悬浮图标状态并清除高亮
+            const notesHandler = this.plugin.getNotesHandler();
+            notesHandler?.setFloatingButtonGenerating(false);
+            this.clearCapturedContext();
         }
     }
 
@@ -825,4 +900,60 @@ export class SideBarCoPilotView extends ItemView {
     }
 
     // extractDocumentImages, resolveImagePath - 已移至 src/utils/image-utils.ts
+
+    /**
+     * 点击侧栏输入框时捕获当前编辑器选区
+     */
+    private captureSelectionOnFocus(): void {
+        const notesHandler = this.plugin.getNotesHandler();
+        if (notesHandler) {
+            const context = notesHandler.captureSelectionForSidebar();
+            if (context) {
+                this.capturedContext = context;
+                console.debug('Sidebar CoPilot: Captured selection context', context.selectedText.substring(0, 50));
+            }
+        }
+    }
+
+    /**
+     * 清除捕获的选区和高亮
+     */
+    private clearCapturedContext(): void {
+        this.capturedContext = null;
+        const notesHandler = this.plugin.getNotesHandler();
+        if (notesHandler) {
+            notesHandler.clearHighlightForSidebar();
+        }
+    }
+
+    /**
+     * 在编辑器中选中指定范围的文本
+     */
+    private selectTextRange(editor: Editor, startOffset: number, endOffset: number): void {
+        const doc = editor.getDoc();
+        const totalLines = doc.lineCount();
+
+        // 计算 startOffset 对应的 line:ch
+        let currentOffset = 0;
+        let startPos: EditorPosition | null = null;
+        let endPos: EditorPosition | null = null;
+
+        for (let line = 0; line < totalLines; line++) {
+            const lineText = doc.getLine(line);
+            const lineLength = lineText.length + 1; // +1 for newline
+
+            if (startPos === null && currentOffset + lineLength > startOffset) {
+                startPos = { line, ch: startOffset - currentOffset };
+            }
+            if (endPos === null && currentOffset + lineLength > endOffset) {
+                endPos = { line, ch: endOffset - currentOffset };
+                break;
+            }
+            currentOffset += lineLength;
+        }
+
+        if (startPos && endPos) {
+            editor.setSelection(startPos, endPos);
+        }
+    }
 }

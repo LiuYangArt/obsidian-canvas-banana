@@ -43,6 +43,13 @@ export default class CanvasAIPlugin extends Plugin {
     // Notes AI handler
     private notesHandler: NotesSelectionHandler | null = null;
 
+    /**
+     * 供侧栏访问 NotesSelectionHandler
+     */
+    public getNotesHandler(): NotesSelectionHandler | null {
+        return this.notesHandler;
+    }
+
 
     async onload() {
         console.debug('Canvas Banana: Plugin loading...');

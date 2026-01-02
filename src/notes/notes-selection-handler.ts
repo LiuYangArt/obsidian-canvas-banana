@@ -705,7 +705,7 @@ export class NotesSelectionHandler {
                 this.app,
                 diffContext,
                 replacementText,
-                async () => {
+                () => {
                     // 先替换选区
                     // 计算新光标位置
                     const startOffset = editor.posToOffset(savedFromCursor);
@@ -874,6 +874,88 @@ export class NotesSelectionHandler {
     }
 
     // saveImageToVault - 已移至 src/utils/image-utils.ts
+
+    /**
+     * 供侧栏调用：捕获当前选区并创建高亮
+     * @returns 选区上下文，如果没有选区则返回 null
+     */
+    public captureSelectionForSidebar(): NotesSelectionContext | null {
+        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+        if (!view || !view.file || view.getMode() !== 'source') {
+            return null;
+        }
+
+        const editor = view.editor;
+        const selection = editor.getSelection();
+
+        if (!selection || selection.trim().length === 0) {
+            return null;
+        }
+
+        // 捕获选区高亮
+        this.captureSelectionHighlight();
+
+        const fullText = editor.getValue();
+        const fromCursor = editor.getCursor('from');
+        const toCursor = editor.getCursor('to');
+
+        // 计算选区在全文中的位置
+        const doc = editor.getDoc();
+        let fromOffset = 0;
+        for (let i = 0; i < fromCursor.line; i++) {
+            fromOffset += doc.getLine(i).length + 1;
+        }
+        fromOffset += fromCursor.ch;
+
+        let toOffset = 0;
+        for (let i = 0; i < toCursor.line; i++) {
+            toOffset += doc.getLine(i).length + 1;
+        }
+        toOffset += toCursor.ch;
+
+        this.lastContext = {
+            nodeId: view.file.path,
+            selectedText: selection,
+            preText: fullText.substring(0, fromOffset),
+            postText: fullText.substring(toOffset),
+            fullText: fullText,
+            isExplicit: true,
+            editor: editor,
+            file: view.file
+        };
+
+        return this.lastContext;
+    }
+
+    /**
+     * 供侧栏调用：清除选区高亮
+     */
+    public clearHighlightForSidebar(): void {
+        this.clearSelectionHighlight();
+    }
+
+    /**
+     * 供侧栏调用：设置悬浮图标的生成状态
+     */
+    public setFloatingButtonGenerating(generating: boolean): void {
+        this.floatingButton.setGenerating(generating);
+        if (generating && this.plugin.settings.noteFloatingIconEnabled) {
+            // 如果需要显示悬浮图标，显示在最后已知位置
+            const btn = this.floatingButton.getElement();
+            const left = parseInt(btn.style.left) || 100;
+            const top = parseInt(btn.style.top) || 100;
+            this.floatingButton.show(left, top);
+        } else if (!generating) {
+            this.floatingButton.hide();
+        }
+    }
+
+    /**
+     * 供侧栏调用：获取当前缓存的选区上下文
+     */
+    public getLastContext(): NotesSelectionContext | null {
+        return this.lastContext;
+    }
 
     /**
      * 从设置刷新所有配置（供 main.ts 的 notifySettingsChanged 调用）
