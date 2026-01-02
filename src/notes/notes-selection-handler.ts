@@ -295,6 +295,11 @@ export class NotesSelectionHandler {
     }
 
     private showButtonNearSelection(editor: Editor): void {
+        // 如果悬浮图标被禁用，直接返回
+        if (!this.plugin.settings.noteFloatingIconEnabled) {
+            return;
+        }
+
         // 使用 'head' 获取光标当前位置（用户最后交互的位置）
         // 'head' 是光标的实际位置，不管选区方向如何
         // 这样从下往上选时，按钮会显示在用户视线附近

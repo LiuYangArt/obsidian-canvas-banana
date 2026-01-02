@@ -125,6 +125,9 @@ export interface CanvasAISettings {
 
     // Multi-image generation
     maxParallelImageTasks: number;     // 最大并行生图任务数
+
+    // Note floating icon settings
+    noteFloatingIconEnabled: boolean;  // 是否启用 Note 编辑悬浮图标
 }
 
 // ========== Default Settings ==========
@@ -201,7 +204,9 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
     enableGlobalConsistency: true,
     maxConversationTurns: 5,
 
-    maxParallelImageTasks: 3
+    maxParallelImageTasks: 3,
+
+    noteFloatingIconEnabled: true
 };
 
 // ========== Provider Utility Functions ==========

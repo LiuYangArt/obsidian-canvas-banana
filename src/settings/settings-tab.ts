@@ -709,6 +709,16 @@ export class CanvasAISettingTab extends PluginSettingTab {
                 }));
 
         new Setting(containerEl)
+            .setName(t('Note floating icon'))
+            .setDesc(t('Note floating icon desc'))
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.noteFloatingIconEnabled)
+                .onChange(async (value) => {
+                    this.plugin.settings.noteFloatingIconEnabled = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        new Setting(containerEl)
             .setName(t('Image Generation Timeout'))
             .setDesc(t('Image Generation Timeout Desc'))
             .addText(text => text
