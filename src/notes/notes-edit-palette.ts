@@ -3,14 +3,26 @@
  * 浮动面板，包含 Edit Mode 和 Image Mode 两个 Tab
  */
 
-import { App, Notice, Scope, setIcon } from 'obsidian';
+import { App, Notice, Scope } from 'obsidian';
 import { ApiManager } from '../api/api-manager';
 import { PromptPreset, QuickSwitchModel } from '../settings/settings';
 import { PresetManager } from '../ui/preset-manager';
 import { t } from '../../lang/helpers';
-import { formatProviderName } from '../utils/format-utils';
+import { ModeController, PaletteMode } from './mode-controller';
+import {
+    createTabs,
+    createPresetRow,
+    createModelSelectRow,
+    createImageOptionsRow,
+    refreshPresetSelect,
+    updateModelSelect,
+    setupKeyboardIsolation,
+    TabsElements,
+    PresetRowElements,
+    ImageOptionsElements
+} from './shared-ui-builder';
 
-export type NotesPaletteMode = 'edit' | 'image';
+export type NotesPaletteMode = PaletteMode;
 
 export interface NotesImageOptions {
     resolution: string;
@@ -21,51 +33,40 @@ export class NotesEditPalette {
     private containerEl: HTMLElement;
     private promptInput: HTMLTextAreaElement;
     private isVisible: boolean = false;
-    private currentParent: HTMLElement | null = null;
     private onGenerate: ((prompt: string, mode: NotesPaletteMode) => Promise<void>) | null = null;
     private onClose: (() => void) | null = null;
 
     private apiManager: ApiManager;
     private pendingTaskCount: number = 0;
 
-    // Tab & Mode
-    private currentMode: NotesPaletteMode = 'edit';
-    private tabsEl: HTMLElement | null = null;
-    private editTabBtn: HTMLButtonElement | null = null;
-    private imageTabBtn: HTMLButtonElement | null = null;
-    private imageOptionsEl: HTMLElement | null = null;
+    // Mode Controller
+    private modeController: ModeController;
 
-    // Preset related
-    private presetSelect: HTMLSelectElement | null = null;
+    // UI Elements (from shared builders)
+    private tabs: TabsElements;
+    private presetRow: PresetRowElements;
+    private editModelRow: { container: HTMLElement; select: HTMLSelectElement };
+    private imageOptions: ImageOptionsElements;
+
+    // Preset data
     private editPresets: PromptPreset[] = [];
     private imagePresets: PromptPreset[] = [];
     private onEditPresetChange: ((presets: PromptPreset[]) => void) | null = null;
     private onImagePresetChange: ((presets: PromptPreset[]) => void) | null = null;
 
-    // Edit Model selection
-    private editModelSelectEl: HTMLSelectElement | null = null;
-    private editModelOptionsEl: HTMLElement | null = null;
+    // Model selection
     private quickSwitchTextModels: QuickSwitchModel[] = [];
     private selectedTextModel: string = '';
     private onTextModelChange: ((modelKey: string) => void) | null = null;
-
-    // Image Model selection
-    private imageModelSelectEl: HTMLSelectElement | null = null;
     private quickSwitchImageModels: QuickSwitchModel[] = [];
     private selectedImageModel: string = '';
     private onImageModelChange: ((modelKey: string) => void) | null = null;
 
     // Image options
-    private resolutionSelect: HTMLSelectElement | null = null;
-    private aspectRatioSelect: HTMLSelectElement | null = null;
     private defaultResolution: string = '1K';
     private defaultAspectRatio: string = '16:9';
     private onImageOptionsChange: ((options: NotesImageOptions) => void) | null = null;
 
-    // State
-    private isEditBlocked: boolean = false;
-    private isImageBlocked: boolean = false;
-    
     private onModeChange: ((mode: NotesPaletteMode) => void) | null = null;
 
     private app: App;
@@ -104,9 +105,9 @@ export class NotesEditPalette {
             getPresets: () => this.getCurrentPresets(),
             setPresets: (presets) => this.setCurrentPresets(presets),
             getInputValue: () => this.promptInput.value,
-            getSelectValue: () => this.presetSelect?.value || '',
+            getSelectValue: () => this.presetRow.select.value,
             refreshDropdown: () => this.refreshPresetDropdown(),
-            setSelectValue: (id) => { if (this.presetSelect) this.presetSelect.value = id; }
+            setSelectValue: (id) => { this.presetRow.select.value = id; }
         });
 
         document.body.appendChild(this.containerEl);
@@ -135,40 +136,14 @@ export class NotesEditPalette {
 
         // Header with Tabs
         const header = container.createDiv('canvas-ai-palette-header notes-ai-palette-header');
-
-        // Tab 容器
-        this.tabsEl = header.createDiv('canvas-ai-tabs');
-        this.editTabBtn = this.tabsEl.createEl('button', { cls: 'canvas-ai-tab active', text: t('Edit') });
-        this.imageTabBtn = this.tabsEl.createEl('button', { cls: 'canvas-ai-tab', text: t('Image') });
-
+        this.tabs = createTabs(header);
         const closeBtn = header.createEl('button', { cls: 'canvas-ai-close-btn', text: '×' });
-
-        // Tab 切换事件 - user triggered
-        this.editTabBtn.addEventListener('click', () => this.handleUserSwitchMode('edit'));
-        this.imageTabBtn.addEventListener('click', () => this.handleUserSwitchMode('image'));
 
         // Body
         const body = container.createDiv('canvas-ai-palette-body');
 
-        // Preset Row
-        const presetRow = body.createDiv('canvas-ai-preset-row');
-        this.presetSelect = presetRow.createEl('select', 'canvas-ai-preset-select dropdown');
-        this.presetSelect.createEl('option', { value: '', text: t('Select prompt preset') });
-
-        const presetActions = presetRow.createDiv('canvas-ai-preset-actions');
-        const createPresetBtn = (action: string, titleText: string, icon: string) => {
-            const btn = presetActions.createEl('button', {
-                cls: 'canvas-ai-preset-btn',
-                attr: { 'data-action': action, 'title': titleText }
-            });
-            setIcon(btn, icon);
-            return btn;
-        };
-
-        const presetAddBtn = createPresetBtn('add', t('New Preset'), 'circle-plus');
-        const presetDeleteBtn = createPresetBtn('delete', t('Delete'), 'circle-x');
-        const presetSaveBtn = createPresetBtn('save', t('Save'), 'save');
-        const presetRenameBtn = createPresetBtn('rename', t('Rename Preset'), 'book-a');
+        // Preset Row (using shared builder)
+        this.presetRow = createPresetRow(body);
 
         // Prompt Input
         this.promptInput = body.createEl('textarea', {
@@ -176,185 +151,104 @@ export class NotesEditPalette {
             attr: { placeholder: t('Enter instructions'), rows: '4' }
         });
 
-        // Edit Model Selection Row (for Edit mode) - wrapped in container for border styling
-        this.editModelOptionsEl = body.createDiv({ cls: 'canvas-ai-chat-options' });
-        const editModelRow = this.editModelOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-model-select-row' });
-        const editModelGrp = editModelRow.createEl('span', 'canvas-ai-option-group');
-        editModelGrp.createEl('label', { text: t('Palette Model') });
-        this.editModelSelectEl = editModelGrp.createEl('select', 'canvas-ai-edit-model-select dropdown');
+        // Edit Model Selection Row
+        const editOptionsContainer = body.createDiv({ cls: 'canvas-ai-chat-options' });
+        this.editModelRow = createModelSelectRow(editOptionsContainer, t('Palette Model'));
 
-        // Image Options (for Image mode, hidden by default)
-        this.imageOptionsEl = body.createDiv({ cls: 'canvas-ai-image-options is-hidden' });
-
-        // Resolution & Ratio row
-        const imageOptRow1 = this.imageOptionsEl.createDiv('canvas-ai-option-row');
-
-        const resGrp = imageOptRow1.createEl('span', 'canvas-ai-option-group');
-        resGrp.createEl('label', { text: t('Resolution') });
-        this.resolutionSelect = resGrp.createEl('select', 'dropdown');
-        ['1K', '2K', '4K'].forEach(res => {
-            this.resolutionSelect!.createEl('option', { value: res, text: res });
-        });
-
-        const ratioGrp = imageOptRow1.createEl('span', 'canvas-ai-option-group');
-        ratioGrp.createEl('label', { text: t('Ratio') });
-        this.aspectRatioSelect = ratioGrp.createEl('select', 'dropdown');
-        ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'].forEach(ratio => {
-            this.aspectRatioSelect!.createEl('option', { value: ratio, text: ratio });
-        });
-
-        // Image Model row
-        const imageOptRow2 = this.imageOptionsEl.createDiv('canvas-ai-option-row canvas-ai-model-select-row');
-        const imageModelGrp = imageOptRow2.createEl('span', 'canvas-ai-option-group');
-        imageModelGrp.createEl('label', { text: t('Palette Model') });
-        this.imageModelSelectEl = imageModelGrp.createEl('select', 'canvas-ai-image-model-select dropdown');
+        // Image Options (using shared builder)
+        this.imageOptions = createImageOptionsRow(body);
 
         // Action Row
         const actionRow = body.createDiv('canvas-ai-action-row');
         const generateBtn = actionRow.createEl('button', { cls: 'canvas-ai-generate-btn', text: t('Generate') });
 
-        // Bindings
+        // Initialize ModeController
+        this.modeController = new ModeController({
+            editTabBtn: this.tabs.editBtn,
+            imageTabBtn: this.tabs.imageBtn,
+            editOptionsEl: editOptionsContainer,
+            imageOptionsEl: this.imageOptions.container,
+            promptInput: this.promptInput
+        }, {
+            onModeChange: (mode) => {
+                this.refreshPresetDropdown();
+                this.updateGenerateButtonState();
+                this.onModeChange?.(mode);
+            }
+        });
+
+        // Event Bindings
+        this.tabs.editBtn.addEventListener('click', () => this.modeController.handleUserSwitch('edit'));
+        this.tabs.imageBtn.addEventListener('click', () => this.modeController.handleUserSwitch('image'));
+
         closeBtn.addEventListener('click', () => this.hide());
         generateBtn.addEventListener('click', () => this.handleGenerate());
 
-        this.presetSelect.addEventListener('change', () => {
-            const selectedId = this.presetSelect!.value;
+        // Preset events
+        const applyPreset = () => {
+            const selectedId = this.presetRow.select.value;
             if (selectedId) {
-                const presets = this.currentMode === 'edit' ? this.editPresets : this.imagePresets;
+                const presets = this.getCurrentPresets();
                 const p = presets.find(x => x.id === selectedId);
                 if (p) {
                     this.promptInput.value = p.prompt;
                     this.updateGenerateButtonState();
                 }
             }
-        });
+        };
+        this.presetRow.select.addEventListener('change', applyPreset);
+        this.presetRow.select.addEventListener('click', applyPreset);
 
-        // 点击 select 时，如果已选中某 preset 则重新应用（支持重复选择同一 preset）
-        this.presetSelect.addEventListener('click', () => {
-            const selectedId = this.presetSelect!.value;
-            if (selectedId) {
-                const presets = this.currentMode === 'edit' ? this.editPresets : this.imagePresets;
-                const p = presets.find(x => x.id === selectedId);
-                if (p) {
-                    this.promptInput.value = p.prompt;
-                    this.updateGenerateButtonState();
-                }
-            }
-        });
+        this.presetRow.addBtn.addEventListener('click', () => this.presetManager.handleAdd());
+        this.presetRow.deleteBtn.addEventListener('click', () => this.presetManager.handleDelete());
+        this.presetRow.saveBtn.addEventListener('click', () => this.presetManager.handleSave());
+        this.presetRow.renameBtn.addEventListener('click', () => this.presetManager.handleRename());
 
-        presetAddBtn.addEventListener('click', () => this.presetManager.handleAdd());
-        presetDeleteBtn.addEventListener('click', () => this.presetManager.handleDelete());
-        presetSaveBtn.addEventListener('click', () => this.presetManager.handleSave());
-        presetRenameBtn.addEventListener('click', () => this.presetManager.handleRename());
-
-        this.editModelSelectEl.addEventListener('change', () => {
-            const value = this.editModelSelectEl!.value;
+        // Model change events
+        this.editModelRow.select.addEventListener('change', () => {
+            const value = this.editModelRow.select.value;
             this.selectedTextModel = value;
             this.onTextModelChange?.(value);
         });
 
-        this.imageModelSelectEl.addEventListener('change', () => {
-            const value = this.imageModelSelectEl!.value;
+        this.imageOptions.modelSelect.addEventListener('change', () => {
+            const value = this.imageOptions.modelSelect.value;
             this.selectedImageModel = value;
             this.onImageModelChange?.(value);
         });
 
-        this.resolutionSelect.addEventListener('change', () => this.emitImageOptionsChange());
-        this.aspectRatioSelect.addEventListener('change', () => this.emitImageOptionsChange());
+        this.imageOptions.resolutionSelect.addEventListener('change', () => this.emitImageOptionsChange());
+        this.imageOptions.aspectRatioSelect.addEventListener('change', () => this.emitImageOptionsChange());
 
-        // 阻止键盘事件冒泡
-        const stopPropagation = (e: Event) => e.stopPropagation();
-        this.promptInput.addEventListener('keydown', stopPropagation, { capture: true });
-        this.promptInput.addEventListener('keyup', stopPropagation);
-        this.promptInput.addEventListener('keypress', stopPropagation);
+        // Keyboard isolation
+        setupKeyboardIsolation(this.promptInput);
 
         return container;
-    }
-
-    /**
-     * 用户点击切换 Tab
-     */
-    private handleUserSwitchMode(mode: NotesPaletteMode): void {
-         if (this.switchModeInternal(mode)) {
-             this.onModeChange?.(mode);
-         }
     }
 
     /**
      * 外部程序切换 Tab (不触发 onModeChange)
      */
     public setMode(mode: NotesPaletteMode): void {
-        this.switchModeInternal(mode);
-    }
-
-    private switchModeInternal(mode: NotesPaletteMode): boolean {
-        // 如果 Edit 模式被禁用，阻止切换
-        if (mode === 'edit' && this.isEditBlocked) {
-            new Notice(t('Edit disabled during image generation'));
-            return false;
+        if (this.modeController.setMode(mode)) {
+            this.refreshPresetDropdown();
+            this.updateGenerateButtonState();
         }
-
-        // 如果 Image 模式被禁用，阻止切换
-        if (mode === 'image' && this.isImageBlocked) {
-            new Notice(t('Image disabled during edit generation'));
-            return false;
-        }
-
-        if (this.currentMode === mode) return false;
-        this.currentMode = mode;
-
-        // 更新 Tab 状态
-        if (this.editTabBtn && this.imageTabBtn) {
-            this.editTabBtn.toggleClass('active', mode === 'edit');
-            this.imageTabBtn.toggleClass('active', mode === 'image');
-        }
-
-        // 更新 options 显示
-        if (this.editModelOptionsEl && this.imageOptionsEl) {
-            this.editModelOptionsEl.toggleClass('is-hidden', mode !== 'edit');
-            this.imageOptionsEl.toggleClass('is-hidden', mode !== 'image');
-        }
-
-        // 更新 placeholder
-        if (mode === 'edit') {
-            this.promptInput.placeholder = t('Enter instructions');
-        } else {
-            this.promptInput.placeholder = t('Describe the image');
-        }
-
-        // 刷新 preset dropdown
-        this.refreshPresetDropdown();
-        this.updateGenerateButtonState();
-        return true;
     }
 
     setEditBlocked(blocked: boolean): void {
-        this.isEditBlocked = blocked;
-
-        if (this.editTabBtn) {
-            this.editTabBtn.toggleClass('disabled', blocked);
-            // 不再禁用按钮，因为我们可能需要点击它来显示通知
-            // 但如果 blocked，我们仍会在 switchModeInternal 中拦截
-        }
-
-        // 如果当前是 Edit 模式且刚被禁用，自动切换到 Image - 由 Handler 统一控制，这里去掉自动切换，只做 UI 响应
+        this.modeController.setEditBlocked(blocked);
     }
 
     setImageBlocked(blocked: boolean): void {
-        this.isImageBlocked = blocked;
-
-        if (this.imageTabBtn) {
-            this.imageTabBtn.toggleClass('disabled', blocked);
-        }
-
-        // 如果当前是 Image 模式且刚被禁用，自动切换到 Edit - 由 Handler 统一控制
+        this.modeController.setImageBlocked(blocked);
     }
 
     private emitImageOptionsChange(): void {
-        if (this.onImageOptionsChange && this.resolutionSelect && this.aspectRatioSelect) {
+        if (this.onImageOptionsChange) {
             this.onImageOptionsChange({
-                resolution: this.resolutionSelect.value,
-                aspectRatio: this.aspectRatioSelect.value
+                resolution: this.imageOptions.resolutionSelect.value,
+                aspectRatio: this.imageOptions.aspectRatioSelect.value
             });
         }
     }
@@ -362,11 +256,11 @@ export class NotesEditPalette {
     // ========== Preset Management ==========
 
     private getCurrentPresets(): PromptPreset[] {
-        return this.currentMode === 'edit' ? this.editPresets : this.imagePresets;
+        return this.modeController.getMode() === 'edit' ? this.editPresets : this.imagePresets;
     }
 
     private setCurrentPresets(presets: PromptPreset[]): void {
-        if (this.currentMode === 'edit') {
+        if (this.modeController.getMode() === 'edit') {
             this.editPresets = presets;
             this.onEditPresetChange?.(presets);
         } else {
@@ -375,16 +269,8 @@ export class NotesEditPalette {
         }
     }
 
-    // handlePresetAdd/Delete/Save/Rename, generateId - 已移至 PresetManager
-
     private refreshPresetDropdown(): void {
-        if (!this.presetSelect) return;
-        this.presetSelect.empty();
-        this.presetSelect.createEl('option', { value: '', text: t('Select prompt preset') });
-        const presets = this.getCurrentPresets();
-        presets.forEach(preset => {
-            this.presetSelect!.createEl('option', { value: preset.id, text: preset.name });
-        });
+        refreshPresetSelect(this.presetRow.select, this.getCurrentPresets());
     }
 
     // ========== Model Selection ==========
@@ -404,41 +290,19 @@ export class NotesEditPalette {
     }
 
     private updateTextModelSelect(): void {
-        if (!this.editModelSelectEl) return;
-        this.editModelSelectEl.empty();
-
-        this.quickSwitchTextModels.forEach(model => {
-            const key = `${model.provider}|${model.modelId}`;
-            const displayName = `${model.displayName || model.modelId} | ${formatProviderName(model.provider)}`;
-            this.editModelSelectEl!.createEl('option', { value: key, text: displayName });
-        });
-
-        if (this.selectedTextModel && this.editModelSelectEl.querySelector(`option[value="${this.selectedTextModel}"]`)) {
-            this.editModelSelectEl.value = this.selectedTextModel;
-        } else if (this.quickSwitchTextModels.length > 0) {
-            const firstKey = `${this.quickSwitchTextModels[0].provider}|${this.quickSwitchTextModels[0].modelId}`;
-            this.editModelSelectEl.value = firstKey;
-            this.selectedTextModel = firstKey;
-        }
+        this.selectedTextModel = updateModelSelect(
+            this.editModelRow.select,
+            this.quickSwitchTextModels,
+            this.selectedTextModel
+        );
     }
 
     private updateImageModelSelect(): void {
-        if (!this.imageModelSelectEl) return;
-        this.imageModelSelectEl.empty();
-
-        this.quickSwitchImageModels.forEach(model => {
-            const key = `${model.provider}|${model.modelId}`;
-            const displayName = `${model.displayName || model.modelId} | ${formatProviderName(model.provider)}`;
-            this.imageModelSelectEl!.createEl('option', { value: key, text: displayName });
-        });
-
-        if (this.selectedImageModel && this.imageModelSelectEl.querySelector(`option[value="${this.selectedImageModel}"]`)) {
-            this.imageModelSelectEl.value = this.selectedImageModel;
-        } else if (this.quickSwitchImageModels.length > 0) {
-            const firstKey = `${this.quickSwitchImageModels[0].provider}|${this.quickSwitchImageModels[0].modelId}`;
-            this.imageModelSelectEl.value = firstKey;
-            this.selectedImageModel = firstKey;
-        }
+        this.selectedImageModel = updateModelSelect(
+            this.imageOptions.modelSelect,
+            this.quickSwitchImageModels,
+            this.selectedImageModel
+        );
     }
 
     setOnTextModelChange(callback: (modelKey: string) => void): void {
@@ -465,9 +329,6 @@ export class NotesEditPalette {
         this.refreshPresetDropdown();
     }
 
-    /**
-     * 刷新所有配置（用于配置变更通知）
-     */
     refreshFromSettings(
         editPresets: PromptPreset[],
         imagePresets: PromptPreset[],
@@ -496,8 +357,8 @@ export class NotesEditPalette {
     initImageOptions(resolution: string, aspectRatio: string): void {
         this.defaultResolution = resolution;
         this.defaultAspectRatio = aspectRatio;
-        if (this.resolutionSelect) this.resolutionSelect.value = resolution;
-        if (this.aspectRatioSelect) this.aspectRatioSelect.value = aspectRatio;
+        this.imageOptions.resolutionSelect.value = resolution;
+        this.imageOptions.aspectRatioSelect.value = aspectRatio;
     }
 
     setOnImageOptionsChange(callback: (options: NotesImageOptions) => void): void {
@@ -506,8 +367,8 @@ export class NotesEditPalette {
 
     getImageOptions(): NotesImageOptions {
         return {
-            resolution: this.resolutionSelect?.value || this.defaultResolution,
-            aspectRatio: this.aspectRatioSelect?.value || this.defaultAspectRatio
+            resolution: this.imageOptions.resolutionSelect.value || this.defaultResolution,
+            aspectRatio: this.imageOptions.aspectRatioSelect.value || this.defaultAspectRatio
         };
     }
 
@@ -525,22 +386,17 @@ export class NotesEditPalette {
             generateBtn.addClass('generating');
         }
 
-        // Image mode 允许空 prompt（使用选中文本）
         const hasPrompt = this.promptInput.value.trim().length > 0;
-        const allowEmpty = this.currentMode === 'image';
+        const allowEmpty = this.modeController.getMode() === 'image';
         generateBtn.disabled = !hasPrompt && !allowEmpty && this.pendingTaskCount === 0;
-        if (generateBtn.disabled) {
-            generateBtn.addClass('disabled');
-        } else {
-            generateBtn.removeClass('disabled');
-        }
+        generateBtn.toggleClass('disabled', generateBtn.disabled);
     }
 
     private handleGenerate(): void {
         const prompt = this.promptInput.value.trim();
+        const mode = this.modeController.getMode();
 
-        // Edit mode 必须有 prompt
-        if (this.currentMode === 'edit' && !prompt) {
+        if (mode === 'edit' && !prompt) {
             new Notice(t('Enter instructions'));
             return;
         }
@@ -555,7 +411,7 @@ export class NotesEditPalette {
             this.updateGenerateButtonState();
             this.hide();
 
-            void this.onGenerate(prompt, this.currentMode).finally(() => {
+            void this.onGenerate(prompt, mode).finally(() => {
                 this.pendingTaskCount = Math.max(0, this.pendingTaskCount - 1);
                 this.updateGenerateButtonState();
             });
@@ -567,7 +423,7 @@ export class NotesEditPalette {
     }
 
     getCurrentMode(): NotesPaletteMode {
-        return this.currentMode;
+        return this.modeController.getMode();
     }
 
     clearPrompt(): void {
@@ -577,55 +433,37 @@ export class NotesEditPalette {
     // ========== Show/Hide ==========
 
     show(x: number, y: number): void {
-        // 使用 is-measuring 类测量尺寸（保持布局但不可见）
         this.containerEl.addClass('is-measuring');
         this.containerEl.removeClass('is-hidden');
 
-        // 获取面板实际尺寸
         const rect = this.containerEl.getBoundingClientRect();
         const panelWidth = rect.width || 320;
         const panelHeight = rect.height || 300;
         const padding = 10;
 
-        // 计算最终位置，确保不超出视口
         let finalX = x;
         let finalY = y;
 
-        // 右边界检测
         if (finalX + panelWidth > window.innerWidth - padding) {
             finalX = window.innerWidth - panelWidth - padding;
         }
-
-        // 左边界检测
         if (finalX < padding) {
             finalX = padding;
         }
-
-        // 下边界检测：如果下方空间不足，尝试显示在上方
         if (finalY + panelHeight > window.innerHeight - padding) {
             const aboveY = y - panelHeight - 40;
-            if (aboveY >= padding) {
-                finalY = aboveY;
-            } else {
-                finalY = window.innerHeight - panelHeight - padding;
-            }
+            finalY = aboveY >= padding ? aboveY : window.innerHeight - panelHeight - padding;
         }
-
-        // 上边界检测
         if (finalY < padding) {
             finalY = padding;
         }
 
-        // 应用最终位置并显示
         this.containerEl.style.left = `${finalX}px`;
         this.containerEl.style.top = `${finalY}px`;
         this.containerEl.removeClass('is-measuring');
         this.isVisible = true;
 
-        // 自动聚焦输入框
         setTimeout(() => this.promptInput.focus(), 50);
-
-        // 更新按钮状态（确保 pending count 正确显示）
         this.updateGenerateButtonState();
     }
 
