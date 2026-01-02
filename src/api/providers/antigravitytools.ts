@@ -89,7 +89,7 @@ export class AntigravityToolsProvider {
         // 添加分辨率后缀 (仅支持 4k/hd，2k 暂不支持)
         if (resolution) {
             const resLower = resolution.toLowerCase();
-            if (resLower === '4k' || resLower === 'hd') {
+            if (resLower === '4k' || resLower === '2k' || resLower === 'hd') {
                 model += `-${resLower}`;
             }
         }
