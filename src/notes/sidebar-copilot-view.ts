@@ -64,6 +64,7 @@ export class SideBarCoPilotView extends ItemView {
     private isGenerating: boolean = false;
     private isEditBlocked: boolean = false;
     private isImageBlocked: boolean = false;
+    private pendingTaskCount: number = 0;
 
     // Selection context captured when sidebar receives focus
     private capturedContext: NotesSelectionContext | null = null;
@@ -780,8 +781,9 @@ export class SideBarCoPilotView extends ItemView {
         this.addMessage('user', instruction);
         this.inputEl.value = '';
 
-        // 不设置 isGenerating，支持并发异步任务
-        // 但可以暂时禁用一下防止重复提交
+        // 更新状态：增加任务计数并更新按钮
+        this.pendingTaskCount++;
+        this.updateGenerateButtonState();
         
         try {
             // 委托给 NotesSelectionHandler 处理
@@ -791,6 +793,11 @@ export class SideBarCoPilotView extends ItemView {
                     const msg = err instanceof Error ? err.message : String(err);
                     console.error('Sidebar Image Error:', err);
                     this.addMessage('assistant', `Error: ${msg}`);
+                })
+                .finally(() => {
+                    // 任务结束（无论成功失败），减少计数并更新按钮
+                    this.pendingTaskCount = Math.max(0, this.pendingTaskCount - 1);
+                    this.updateGenerateButtonState();
                 });
 
             // 立即反馈任务已开始
@@ -800,7 +807,34 @@ export class SideBarCoPilotView extends ItemView {
             const errorMsg = error instanceof Error ? error.message : String(error);
             this.addMessage('assistant', `Error: ${errorMsg}`);
             console.error('Sidebar CoPilot Error:', error);
+            
+            // 发生同步错误时立即恢复
+            this.pendingTaskCount = Math.max(0, this.pendingTaskCount - 1);
+            this.updateGenerateButtonState();
         }
+    }
+
+    /**
+     * 更新生成按钮状态 (复用 FloatingPalette 的样式和逻辑)
+     */
+    private updateGenerateButtonState(): void {
+        const generateBtn = this.generateBtn;
+        if (!generateBtn) return;
+
+        if (this.pendingTaskCount === 0) {
+            generateBtn.textContent = t('Generate');
+            generateBtn.removeClass('generating');
+        } else {
+            generateBtn.textContent = `${t('Generating')} ${this.pendingTaskCount} ${t('Tasks')}`;
+            generateBtn.addClass('generating');
+        }
+
+        // 按钮禁用逻辑
+        // Image 模式允许并发，不禁用按钮 (除非 explicit logic requirement)
+        // Edit 模式通常还要检查 isGenerating，但这里主要处理 Image Mode 的并发反馈
+        // 如果需要完全一致，可以加上空 prompt 检查等，但这里主要关注 generating 状态
+        
+        generateBtn.disabled = false;
     }
 
 
