@@ -348,4 +348,130 @@ export class GptGodProvider {
 
         throw new Error('Could not extract image from GPTGod response');
     }
+    /**
+     * Chat completion with streaming
+     */
+    async *streamChatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): AsyncGenerator<string, void, unknown> {
+        const messages: OpenRouterMessage[] = [];
+
+        if (systemPrompt) {
+            messages.push({ role: 'system', content: systemPrompt });
+        }
+        messages.push({ role: 'user', content: prompt });
+
+        const requestBody: OpenRouterRequest = {
+            model: this.getTextModel(),
+            messages: messages,
+            temperature: temperature,
+            // @ts-ignore: stream property is not in the interface but required for streaming
+            stream: true
+        };
+
+        const apiKey = this.getApiKey();
+        console.debug('Canvas AI: [GPTGod] Sending stream chat request...');
+
+        try {
+            // eslint-disable-next-line no-restricted-globals -- Fetch is required for streaming as requestUrl does not support it
+            const response = await fetch(this.getChatEndpoint(), {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'https://obsidian.md',
+                    'X-Title': 'Obsidian Canvas AI'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`GPTGod API Error: ${response.status} ${errorText}`);
+            }
+
+            if (!response.body) {
+                throw new Error('Response body is null');
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let buffer = '';
+            let isThinking = false;
+            let hasEmittedThinkingHeader = false;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+                const lines = buffer.split('\n');
+                
+                // Process all complete lines
+                buffer = lines.pop() || ''; 
+
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed || trimmed === 'data: [DONE]') continue;
+                    
+                    if (trimmed.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(trimmed.slice(6));
+                            const delta = data.choices?.[0]?.delta;
+                            
+                            if (delta) {
+                                // Handle reasoning_content (Standard OpenAI format for reasoning)
+                                if (delta.reasoning_content) {
+                                    if (!hasEmittedThinkingHeader) {
+                                        yield '> [!THINK|no-icon]- Thinking Process\n> ';
+                                        hasEmittedThinkingHeader = true;
+                                        isThinking = true;
+                                    }
+                                    // Ensure newlines are indented for the callout
+                                    yield delta.reasoning_content.replace(/\n/g, '\n> ');
+                                }
+
+                                // Handle content (Check for <think> tags)
+                                if (delta.content) {
+                                    let content = delta.content;
+                                    
+                                    // Check for start of thinking block
+                                    if (content.includes('<think>')) {
+                                        if (!hasEmittedThinkingHeader) {
+                                            content = content.replace('<think>', '> [!THINK|no-icon]- Thinking Process\n> ');
+                                            hasEmittedThinkingHeader = true;
+                                        } else {
+                                            content = content.replace('<think>', '');
+                                        }
+                                        isThinking = true;
+                                    }
+
+                                    // Check for end of thinking block
+                                    if (content.includes('</think>')) {
+                                        content = content.replace('</think>', '\n\n');
+                                        isThinking = false;
+                                        // Reset header flag if we want to allow multiple thought blocks, 
+                                        // or keep it true if we assume only one main thought block.
+                                        // Resetting is safer for multiple turns but logic might allow mixed content.
+                                        hasEmittedThinkingHeader = false; 
+                                    }
+
+                                    // If inside thinking block and not a header replacement, prefix newlines
+                                    if (isThinking && content !== '> [!THINK|no-icon]- Thinking Process\n> ') {
+                                        content = content.replace(/\n/g, '\n> ');
+                                    }
+                                    
+                                    yield content;
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Error parsing stream chunk:', e);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Canvas AI: Stream Error', error);
+            throw error;
+        }
+    }
 }
