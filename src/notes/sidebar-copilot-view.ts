@@ -800,8 +800,9 @@ export class SideBarCoPilotView extends ItemView {
 
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
-            // If we have an empty message, update it with error
-            if (this.chatHistory[this.chatHistory.length - 1].role === 'assistant' && !this.chatHistory[this.chatHistory.length - 1].content) {
+            // If the last message is the "thinking" placeholder, replace it
+            const lastMsg = this.chatHistory[this.chatHistory.length - 1];
+            if (lastMsg && lastMsg.role === 'assistant' && (lastMsg.content === t('AI is thinking...') || !lastMsg.content)) {
                  this.updateLastAssistantMessage(`Error: ${errorMsg}`);
             } else {
                  this.addMessage('assistant', `Error: ${errorMsg}`);
