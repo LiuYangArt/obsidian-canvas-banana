@@ -1247,10 +1247,14 @@
   gap: 12px;
 }
 
+/* ========== Sidebar Message Header (Removed) - Keeping commented out styles if needed later or just clean up ========== */
+/* .sidebar-message-header { ... } */
+
 .sidebar-chat-message {
-  padding: 10px 12px;
+  padding: 8px 10px;
   border-radius: 8px;
-  max-width: 100%;
+  max-width: 95%; /* Limit width slightly for bubble effect */
+  margin-bottom: 4px; /* Reduced vertical gap between messages */
 }
 
 .sidebar-chat-message.user {
@@ -1266,14 +1270,6 @@
   border: 1px solid var(--background-modifier-border);
 }
 
-.sidebar-message-role {
-  display: block;
-  font-size: 11px;
-  font-weight: 600;
-  margin-bottom: 4px;
-  opacity: 0.7;
-}
-
 .sidebar-message-content {
   font-size: 13px;
   line-height: 1.5;
@@ -1281,30 +1277,68 @@
   word-break: break-word;
 }
 
-.sidebar-copilot-footer {
-  padding: 12px;
-  border-top: 1px solid var(--background-modifier-border);
-  background: var(--background-primary);
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+/* Remove default margins from markdown elements inside message bubble */
+.sidebar-message-content p {
+  margin-block-start: 0;
+  margin-block-end: 0;
 }
 
-/* ========== Sidebar Not Supported Message ========== */
-.sidebar-not-supported {
-  flex: 1;
+.sidebar-message-content > :first-child {
+  margin-top: 0;
+}
+
+.sidebar-message-content > :last-child {
+  margin-bottom: 0;
+}
+
+/* ========== Sidebar Message Actions ========== */
+.sidebar-message-actions {
+  display: flex;
+  flex-direction: row;
+  gap: 4px;
+  margin-top: 4px;
+  padding-top: 4px;
+  border-top: 1px solid var(--background-modifier-border-hover); /* Subtler border */
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+.sidebar-chat-message.user .sidebar-message-actions {
+    border-top-color: rgba(255, 255, 255, 0.2);
+}
+
+
+.sidebar-chat-message:hover .sidebar-message-actions {
+  opacity: 1;
+}
+
+.sidebar-message-actions .clickable-icon {
+  width: 24px;
+  height: 24px;
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: 24px;
-  text-align: center;
-}
-
-.sidebar-not-supported-text {
-  font-size: 14px;
+  border-radius: 4px;
   color: var(--text-muted);
-  line-height: 1.6;
-  max-width: 280px;
 }
 
+.sidebar-message-actions .clickable-icon:hover {
+  color: var(--text-normal);
+  background: var(--background-modifier-hover);
+}
 
+/* Chat mode options (visible like edit options) */
+.canvas-ai-chat-mode-options {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 8px;
+  padding: 4px 12px;
+  background: var(--background-secondary);
+  border-radius: 8px;
+  border: 1px solid var(--background-modifier-border);
+}
+
+.canvas-ai-chat-mode-options.is-hidden {
+  display: none !important;
+}

@@ -55,6 +55,7 @@ export class SideBarCoPilotView extends ItemView {
     private tabs: TabsElements;
     private presetRow: PresetRowElements;
     private editModelRow: { container: HTMLElement; select: HTMLSelectElement };
+    private chatModelRow: { container: HTMLElement; select: HTMLSelectElement };
     private imageOptions: ImageOptionsElements;
     private chatOptionsContainer: HTMLElement;
 
@@ -170,6 +171,7 @@ export class SideBarCoPilotView extends ItemView {
 
         // Chat Options (hidden by default, shown when Chat tab is active)
         this.chatOptionsContainer = this.footerEl.createDiv('canvas-ai-chat-mode-options is-hidden');
+        this.chatModelRow = createModelSelectRow(this.chatOptionsContainer, t('Palette Model'));
 
         // Action Row
         const actionRow = this.footerEl.createDiv('canvas-ai-action-row');
@@ -218,6 +220,20 @@ export class SideBarCoPilotView extends ItemView {
             this.selectedTextModel = this.editModelRow.select.value;
             this.plugin.settings.paletteEditModel = this.selectedTextModel;
             void this.plugin.saveSettings();
+            // Sync to chat model select
+            if (this.chatModelRow?.select) {
+                this.chatModelRow.select.value = this.selectedTextModel;
+            }
+        });
+
+        this.chatModelRow.select.addEventListener('change', () => {
+            this.selectedTextModel = this.chatModelRow.select.value;
+            this.plugin.settings.paletteEditModel = this.selectedTextModel;
+            void this.plugin.saveSettings();
+            // Sync to edit model select
+            if (this.editModelRow?.select) {
+                this.editModelRow.select.value = this.selectedTextModel;
+            }
         });
 
         this.imageOptions.modelSelect.addEventListener('change', () => {
@@ -310,16 +326,18 @@ export class SideBarCoPilotView extends ItemView {
     }
 
     private getCurrentPresets(): PromptPreset[] {
-        return this.modeController.getMode() === 'edit' ? this.editPresets : this.imagePresets;
+        const mode = this.modeController.getMode();
+        return mode === 'image' ? this.imagePresets : this.editPresets;
     }
 
     private setCurrentPresets(presets: PromptPreset[]): void {
-        if (this.modeController.getMode() === 'edit') {
-            this.editPresets = presets;
-            this.plugin.settings.editPresets = presets;
-        } else {
+        const mode = this.modeController.getMode();
+        if (mode === 'image') {
             this.imagePresets = presets;
             this.plugin.settings.imagePresets = presets;
+        } else {
+            this.editPresets = presets;
+            this.plugin.settings.editPresets = presets;
         }
         void this.plugin.saveSettings();
     }
@@ -334,6 +352,14 @@ export class SideBarCoPilotView extends ItemView {
             this.quickSwitchTextModels,
             this.selectedTextModel
         );
+        // Also update chat model select
+        if (this.chatModelRow?.select) {
+            updateModelSelect(
+                this.chatModelRow.select,
+                this.quickSwitchTextModels,
+                this.selectedTextModel
+            );
+        }
     }
 
     private updateImageModelSelect(): void {
@@ -400,13 +426,12 @@ export class SideBarCoPilotView extends ItemView {
     private renderMessage(msg: ChatMessage): void {
         const msgEl = this.messagesContainer.createDiv(`sidebar-chat-message ${msg.role}`);
         
-        // Header
-        const headerEl = msgEl.createDiv('sidebar-message-header');
-        const roleLabel = msg.role === 'user' ? 'You' : 'AI';
-        headerEl.createEl('span', { cls: 'sidebar-message-role', text: roleLabel });
+        // Content
+        const contentEl = msgEl.createDiv('sidebar-message-content markdown-preview-view');
+        void MarkdownRenderer.render(this.app, msg.content, contentEl, this.currentDocPath || '', this);
 
-        // Actions
-        const actionsEl = headerEl.createDiv('sidebar-message-actions');
+        // Actions (bottom row, hidden by default, shown on hover)
+        const actionsEl = msgEl.createDiv('sidebar-message-actions');
         
         // Copy
         const copyBtn = actionsEl.createEl('button', { cls: 'clickable-icon', attr: { 'aria-label': t('Copy') } });
@@ -422,10 +447,6 @@ export class SideBarCoPilotView extends ItemView {
         const deleteBtn = actionsEl.createEl('button', { cls: 'clickable-icon', attr: { 'aria-label': t('Delete') } });
         setIcon(deleteBtn, 'trash-2');
         deleteBtn.addEventListener('click', () => void this.handleDeleteMessage(msg, msgEl));
-
-        // Content
-        const contentEl = msgEl.createDiv('sidebar-message-content markdown-preview-view');
-        void MarkdownRenderer.render(this.app, msg.content, contentEl, this.currentDocPath || '', this);
         
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
     }
@@ -755,7 +776,7 @@ export class SideBarCoPilotView extends ItemView {
                 userMsg = `Previous conversation:\n${historyContext}\n\n${userMsg}`;
             }
 
-            this.addMessage('assistant', ''); // Placeholder for streaming
+            this.addMessage('assistant', t('AI is thinking...')); // Placeholder for streaming
 
             if (images.length > 0) {
                 // Multimodal currently non-streaming
