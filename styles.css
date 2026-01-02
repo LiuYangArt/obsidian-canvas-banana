@@ -1277,6 +1277,19 @@
   word-break: break-word;
 }
 
+/* Force override Obsidian's default markdown preview padding/margins */
+.sidebar-message-content.markdown-preview-view {
+  padding: 0 !important;
+  margin: 0 !important;
+  min-height: unset !important;
+}
+
+/* Reset .markdown-preview-sizer inside if it exists */
+.sidebar-message-content .markdown-preview-sizer {
+  min-height: unset !important;
+  padding-bottom: 0 !important;
+}
+
 /* Remove default margins from markdown elements inside message bubble */
 .sidebar-message-content p {
   margin-block-start: 0;
