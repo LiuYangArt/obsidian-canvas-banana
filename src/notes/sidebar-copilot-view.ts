@@ -527,7 +527,7 @@ export class SideBarCoPilotView extends ItemView {
         this.setImageBlocked(true);
 
         notesHandler?.setFloatingButtonGenerating(true);
-        notesHandler?.clearHighlightForSidebar();
+        // notesHandler?.clearHighlightForSidebar();
 
         try {
             const localApiManager = this.createLocalApiManager('text');
@@ -752,7 +752,7 @@ export class SideBarCoPilotView extends ItemView {
         this.generateBtn.textContent = 'Generating...'; // Hardcoded for now or use t('Generating')
         this.generateBtn.addClass('generating');
 
-        notesHandler?.clearHighlightForSidebar();
+        // notesHandler?.clearHighlightForSidebar();
 
         try {
             const localApiManager = this.createLocalApiManager('text');

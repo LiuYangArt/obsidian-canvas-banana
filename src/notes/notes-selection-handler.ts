@@ -225,19 +225,24 @@ export class NotesSelectionHandler {
                 // 点击侧栏时总是尝试捕获当前编辑器选区（每次点击都重新捕获）
                 // 在 mousedown 阶段捕获（此时焦点还在编辑器，能获取选区）
                 this.captureSelectionForSidebar();
-            } else if (isEditor) {
-                // 点击编辑器时，清除侧栏捕获的高亮
-                if (this.hasSidebarCapturedContext) {
-                    this.clearHighlightForSidebar();
-                }
-            } else if (!isPalette) {
-                // 点击 palette 外部（非按钮）时，隐藏面板
+            } else if (isPalette) {
+                // 点击 palette 内部
+                // 不做任何事，保持 panel 打开，保持高亮
+            } else {
+                // 点击其他任何地方（包括编辑器、其他 UI）
+                // 只要面板是打开的，就关闭它，并清除高亮
                 if (this.editPalette?.visible) {
                     this.editPalette.hide();
                     this.clearSelectionHighlight();
+                } else if (isEditor) {
+                     // 面板没打开，点击编辑器
+                     // clearHighlightForSidebar 只有在 hasSidebarCapturedContext 为 true 时才有用
+                     // 正常点击编辑器本身就会清除原生选区，这里主要是为了清除我们自己画的高亮（如果有）
+                    if (this.hasSidebarCapturedContext) {
+                        this.clearHighlightForSidebar();
+                    }
                 }
             }
-            // 点击 palette 内部时不做任何事，保持现有高亮
         };
         document.addEventListener('mousedown', this.mousedownHandler, true);
 
