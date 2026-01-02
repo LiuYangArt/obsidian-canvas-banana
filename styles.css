@@ -1339,29 +1339,23 @@
   display: flex;
   flex-direction: row;
   gap: 4px;
-  /* Default: collapsed, no space taken */
-  height: 0;
-  overflow: hidden;
-  margin: 0;
+  /* Occupy space but invisible */
+  margin-top: 2px;
   padding: 0;
   border: none;
   opacity: 0;
-  transition: height 0.15s ease, opacity 0.15s ease, margin 0.15s ease, padding 0.15s ease;
+  transition: opacity 0.15s ease;
 }
 
 .sidebar-chat-message-wrapper:hover .sidebar-message-actions {
-  /* Expanded on hover */
-  height: auto;
-  overflow: visible;
-  margin-top: 4px;
-  padding-top: 4px;
-  border-top: 1px solid var(--background-modifier-border-hover);
+  /* Only change opacity on hover, layout remains stable */
   opacity: 1;
 }
 
-.sidebar-chat-message-wrapper.user:hover .sidebar-message-actions {
+/* Remove border-top completely as requested */
+/* .sidebar-chat-message-wrapper.user:hover .sidebar-message-actions {
   border-top-color: rgba(255, 255, 255, 0.2);
-}
+} */
 
 .sidebar-message-actions .clickable-icon {
   width: 24px;
