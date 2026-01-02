@@ -940,11 +940,17 @@
   z-index: 0;
 }
 
+/* 仅在编辑器失去焦点时显示模拟层，避免与原生选区叠加 (Double Layer Effect) */
+.cm-editor.cm-focused .notes-ai-highlight-container {
+  display: none;
+}
+
 .notes-ai-highlight-rect {
   position: absolute;
   background-color: var(--text-selection);
   pointer-events: none;
   border-radius: 2px;
+  opacity: 0.18;
 }
 
 /* ========== Notes AI Palette ========== */
