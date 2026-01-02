@@ -6,13 +6,15 @@
 import { Notice } from 'obsidian';
 import { t } from '../../lang/helpers';
 
-export type PaletteMode = 'edit' | 'image';
+export type PaletteMode = 'edit' | 'image' | 'chat';
 
 export interface ModeUIElements {
     editTabBtn: HTMLButtonElement | null;
     imageTabBtn: HTMLButtonElement | null;
+    chatTabBtn: HTMLButtonElement | null;
     editOptionsEl: HTMLElement | null;
     imageOptionsEl: HTMLElement | null;
+    chatOptionsEl: HTMLElement | null;
     promptInput: HTMLTextAreaElement | null;
 }
 
@@ -67,15 +69,20 @@ export class ModeController {
             return false;
         }
 
+        // Chat 模式永不阻塞
+
         if (this.currentMode === mode) return false;
         this.currentMode = mode;
 
         // 更新 Tab 状态
-        const { editTabBtn, imageTabBtn, editOptionsEl, imageOptionsEl, promptInput } = this.elements;
+        const { editTabBtn, imageTabBtn, chatTabBtn, editOptionsEl, imageOptionsEl, chatOptionsEl, promptInput } = this.elements;
 
         if (editTabBtn && imageTabBtn) {
             editTabBtn.toggleClass('active', mode === 'edit');
             imageTabBtn.toggleClass('active', mode === 'image');
+        }
+        if (chatTabBtn) {
+            chatTabBtn.toggleClass('active', mode === 'chat');
         }
 
         // 更新 options 显示
@@ -83,12 +90,19 @@ export class ModeController {
             editOptionsEl.toggleClass('is-hidden', mode !== 'edit');
             imageOptionsEl.toggleClass('is-hidden', mode !== 'image');
         }
+        if (chatOptionsEl) {
+            chatOptionsEl.toggleClass('is-hidden', mode !== 'chat');
+        }
 
         // 更新 placeholder
         if (promptInput) {
-            promptInput.placeholder = mode === 'edit'
-                ? t('Enter instructions')
-                : t('Describe the image');
+            if (mode === 'edit') {
+                promptInput.placeholder = t('Enter instructions');
+            } else if (mode === 'image') {
+                promptInput.placeholder = t('Describe the image');
+            } else {
+                promptInput.placeholder = t('Ask a question');
+            }
         }
 
         return true;

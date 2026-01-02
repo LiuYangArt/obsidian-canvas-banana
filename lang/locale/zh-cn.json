@@ -175,5 +175,7 @@
     "Note floating icon": "笔记悬浮图标",
     "Note floating icon desc": "选中文字时显示悬浮图标。如果您更喜欢只使用侧边栏，可以禁用此功能。",
     "Generating image based on your request": "正在根据您的需求生成图片",
-    "Services not initialized": "插件服务未初始化"
+    "Services not initialized": "插件服务未初始化",
+    "Chat": "对话",
+    "Ask a question": "输入问题..."
 }

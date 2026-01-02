@@ -56,6 +56,7 @@ export class SideBarCoPilotView extends ItemView {
     private presetRow: PresetRowElements;
     private editModelRow: { container: HTMLElement; select: HTMLSelectElement };
     private imageOptions: ImageOptionsElements;
+    private chatOptionsContainer: HTMLElement;
 
     // Settings
     private editPresets: PromptPreset[] = [];
@@ -167,6 +168,9 @@ export class SideBarCoPilotView extends ItemView {
         // Image Options (using shared builder)
         this.imageOptions = createImageOptionsRow(this.footerEl);
 
+        // Chat Options (hidden by default, shown when Chat tab is active)
+        this.chatOptionsContainer = this.footerEl.createDiv('canvas-ai-chat-mode-options is-hidden');
+
         // Action Row
         const actionRow = this.footerEl.createDiv('canvas-ai-action-row');
         this.generateBtn = actionRow.createEl('button', { cls: 'canvas-ai-generate-btn', text: t('Generate') });
@@ -175,8 +179,10 @@ export class SideBarCoPilotView extends ItemView {
         this.modeController = new ModeController({
             editTabBtn: this.tabs.editBtn,
             imageTabBtn: this.tabs.imageBtn,
+            chatTabBtn: this.tabs.chatBtn,
             editOptionsEl: editOptionsContainer,
             imageOptionsEl: this.imageOptions.container,
+            chatOptionsEl: this.chatOptionsContainer,
             promptInput: this.inputEl
         }, {
             onModeChange: (mode) => {
@@ -188,6 +194,7 @@ export class SideBarCoPilotView extends ItemView {
         // Event Bindings
         this.tabs.editBtn.addEventListener('click', () => this.modeController.handleUserSwitch('edit'));
         this.tabs.imageBtn.addEventListener('click', () => this.modeController.handleUserSwitch('image'));
+        this.tabs.chatBtn.addEventListener('click', () => this.modeController.handleUserSwitch('chat'));
 
         // Preset events
         const applyPreset = () => {
@@ -399,8 +406,11 @@ export class SideBarCoPilotView extends ItemView {
     }
 
     private async handleGenerate(): Promise<void> {
-        if (this.modeController.getMode() === 'image') {
+        const mode = this.modeController.getMode();
+        if (mode === 'image') {
             return this.handleImageGenerate();
+        } else if (mode === 'chat') {
+            return this.handleChatGenerate();
         }
         return this.handleEditGenerate();
     }
@@ -629,6 +639,92 @@ export class SideBarCoPilotView extends ItemView {
 
             this.pendingTaskCount = Math.max(0, this.pendingTaskCount - 1);
             this.updateGenerateButtonState();
+        }
+    }
+
+    private async handleChatGenerate(): Promise<void> {
+        const prompt = this.inputEl.value.trim();
+        if (!prompt) {
+            new Notice(t('Ask a question'));
+            return;
+        }
+
+        if (this.isGenerating) {
+            new Notice(t('Generation in progress'));
+            return;
+        }
+
+        const activeFile = this.app.workspace.getActiveFile();
+        if (!activeFile || activeFile.extension !== 'md') {
+            new Notice(t('No active file'));
+            return;
+        }
+
+        const file = activeFile;
+        const docContent = await this.app.vault.read(file);
+
+        const notesHandler = this.plugin.getNotesHandler();
+        if (notesHandler) {
+            const latestContext = notesHandler.getLastContext();
+            if (latestContext) {
+                this.capturedContext = latestContext;
+            }
+        }
+
+        const context = this.capturedContext;
+        const hasSelection = context && context.selectedText && context.selectedText.trim().length > 0;
+
+        this.addMessage('user', prompt);
+        this.inputEl.value = '';
+
+        this.isGenerating = true;
+        this.generateBtn.textContent = t('Generating');
+        this.generateBtn.addClass('generating');
+
+        notesHandler?.clearHighlightForSidebar();
+
+        try {
+            const localApiManager = this.createLocalApiManager('text');
+            const systemPrompt = 'You are a helpful assistant. Answer questions based on the provided context. Respond in the same language as the user\'s question.';
+
+            let userMsg: string;
+            let images: { base64: string; mimeType: string; type: 'image' | 'pdf' }[] = [];
+
+            if (hasSelection) {
+                userMsg = `Context (selected text):\n${context.selectedText}\n\nQuestion:\n${prompt}`;
+                const extractedImages = await extractDocumentImages(this.app, context.selectedText, file.path, this.plugin.settings);
+                images = extractedImages.map(img => ({ ...img, type: 'image' as const }));
+            } else {
+                userMsg = `Context (document content):\n${docContent}\n\nQuestion:\n${prompt}`;
+                const extractedImages = await extractDocumentImages(this.app, docContent, file.path, this.plugin.settings);
+                images = extractedImages.map(img => ({ ...img, type: 'image' as const }));
+            }
+
+            if (this.chatHistory.length > 2) {
+                const historyContext = this.chatHistory.slice(0, -1).map(m =>
+                    `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`
+                ).join('\n');
+                userMsg = `Previous conversation:\n${historyContext}\n\n${userMsg}`;
+            }
+
+            let response: string;
+            if (images.length > 0) {
+                response = await localApiManager.multimodalChat(userMsg, images, systemPrompt, 0.7);
+            } else {
+                response = await localApiManager.chatCompletion(userMsg, systemPrompt, 0.7);
+            }
+
+            this.addMessage('assistant', response);
+
+        } catch (error) {
+            const errorMsg = error instanceof Error ? error.message : String(error);
+            this.addMessage('assistant', `Error: ${errorMsg}`);
+            console.error('Sidebar Chat Error:', error);
+        } finally {
+            this.isGenerating = false;
+            this.generateBtn.textContent = t('Generate');
+            this.generateBtn.removeClass('generating');
+            this.clearCapturedContext();
         }
     }
 

@@ -175,5 +175,7 @@
     "Note floating icon": "Note floating icon",
     "Note floating icon desc": "Show floating icon when text is selected in notes. Disable if you prefer using only the sidebar.",
     "Generating image based on your request": "Generating image based on your request",
-    "Services not initialized": "Plugin services not initialized"
+    "Services not initialized": "Plugin services not initialized",
+    "Chat": "Chat",
+    "Ask a question": "Ask a question..."
 }

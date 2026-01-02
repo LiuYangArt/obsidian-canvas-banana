@@ -137,6 +137,8 @@ export class NotesEditPalette {
         // Header with Tabs
         const header = container.createDiv('canvas-ai-palette-header notes-ai-palette-header');
         this.tabs = createTabs(header);
+        // 浮动面板不需要 Chat Tab，隐藏它
+        this.tabs.chatBtn.addClass('is-hidden');
         const closeBtn = header.createEl('button', { cls: 'canvas-ai-close-btn', text: '×' });
 
         // Body
@@ -166,8 +168,10 @@ export class NotesEditPalette {
         this.modeController = new ModeController({
             editTabBtn: this.tabs.editBtn,
             imageTabBtn: this.tabs.imageBtn,
+            chatTabBtn: null,  // 浮动面板不支持 Chat
             editOptionsEl: editOptionsContainer,
             imageOptionsEl: this.imageOptions.container,
+            chatOptionsEl: null,  // 浮动面板不支持 Chat
             promptInput: this.promptInput
         }, {
             onModeChange: (mode) => {
