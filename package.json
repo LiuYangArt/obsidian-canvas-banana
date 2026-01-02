@@ -1,6 +1,6 @@
 {
     "name": "canvas-banana",
-    "version": "0.10.13",
+    "version": "0.11.0",
     "description": "Canvas AI Plugin - use Gemini AI in Canvas view, support text / image / node generation.",
     "main": "main.js",
     "scripts": {
@@ -19,7 +19,6 @@
     "author": "LiuYang",
     "license": "GPL-3.0",
     "devDependencies": {
-        "@eslint-community/eslint-plugin-eslint-comments": "^4.5.0",
         "@eslint/eslintrc": "^3.3.3",
         "@types/node": "^16.11.6",
         "@typescript-eslint/eslint-plugin": "^8.50.0",
