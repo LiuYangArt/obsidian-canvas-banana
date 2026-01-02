@@ -189,6 +189,7 @@ export class SideBarCoPilotView extends ItemView {
         }, {
             onModeChange: (mode) => {
                 this.refreshPresetDropdown();
+                this.updateGenerateButtonState();
                 this.onModeChange?.(mode);
             }
         });
@@ -262,6 +263,9 @@ export class SideBarCoPilotView extends ItemView {
         this.inputEl.addEventListener('blur', () => {
             this.app.keymap.popScope(this.keyScope);
         });
+        this.inputEl.addEventListener('input', () => {
+            this.updateGenerateButtonState();
+        });
 
         // Keyboard isolation
         setupKeyboardIsolation(this.inputEl);
@@ -303,6 +307,7 @@ export class SideBarCoPilotView extends ItemView {
         if (this.imageOptions.aspectRatioSelect) {
             this.imageOptions.aspectRatioSelect.value = this.plugin.settings.defaultAspectRatio || '1:1';
         }
+        this.updateGenerateButtonState();
     }
 
     public refreshFromSettings(): void {
@@ -862,7 +867,22 @@ export class SideBarCoPilotView extends ItemView {
             this.generateBtn.addClass('generating');
         }
 
-        this.generateBtn.disabled = false;
+        // Determine if button should be disabled based on mode
+        const mode = this.modeController.getMode();
+        const hasPrompt = this.inputEl?.value.trim().length > 0;
+        const hasSelection = (this.capturedContext?.selectedText?.trim().length ?? 0) > 0;
+
+        let shouldDisable = false;
+        if (mode === 'edit' || mode === 'chat') {
+            // Edit/Chat mode: require prompt
+            shouldDisable = !hasPrompt && this.pendingTaskCount === 0;
+        } else if (mode === 'image') {
+            // Image mode: require prompt OR selection
+            shouldDisable = !hasPrompt && !hasSelection && this.pendingTaskCount === 0;
+        }
+
+        this.generateBtn.disabled = shouldDisable;
+        this.generateBtn.toggleClass('disabled', shouldDisable);
     }
 
     private createLocalApiManager(type: 'text' | 'image'): ApiManager {
@@ -935,6 +955,7 @@ export class SideBarCoPilotView extends ItemView {
                 this.capturedContext = context;
             }
         }
+        this.updateGenerateButtonState();
     }
 
     private clearCapturedContext(): void {
