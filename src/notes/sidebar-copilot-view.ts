@@ -747,7 +747,7 @@ export class SideBarCoPilotView extends ItemView {
         }
     }
 
-    private async handleImageGenerate(): Promise<void> {
+    private handleImageGenerate(): void {
         const prompt = this.inputEl.value.trim();
 
         // 获取当前文档
