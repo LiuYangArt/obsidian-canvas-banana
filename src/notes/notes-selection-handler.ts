@@ -39,6 +39,9 @@ export class NotesSelectionHandler {
     // 选区高亮容器
     private highlightContainer: HTMLElement | null = null;
 
+    // 侧栏是否已捕获选区上下文（用于保护高亮在视图切换时不被清除）
+    private hasSidebarCapturedContext: boolean = false;
+
     // 事件清理
     private selectionChangeHandler: () => void;
     private escapeHandler: (evt: KeyboardEvent) => void;
@@ -210,7 +213,7 @@ export class NotesSelectionHandler {
 
             const isPalette = target.closest('.notes-ai-palette');
             const isButton = target.closest('#notes-ai-floating-button');
-            const isSidebar = target.closest('.canvas-ai-sidebar-copilot');
+            const isSidebar = target.closest('.sidebar-copilot-container');
 
             if (isButton) {
                 // 只在点击按钮且面板未打开时捕获选区
@@ -220,6 +223,7 @@ export class NotesSelectionHandler {
             } else if (isSidebar) {
                 // 点击侧栏时在 mousedown 阶段捕获选区（此时焦点还在编辑器，能获取选区）
                 // 注意：必须在焦点转移前捕获，否则 window.getSelection() 会失效
+                console.debug('[Sidebar Debug] mousedown on sidebar, target:', target.tagName, target.className);
                 this.captureSelectionForSidebar();
             } else if (!isPalette) {
                 // 点击 palette 外部（非按钮）时，隐藏面板
@@ -236,6 +240,8 @@ export class NotesSelectionHandler {
         this.leafChangeCleanup = this.app.workspace.on('active-leaf-change', () => {
             // 如果正在生成中，不要清理 UI（支持切换到侧栏查看）
             if (this.isGenerating) return;
+            // 如果侧栏已捕获选区，保护高亮不被清除
+            if (this.hasSidebarCapturedContext) return;
 
             const view = this.app.workspace.getActiveViewOfType(MarkdownView);
             if (!view) {
@@ -374,6 +380,7 @@ export class NotesSelectionHandler {
         this.clearSelectionHighlight();
 
         const selection = window.getSelection();
+        console.debug('[Sidebar Debug] captureSelectionHighlight: selection =', selection?.toString().substring(0, 50), 'rangeCount =', selection?.rangeCount, 'isCollapsed =', selection?.isCollapsed);
         if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
 
         const range = selection.getRangeAt(0);
@@ -885,20 +892,64 @@ export class NotesSelectionHandler {
      * @returns 选区上下文，如果没有选区则返回 null
      */
     public captureSelectionForSidebar(): NotesSelectionContext | null {
-        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (!view || !view.file || view.getMode() !== 'source') {
+        // 使用 window.getSelection() 获取 DOM 选区
+        const domSelection = window.getSelection();
+        if (!domSelection || domSelection.rangeCount === 0 || domSelection.isCollapsed) {
+            console.debug('[Sidebar Debug] captureSelectionForSidebar: no DOM selection');
             return null;
         }
 
-        const editor = view.editor;
+        // 从选区的 anchorNode 找到包含它的编辑器容器
+        const anchorNode = domSelection.anchorNode;
+        if (!anchorNode) {
+            console.debug('[Sidebar Debug] captureSelectionForSidebar: no anchorNode');
+            return null;
+        }
+
+        // 找到包含选区的 .workspace-leaf 容器
+        const leafEl = (anchorNode.nodeType === Node.ELEMENT_NODE 
+            ? anchorNode as HTMLElement 
+            : anchorNode.parentElement
+        )?.closest('.workspace-leaf');
+        
+        if (!leafEl) {
+            console.debug('[Sidebar Debug] captureSelectionForSidebar: no workspace-leaf found');
+            return null;
+        }
+
+        // 遍历所有 leaf 找到匹配的 MarkdownView
+        const allLeaves = this.app.workspace.getLeavesOfType('markdown');
+        let targetView: MarkdownView | null = null;
+        
+        for (const leaf of allLeaves) {
+            // containerEl 在 Obsidian API 中存在但类型定义可能不完整
+            const leafContainer = (leaf as unknown as { containerEl: HTMLElement }).containerEl;
+            if (leafContainer === leafEl || leafContainer.contains(leafEl)) {
+                targetView = leaf.view as MarkdownView;
+                break;
+            }
+        }
+
+        if (!targetView || !targetView.file) {
+            console.debug('[Sidebar Debug] captureSelectionForSidebar: no matching MarkdownView found');
+            return null;
+        }
+
+        console.debug('[Sidebar Debug] captureSelectionForSidebar: found view for', targetView.file.path);
+
+        const editor = targetView.editor;
         const selection = editor.getSelection();
+        console.debug('[Sidebar Debug] captureSelectionForSidebar: selection =', selection?.substring(0, 50));
 
         if (!selection || selection.trim().length === 0) {
+            console.debug('[Sidebar Debug] captureSelectionForSidebar: EARLY RETURN - no editor selection');
             return null;
         }
 
         // 捕获选区高亮
         this.captureSelectionHighlight();
+        // 设置侧栏捕获标志，保护高亮不被 active-leaf-change 清除
+        this.hasSidebarCapturedContext = true;
 
         const fullText = editor.getValue();
         const fromCursor = editor.getCursor('from');
@@ -919,14 +970,14 @@ export class NotesSelectionHandler {
         toOffset += toCursor.ch;
 
         this.lastContext = {
-            nodeId: view.file.path,
+            nodeId: targetView.file.path,
             selectedText: selection,
             preText: fullText.substring(0, fromOffset),
             postText: fullText.substring(toOffset),
             fullText: fullText,
             isExplicit: true,
             editor: editor,
-            file: view.file
+            file: targetView.file
         };
 
         return this.lastContext;
@@ -937,6 +988,8 @@ export class NotesSelectionHandler {
      */
     public clearHighlightForSidebar(): void {
         this.clearSelectionHighlight();
+        // 重置侧栏捕获标志
+        this.hasSidebarCapturedContext = false;
     }
 
     /**
