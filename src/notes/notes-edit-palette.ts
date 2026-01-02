@@ -229,6 +229,19 @@ export class NotesEditPalette {
             }
         });
 
+        // 点击 select 时，如果已选中某 preset 则重新应用（支持重复选择同一 preset）
+        this.presetSelect.addEventListener('click', () => {
+            const selectedId = this.presetSelect!.value;
+            if (selectedId) {
+                const presets = this.currentMode === 'edit' ? this.editPresets : this.imagePresets;
+                const p = presets.find(x => x.id === selectedId);
+                if (p) {
+                    this.promptInput.value = p.prompt;
+                    this.updateGenerateButtonState();
+                }
+            }
+        });
+
         presetAddBtn.addEventListener('click', () => this.presetManager.handleAdd());
         presetDeleteBtn.addEventListener('click', () => this.presetManager.handleDelete());
         presetSaveBtn.addEventListener('click', () => this.presetManager.handleSave());

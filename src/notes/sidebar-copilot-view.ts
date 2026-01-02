@@ -186,6 +186,16 @@ export class SideBarCoPilotView extends ItemView {
             }
         });
 
+        // 点击 select 时，如果已选中某 preset 则重新应用（支持重复选择同一 preset）
+        this.presetSelect.addEventListener('click', () => {
+            const selectedId = this.presetSelect.value;
+            if (selectedId) {
+                const presets = this.getCurrentPresets();
+                const p = presets.find(x => x.id === selectedId);
+                if (p) this.inputEl.value = p.prompt;
+            }
+        });
+
         // Input Textarea - 复用悬浮面板样式
         this.inputEl = this.footerEl.createEl('textarea', {
             cls: 'canvas-ai-prompt-input',
