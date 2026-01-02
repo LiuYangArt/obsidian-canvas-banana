@@ -25,8 +25,8 @@ export interface TabsElements {
 export function createTabs(parent: HTMLElement): TabsElements {
     const container = parent.createDiv('canvas-ai-tabs');
     const editBtn = container.createEl('button', { cls: 'canvas-ai-tab active', text: t('Edit') });
-    const imageBtn = container.createEl('button', { cls: 'canvas-ai-tab', text: t('Image') });
     const chatBtn = container.createEl('button', { cls: 'canvas-ai-tab', text: t('Chat') });
+    const imageBtn = container.createEl('button', { cls: 'canvas-ai-tab', text: t('Image') });
     return { container, editBtn, imageBtn, chatBtn };
 }
 

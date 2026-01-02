@@ -3,7 +3,7 @@
  * Notes AI 侧边栏视图，提供多轮对话、文档编辑和图片生成功能
  */
 
-import { ItemView, WorkspaceLeaf, Notice, Scope, Editor, MarkdownRenderer, setIcon } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, Scope, Editor, MarkdownRenderer, setIcon, MarkdownView } from 'obsidian';
 import type CanvasAIPlugin from '../../main';
 import { PromptPreset, QuickSwitchModel, ApiProvider } from '../settings/settings';
 import { ConfirmModal, DiffModal } from '../ui/modals';
@@ -460,14 +460,30 @@ export class SideBarCoPilotView extends ItemView {
 
     private handleInsertMessage(content: string): void {
         const activeFile = this.app.workspace.getActiveFile();
-        if (!activeFile) return;
-        
-        const editor = this.app.workspace.activeEditor?.editor;
-        if (editor) {
-            const cursor = editor.getCursor();
-            editor.replaceRange(content, cursor);
-            new Notice(t('Text replaced')); // Using existing key for now
+        if (!activeFile) {
+            new Notice(t('No active file'));
+            return;
         }
+        
+        // Get editor from MarkdownView leaves (more reliable than activeEditor)
+        const leaves = this.app.workspace.getLeavesOfType('markdown');
+        const activeLeaf = leaves.find(leaf => {
+            const view = leaf.view as MarkdownView;
+            return view.file?.path === activeFile.path;
+        });
+        
+        if (activeLeaf) {
+            const view = activeLeaf.view as MarkdownView;
+            const editor = view.editor;
+            if (editor) {
+                const cursor = editor.getCursor();
+                editor.replaceRange(content, cursor);
+                new Notice(t('Text replaced'));
+                return;
+            }
+        }
+        
+        new Notice(t('No active file'));
     }
 
     private handleDeleteMessage(msg: ChatMessage, el: HTMLElement): void {
@@ -827,8 +843,8 @@ export class SideBarCoPilotView extends ItemView {
             if (lastMsgEl) {
                 const contentEl = lastMsgEl.querySelector('.sidebar-message-content');
                 if (contentEl) {
+                    // Use textContent for streaming performance, final render uses MarkdownRenderer
                     contentEl.textContent = content;
-                    // Auto-scroll
                     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
                 }
             }
@@ -901,8 +917,11 @@ export class SideBarCoPilotView extends ItemView {
             const lastMsgEl = this.messagesContainer.lastElementChild;
             if (lastMsgEl) {
                 const contentEl = lastMsgEl.querySelector('.sidebar-message-content');
-                if (contentEl) {
-                    contentEl.textContent = content;
+                if (contentEl instanceof HTMLElement) {
+                    // Clear and re-render with MarkdownRenderer for proper formatting
+                    contentEl.empty();
+                    void MarkdownRenderer.render(this.app, content, contentEl, this.currentDocPath || '', this);
+                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
                 }
             }
         }
