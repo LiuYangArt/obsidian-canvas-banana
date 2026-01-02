@@ -902,15 +902,18 @@ export class SideBarCoPilotView extends ItemView {
     // extractDocumentImages, resolveImagePath - 已移至 src/utils/image-utils.ts
 
     /**
-     * 点击侧栏输入框时捕获当前编辑器选区
+     * 点击侧栏输入框时获取选区上下文
+     * 注意：实际选区捕获在 mousedown 阶段完成（由 notes-selection-handler 处理）
+     * 这里只是获取已捕获的上下文
      */
     private captureSelectionOnFocus(): void {
         const notesHandler = this.plugin.getNotesHandler();
         if (notesHandler) {
-            const context = notesHandler.captureSelectionForSidebar();
+            // 获取在 mousedown 阶段已捕获的上下文（由 notes-selection-handler 处理）
+            const context = notesHandler.getLastContext();
             if (context) {
                 this.capturedContext = context;
-                console.debug('Sidebar CoPilot: Captured selection context', context.selectedText.substring(0, 50));
+                console.debug('Sidebar CoPilot: Using captured selection context', context.selectedText.substring(0, 50));
             }
         }
     }

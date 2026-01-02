@@ -210,12 +210,17 @@ export class NotesSelectionHandler {
 
             const isPalette = target.closest('.notes-ai-palette');
             const isButton = target.closest('#notes-ai-floating-button');
+            const isSidebar = target.closest('.canvas-ai-sidebar-copilot');
 
             if (isButton) {
                 // 只在点击按钮且面板未打开时捕获选区
                 if (!this.editPalette?.visible) {
                     this.captureContext();
                 }
+            } else if (isSidebar) {
+                // 点击侧栏时在 mousedown 阶段捕获选区（此时焦点还在编辑器，能获取选区）
+                // 注意：必须在焦点转移前捕获，否则 window.getSelection() 会失效
+                this.captureSelectionForSidebar();
             } else if (!isPalette) {
                 // 点击 palette 外部（非按钮）时，隐藏面板
                 if (this.editPalette?.visible) {
