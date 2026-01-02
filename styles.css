@@ -1291,17 +1291,28 @@
 }
 
 /* Remove default margins from markdown elements inside message bubble */
-.sidebar-message-content p {
+.sidebar-message-content p,
+.sidebar-message-content ul,
+.sidebar-message-content ol,
+.sidebar-message-content blockquote,
+.sidebar-message-content pre,
+.sidebar-message-content h1,
+.sidebar-message-content h2,
+.sidebar-message-content h3,
+.sidebar-message-content h4,
+.sidebar-message-content h5,
+.sidebar-message-content h6 {
   margin-block-start: 0;
-  margin-block-end: 0;
+  margin-block-end: 0.5em;
 }
 
 .sidebar-message-content > :first-child {
-  margin-top: 0;
+  margin-top: 0 !important;
 }
 
-.sidebar-message-content > :last-child {
-  margin-bottom: 0;
+.sidebar-message-content > :last-child,
+.sidebar-message-content .markdown-preview-sizer > :last-child {
+  margin-bottom: 0 !important;
 }
 
 /* ========== Sidebar Message Actions ========== */
