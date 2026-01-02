@@ -801,7 +801,7 @@ export class SideBarCoPilotView extends ItemView {
                 });
 
             // 立即反馈任务已开始
-            this.addMessage('assistant', t('Image generation task started...'));
+            this.addMessage('assistant', t('Generating image based on your request'));
 
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
