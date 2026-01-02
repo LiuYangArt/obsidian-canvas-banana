@@ -10,6 +10,7 @@
 | `providers/gemini.ts` | Gemini 原生 API | 图片生成、多模态 |
 | `providers/openrouter.ts` | OpenRouter 代理 | 兼容 OpenAI 格式 |
 | `providers/gptgod.ts` | GPTGod 代理 | 兼容 OpenAI 格式 |
+| `providers/antigravitytools.ts` | AntigravityTools | Gemini 文字 / OpenAI 兼容图片 |
 
 ## Canvas 功能 (`src/canvas/`)
 
@@ -20,6 +21,7 @@
 | `node-operations.ts` | 创建群组、选择连接节点、新建节点 |
 | `node-mode-utils.ts` | JSON 提取/验证、坐标重映射、布局优化 |
 | `image-viewer.ts` | 新窗口打开图片、复制到剪贴板 |
+| `ghost-node.ts` | Ghost Node 节点操作 (创建/更新/高度自适应) |
 | `utilities.ts` | Canvas 工具函数 |
 
 ## Notes 功能 (`src/notes/`)
@@ -31,6 +33,9 @@
 | `sidebar-copilot-view.ts` | 侧边栏 CoPilot (多轮对话、文档编辑、图片生成) |
 | `note-image-task-manager.ts` | 图片生成任务队列、并发控制 |
 | `text-patcher.ts` | 文本 patch 应用 |
+| `mode-controller.ts` | 面板模式切换控制器 (Edit/Image) |
+| `notes-floating-button.ts` | 悬浮香蕉按钮逻辑 |
+| `shared-ui-builder.ts` | Notes 通用 UI 组件构建器 (Tab/Preset/ImageOptions) |
 
 ## UI 组件 (`src/ui/`)
 
