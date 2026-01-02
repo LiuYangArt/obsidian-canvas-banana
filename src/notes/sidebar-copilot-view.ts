@@ -551,6 +551,15 @@ export class SideBarCoPilotView extends ItemView {
         const file = activeFile;
         const docContent = await this.app.vault.read(file);
 
+        // 从 handler 获取最新的选区上下文（在 mousedown 阶段捕获）
+        const notesHandler = this.plugin.getNotesHandler();
+        if (notesHandler) {
+            const latestContext = notesHandler.getLastContext();
+            if (latestContext) {
+                this.capturedContext = latestContext;
+            }
+        }
+
         // 判断是否使用选区模式
         const context = this.capturedContext;
         const hasSelection = context && context.selectedText && context.selectedText.trim().length > 0;
@@ -567,8 +576,7 @@ export class SideBarCoPilotView extends ItemView {
         // 禁用 Image Tab
         this.setImageBlocked(true);
 
-        // 同步悬浮图标状态
-        const notesHandler = this.plugin.getNotesHandler();
+        // 同步悬浮图标状态（复用上面声明的 notesHandler）
         notesHandler?.setFloatingButtonGenerating(true);
         // 点击生成时立即清除选区高亮（与悬浮按钮行为一致）
         notesHandler?.clearHighlightForSidebar();
@@ -745,6 +753,15 @@ export class SideBarCoPilotView extends ItemView {
 
         const file = activeFile;
 
+        // 从 handler 获取最新的选区上下文（在 mousedown 阶段捕获）
+        const notesHandler = this.plugin.getNotesHandler();
+        if (notesHandler) {
+            const latestContext = notesHandler.getLastContext();
+            if (latestContext) {
+                this.capturedContext = latestContext;
+            }
+        }
+
         // 判断是否使用选区模式
         const context = this.capturedContext;
         const hasSelection = context && context.selectedText && context.selectedText.trim().length > 0;
@@ -764,8 +781,7 @@ export class SideBarCoPilotView extends ItemView {
         // 禁用 Edit Tab
         this.setEditBlocked(true);
 
-        // 同步悬浮图标状态
-        const notesHandler = this.plugin.getNotesHandler();
+        // 同步悬浮图标状态（复用上面声明的 notesHandler）
         notesHandler?.setFloatingButtonGenerating(true);
 
         try {

@@ -183,22 +183,24 @@ sequenceDiagram
 
 ## 6. 任务拆分
 
-- [ ] 2.1 悬浮图标开关设置
-  - [ ] `settings.ts` 新增配置项
-  - [ ] `settings-tab.ts` 新增 Toggle UI
-  - [ ] `notes-selection-handler.ts` 增加判断逻辑
-- [ ] 2.2 侧栏感知文字选区
-  - [ ] 侧栏获取当前编辑器选区
-  - [ ] Edit 模式使用选区作为编辑目标
-  - [ ] Image 模式使用选区作为上下文
-  - [ ] Image 模式提取选区中的图片（复用 `extractDocumentImages()`）
-- [ ] 2.3 侧栏选区高亮保持
-  - [ ] 点击侧栏时捕获选区
-  - [ ] 创建持久高亮
-  - [ ] 生成完成后清除高亮
-- [ ] 2.4 侧栏生成任务同步悬浮图标状态
-  - [ ] 生成开始时设置悬浮图标 generating 状态
-  - [ ] 生成完成时恢复悬浮图标状态
+- [x] 2.1 悬浮图标开关设置 ✅ (已在之前的 commit 完成)
+  - [x] `settings.ts` 新增配置项
+  - [x] `settings-tab.ts` 新增 Toggle UI
+  - [x] `notes-selection-handler.ts` 增加判断逻辑
+- [x] 2.2 侧栏感知文字选区 ✅
+  - [x] 侧栏获取当前编辑器选区
+  - [x] Edit 模式使用选区作为编辑目标
+  - [x] Image 模式使用选区作为上下文
+  - [x] Image 模式提取选区中的图片（复用 `extractDocumentImages()`）
+- [x] 2.3 侧栏选区高亮保持 ✅
+  - [x] 点击侧栏时捕获选区
+  - [x] 创建持久高亮
+  - [x] 生成完成后清除高亮
+  - [x] 点击编辑器时清除高亮
+- [x] 2.4 侧栏生成任务同步悬浮图标状态 ✅ (已在之前的 commit 完成)
+  - [x] 生成开始时设置悬浮图标 generating 状态
+  - [x] 生成完成时恢复悬浮图标状态
 - [ ] 4.1 侧栏快捷键
   - [ ] `main.ts` 注册快捷键 "Focus sidebar with selection"
   - [ ] 快捷键处理：捕获选区 + 打开侧栏
+
