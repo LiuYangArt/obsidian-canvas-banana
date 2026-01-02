@@ -6,7 +6,7 @@
 
 | 文件 | 功能 | 关键方法 |
 |-----|------|---------|
-| `api-manager.ts` | 统一 API 入口 | `chatCompletion`, `multimodalChat`, `generateImageWithRoles` |
+| `api-manager.ts` | 统一 API 入口 | `chatCompletion`, `streamChatCompletion`, `multimodalChat`, `generateImageWithRoles` |
 | `providers/gemini.ts` | Gemini 原生 API | 图片生成、多模态 |
 | `providers/openrouter.ts` | OpenRouter 代理 | 兼容 OpenAI 格式 |
 | `providers/gptgod.ts` | GPTGod 代理 | 兼容 OpenAI 格式 |
@@ -30,10 +30,10 @@
 |-----|------|
 | `notes-selection-handler.ts` | 文本选中监听、Edit/Image 状态中央同步控制 |
 | `notes-edit-palette.ts` | Notes 悬浮面板 (Edit/Image 双 Tab) |
-| `sidebar-copilot-view.ts` | 侧边栏 CoPilot (多轮对话、文档编辑、图片生成) |
+| `sidebar-copilot-view.ts` | 侧边栏 CoPilot (多轮对话 Chat、文档编辑 Edit、图片生成 Image) |
 | `note-image-task-manager.ts` | 图片生成任务队列、并发控制 |
 | `text-patcher.ts` | 文本 patch 应用 |
-| `mode-controller.ts` | 面板模式切换控制器 (Edit/Image) |
+| `mode-controller.ts` | 面板模式切换控制器 (Edit/Image/Chat) |
 | `notes-floating-button.ts` | 悬浮香蕉按钮逻辑 |
 | `shared-ui-builder.ts` | Notes 通用 UI 组件构建器 (Tab/Preset/ImageOptions) |
 

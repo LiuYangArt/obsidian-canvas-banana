@@ -177,5 +177,10 @@
     "Generating image based on your request": "正在根据您的需求生成图片",
     "Services not initialized": "插件服务未初始化",
     "Chat": "对话",
-    "Ask a question": "输入问题..."
+    "Ask a question": "输入问题...",
+    "Copy": "复制",
+    "Insert": "插入",
+    "Message copied": "消息已复制",
+    "Message inserted": "消息已插入",
+    "Message deleted": "消息已删除"
 }

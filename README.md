@@ -123,7 +123,10 @@ Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增�
 ### 6. 笔记 AI 助手 (Note Mode)
 插件不仅支持 Canvas，也完美适配普通 Markdown 笔记编辑：
 *   **悬浮编辑**: 在笔记中选中文本，点击浮现的 🍌 图标，即可快速进行 AI 编辑或生图。
-*   **侧边栏对话**: 点击 Obsidian 右侧边栏的 🍌 图标打开 Side Panel，进行长文档协作。
+*   **侧边栏副驾驶 (Sidebar Co-pilot)**: 点击 Obsidian 右侧边栏的 🍌 图标打开 Side Panel。
+    *   **Edit**: 全文级修改建议，支持 Diff 审阅。
+    *   **Image**: 文档内生图。
+    *   **Chat**: 纯对话模式，基于文档上下文进行问答而不修改文档。
 *   **Diff 确认**: AI 的修改建议会弹出一个 Diff 对比窗口，你可以清晰地看到变化，点击 "Confirm" 才会应用修改。
 
 
@@ -249,5 +252,8 @@ Use the icons above the input box:
 ### 6. Note AI Assistant (Note Mode)
 The plugin perfectly supports standard Markdown notes in addition to Canvas:
 *   **Floating Edit**: Select text in any note and click the floating 🍌 icon to quick start AI editing or image generation.
-*   **Sidebar Chat**: Click the 🍌 icon in the right ribbon to open the Side Panel for long-form document collaboration.
+*   **Sidebar Co-pilot**: Click the 🍌 icon in the right ribbon to open the Side Panel.
+    *   **Edit**: Global edit suggestions with Diff review.
+    *   **Image**: Generate images inside the document.
+    *   **Chat**: Pure conversation mode to chat with your document context without modifying it.
 *   **Diff Confirmation**: AI modification suggestions appear in a Diff comparison window. You can clearly see the changes and click "Confirm" to apply them.

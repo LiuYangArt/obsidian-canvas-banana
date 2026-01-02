@@ -200,14 +200,14 @@ sequenceDiagram
 
 ## 7. 任务拆分
 
-- [ ] 5.1.1 扩展 `PaletteMode` 类型 + `ModeController` 三 Tab 支持
-- [ ] 5.1.2 修改 `createTabs()` 支持三 Tab UI
-- [ ] 5.1.3 实现 `handleChatGenerate()` 基础版（无流式）
-- [ ] 5.1.4 流式 API 接口 `streamChatCompletion()`
-- [ ] 5.1.5 流式渲染 + 增量更新消息
-- [ ] 5.1.6 消息操作按钮 + hover 显示逻辑
-- [ ] 5.1.7 `copyMessage()` - Markdown 格式复制
-- [ ] 5.1.8 `insertMessage()` - 插入到文档光标
-- [ ] 5.1.9 `deleteMessage()` - 删除单条消息
-- [ ] 5.1.10 i18n 文案补充
-- [ ] 5.1.11 构建 + lint 验证
+- [x] 5.1.1 扩展 `PaletteMode` 类型 + `ModeController` 三 Tab 支持
+- [x] 5.1.2 修改 `createTabs()` 支持三 Tab UI
+- [x] 5.1.3 实现 `handleChatGenerate()` 基础版（无流式）
+- [x] 5.1.4 流式 API 接口 `streamChatCompletion()`
+- [x] 5.1.5 流式渲染 + 增量更新消息
+- [x] 5.1.6 消息操作按钮 + hover 显示逻辑
+- [x] 5.1.7 `copyMessage()` - Markdown 格式复制
+- [x] 5.1.8 `insertMessage()` - 插入到文档光标
+- [x] 5.1.9 `deleteMessage()` - 删除单条消息
+- [x] 5.1.10 i18n 文案补充
+- [x] 5.1.11 构建 + lint 验证

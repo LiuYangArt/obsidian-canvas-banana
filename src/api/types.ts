@@ -73,6 +73,18 @@ export interface OpenRouterResponse {
     };
 }
 
+export interface OpenRouterStreamChunk {
+    id: string;
+    model: string;
+    choices: Array<{
+        delta: {
+            content?: string;
+            role?: string;
+        };
+        finish_reason: string | null;
+    }>;
+}
+
 // ========== GptGod Types ==========
 
 export type GptGodResponse = OpenRouterResponse & {

@@ -76,6 +76,86 @@ export class OpenRouterProvider {
     }
 
     /**
+     * Chat completion with streaming
+     */
+    async *streamChatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): AsyncGenerator<string, void, unknown> {
+        const messages: OpenRouterMessage[] = [];
+
+        if (systemPrompt) {
+            messages.push({ role: 'system', content: systemPrompt });
+        }
+        messages.push({ role: 'user', content: prompt });
+
+        const requestBody: OpenRouterRequest = {
+            model: this.getTextModel(),
+            messages: messages,
+            temperature: temperature,
+            // @ts-ignore: stream property is not in the interface but required for streaming
+            stream: true
+        };
+
+        const apiKey = this.getApiKey();
+        console.debug('Canvas AI: [OpenRouter] Sending stream chat request...');
+
+        try {
+            const response = await fetch(this.getChatEndpoint(), {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'https://obsidian.md',
+                    'X-Title': 'Obsidian Canvas AI'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`OpenRouter API Error: ${response.status} ${errorText}`);
+            }
+
+            if (!response.body) {
+                throw new Error('Response body is null');
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+                const lines = buffer.split('\n');
+                
+                // Process all complete lines
+                buffer = lines.pop() || ''; // Keep the last partial line in buffer
+
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed || trimmed === 'data: [DONE]') continue;
+                    
+                    if (trimmed.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(trimmed.slice(6));
+                            if (data.choices && data.choices[0]?.delta?.content) {
+                                yield data.choices[0].delta.content;
+                            }
+                        } catch (e) {
+                            console.warn('Error parsing stream chunk:', e);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Canvas AI: Stream Error', error);
+            throw error;
+        }
+    }
+
+    /**
      * Generate image with roles
      */
     async generateImage(

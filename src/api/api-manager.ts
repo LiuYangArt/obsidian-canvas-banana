@@ -111,6 +111,27 @@ export class ApiManager {
     }
 
     /**
+     * Send a stream chat completion request
+     */
+    async *streamChatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): AsyncGenerator<string, void, unknown> {
+        if (!this.isConfigured()) {
+            throw new Error('API Key not configured. Please set it in plugin settings.');
+        }
+
+        const provider = this.getActiveProvider();
+        
+        // Currently only OpenRouter supports true streaming
+        if (provider === 'openrouter') { 
+             yield* this.openrouter.streamChatCompletion(prompt, systemPrompt, temperature);
+             return;
+        }
+
+        // Fallback for others: wait for full response and yield it
+        const fullResponse = await this.chatCompletion(prompt, systemPrompt, temperature);
+        yield fullResponse;
+    }
+
+    /**
      * Generate an image with role-annotated references
      */
     async generateImageWithRoles(

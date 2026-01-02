@@ -177,5 +177,10 @@
     "Generating image based on your request": "Generating image based on your request",
     "Services not initialized": "Plugin services not initialized",
     "Chat": "Chat",
-    "Ask a question": "Ask a question..."
+    "Ask a question": "Ask a question...",
+    "Copy": "Copy",
+    "Insert": "Insert",
+    "Message copied": "Message copied",
+    "Message inserted": "Message inserted",
+    "Message deleted": "Message deleted"
 }

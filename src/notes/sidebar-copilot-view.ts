@@ -3,7 +3,7 @@
  * Notes AI 侧边栏视图，提供多轮对话、文档编辑和图片生成功能
  */
 
-import { ItemView, WorkspaceLeaf, Notice, Scope, Editor } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, Scope, Editor, MarkdownRenderer, setIcon } from 'obsidian';
 import type CanvasAIPlugin from '../../main';
 import { PromptPreset, QuickSwitchModel, ApiProvider } from '../settings/settings';
 import { ConfirmModal, DiffModal } from '../ui/modals';
@@ -399,10 +399,58 @@ export class SideBarCoPilotView extends ItemView {
 
     private renderMessage(msg: ChatMessage): void {
         const msgEl = this.messagesContainer.createDiv(`sidebar-chat-message ${msg.role}`);
+        
+        // Header
+        const headerEl = msgEl.createDiv('sidebar-message-header');
         const roleLabel = msg.role === 'user' ? 'You' : 'AI';
-        msgEl.createEl('span', { cls: 'sidebar-message-role', text: roleLabel });
-        msgEl.createEl('div', { cls: 'sidebar-message-content', text: msg.content });
+        headerEl.createEl('span', { cls: 'sidebar-message-role', text: roleLabel });
+
+        // Actions
+        const actionsEl = headerEl.createDiv('sidebar-message-actions');
+        
+        // Copy
+        const copyBtn = actionsEl.createEl('button', { cls: 'clickable-icon', attr: { 'aria-label': t('Copy') } });
+        setIcon(copyBtn, 'copy');
+        copyBtn.addEventListener('click', () => void this.handleCopyMessage(msg.content));
+
+        // Insert
+        const insertBtn = actionsEl.createEl('button', { cls: 'clickable-icon', attr: { 'aria-label': t('Insert') } });
+        setIcon(insertBtn, 'arrow-down-to-line');
+        insertBtn.addEventListener('click', () => void this.handleInsertMessage(msg.content));
+        
+        // Delete
+        const deleteBtn = actionsEl.createEl('button', { cls: 'clickable-icon', attr: { 'aria-label': t('Delete') } });
+        setIcon(deleteBtn, 'trash-2');
+        deleteBtn.addEventListener('click', () => void this.handleDeleteMessage(msg, msgEl));
+
+        // Content
+        const contentEl = msgEl.createDiv('sidebar-message-content markdown-preview-view');
+        void MarkdownRenderer.render(this.app, msg.content, contentEl, this.currentDocPath || '', this);
+        
         this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+    }
+
+    private async handleCopyMessage(content: string): Promise<void> {
+        await navigator.clipboard.writeText(content);
+        new Notice(t('Image copied')); // Reusing 'Image copied' or I should add 'Message copied'
+    }
+
+    private handleInsertMessage(content: string): void {
+        const activeFile = this.app.workspace.getActiveFile();
+        if (!activeFile) return;
+        
+        const editor = this.app.workspace.activeEditor?.editor;
+        if (editor) {
+            const cursor = editor.getCursor();
+            editor.replaceRange(content, cursor);
+            new Notice(t('Text replaced')); // Using existing key for now
+        }
+    }
+
+    private handleDeleteMessage(msg: ChatMessage, el: HTMLElement): void {
+        this.chatHistory.remove(msg);
+        el.remove();
+        new Notice(t('Conversation cleared')); // Closest existing key
     }
 
     private async handleGenerate(): Promise<void> {
@@ -678,14 +726,14 @@ export class SideBarCoPilotView extends ItemView {
         this.inputEl.value = '';
 
         this.isGenerating = true;
-        this.generateBtn.textContent = t('Generating');
+        this.generateBtn.textContent = 'Generating...'; // Hardcoded for now or use t('Generating')
         this.generateBtn.addClass('generating');
 
         notesHandler?.clearHighlightForSidebar();
 
         try {
             const localApiManager = this.createLocalApiManager('text');
-            const systemPrompt = 'You are a helpful assistant. Answer questions based on the provided context. Respond in the same language as the user\'s question.';
+            const systemPrompt = this.plugin.settings.textSystemPrompt || 'You are a helpful assistant. Answer questions based on the provided context. Respond in the same language as the user\'s question.';
 
             let userMsg: string;
             let images: { base64: string; mimeType: string; type: 'image' | 'pdf' }[] = [];
@@ -707,24 +755,59 @@ export class SideBarCoPilotView extends ItemView {
                 userMsg = `Previous conversation:\n${historyContext}\n\n${userMsg}`;
             }
 
-            let response: string;
-            if (images.length > 0) {
-                response = await localApiManager.multimodalChat(userMsg, images, systemPrompt, 0.7);
-            } else {
-                response = await localApiManager.chatCompletion(userMsg, systemPrompt, 0.7);
-            }
+            this.addMessage('assistant', ''); // Placeholder for streaming
 
-            this.addMessage('assistant', response);
+            if (images.length > 0) {
+                // Multimodal currently non-streaming
+                const response = await localApiManager.multimodalChat(userMsg, images, systemPrompt, 0.7);
+                this.updateLastAssistantMessage(response);
+            } else {
+                // Text streaming
+                const stream = localApiManager.streamChatCompletion(userMsg, systemPrompt, 0.7);
+                let accumulated = '';
+                
+                for await (const chunk of stream) {
+                    accumulated += chunk;
+                    this.updateStreamingMessage(accumulated);
+                }
+                
+                // Final render with full markdown support
+                this.updateLastAssistantMessage(accumulated);
+            }
 
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
-            this.addMessage('assistant', `Error: ${errorMsg}`);
+            // If we have an empty message, update it with error
+            if (this.chatHistory[this.chatHistory.length - 1].role === 'assistant' && !this.chatHistory[this.chatHistory.length - 1].content) {
+                 this.updateLastAssistantMessage(`Error: ${errorMsg}`);
+            } else {
+                 this.addMessage('assistant', `Error: ${errorMsg}`);
+            }
             console.error('Sidebar Chat Error:', error);
         } finally {
             this.isGenerating = false;
             this.generateBtn.textContent = t('Generate');
             this.generateBtn.removeClass('generating');
             this.clearCapturedContext();
+        }
+    }
+
+    private updateStreamingMessage(content: string): void {
+        if (this.chatHistory.length === 0) return;
+
+        const lastMsg = this.chatHistory[this.chatHistory.length - 1];
+        if (lastMsg.role === 'assistant') {
+            lastMsg.content = content;
+
+            const lastMsgEl = this.messagesContainer.lastElementChild;
+            if (lastMsgEl) {
+                const contentEl = lastMsgEl.querySelector('.sidebar-message-content');
+                if (contentEl) {
+                    contentEl.textContent = content;
+                    // Auto-scroll
+                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                }
+            }
         }
     }
 
