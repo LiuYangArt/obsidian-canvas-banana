@@ -6,9 +6,9 @@
 
 # Canvas Banana (Obsidian Plugin)
 
-Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增强插件。它深度集成了 Gemini 等先进 AI 模型，让你可以在白板中直接进行智能对话、文本创作和图像生成。
+Canvas Banana 是一个原名为 Obsidian Canvas AI 的插件，现在它不仅仅为 Canvas（白板）提供 AI 增强，更是一个全能的 Obsidian AI 助手。它深度集成了 Gemini / OpenAI / Antigravity 等先进 AI 模型，让你可以在 **白板** 和 **笔记** 中无缝进行智能对话、文本创作和图像生成。
 
-该插件的核心理念是"节点感知"——它能理解你选中的白板节点内容（文本、卡片、图片），并以此为上下文协助你的创作。
+该插件的核心理念是"上下文感知"——无论是白板中的节点，还是笔记中的选段，它都能精准理解并以此为背景协助你的创作。
 
 <br><img width="2200" height="1185" alt="image" src="https://github.com/user-attachments/assets/94bfc72e-6823-42da-8f3a-2c9da7bb77b8" />
 
@@ -35,17 +35,19 @@ Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增�
     *   **提示词预设 (Prompt Presets)**：内置预设管理功能，支持保存、重命名和快速调用常用的提示词。
 
 *   **📝 笔记 AI 助手 (Note AI Assistant)** [NEW]
+    *   **侧边栏副驾驶 (Sidebar Co-pilot)**: 类似 Google Gemini Canvas 的侧边栏体验。
+        *   **Chat**: 与当前文档进行多轮对话，支持引用选中内容。
+        *   **Edit**: 全文级或段落级修改建议，支持 Diff 视图审阅，确认后才应用。
+        *   **Image**: "所见即所得"的文档内生图，支持基于上下文生成配图。
     *   **智能悬浮编辑**: 选中笔记文本即可唤起 AI 进行润色、翻译或改写。
-    *   **侧边栏副驾驶 (Sidebar Co-pilot)**: 类似 Google Gemini Canvas 的侧边栏体验，支持多轮对话和全文级修改建议。
-    *   **Diff 视图审阅**: AI 的修改建议会以 Diff 形式呈现，确认后才应用，拒绝"吃字"，确保数据安全。
-    *   **笔记内生图**: 支持在 Markdown 笔记中直接生成图片，支持“图生图”参考。
-
+   
 *   **⚡ 增强的 Canvas 编辑**
     *   **节点级原位编辑**: 直接在 Canvas 节点内部选中文字进行 AI 修改，AI 会同时参考连线节点的上下文。
     *   **文件节点支持**: 支持直接编辑 Canvas 中引用的 .md 文件节点。
 
 *   **🌍 多 API 支持**
-    *   目前支持gemini/openrouter/yunwu
+    *   支持 **Gemini** (Google), **OpenRouter**, **Yunwu**, **Antigravity Tools** 等多种 API 提供商。
+    *   支持自定义 Base URL 以适配各种 OpenAI 兼容接口。
       
 ## ⚠️ 免责声明 (Disclaimer)
 
@@ -122,12 +124,11 @@ Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增�
 
 ### 6. 笔记 AI 助手 (Note Mode)
 插件不仅支持 Canvas，也完美适配普通 Markdown 笔记编辑：
-*   **悬浮编辑**: 在笔记中选中文本，点击浮现的 🍌 图标，即可快速进行 AI 编辑或生图。
 *   **侧边栏副驾驶 (Sidebar Co-pilot)**: 点击 Obsidian 右侧边栏的 🍌 图标打开 Side Panel。
-    *   **Edit**: 全文级修改建议，支持 Diff 审阅。
-    *   **Image**: 文档内生图。
-    *   **Chat**: 纯对话模式，基于文档上下文进行问答而不修改文档。
-*   **Diff 确认**: AI 的修改建议会弹出一个 Diff 对比窗口，你可以清晰地看到变化，点击 "Confirm" 才会应用修改。
+    *   **Chat**: 纯对话模式，基于文档上下文进行问答。支持 "Insert to cursor" 将 AI 回复插入文档。
+    *   **Edit**: 选中一段文本（或不选以针对全文），输入指令。AI 的修改建议会以 Diff 形式呈现，点击 "Confirm" 应用修改。
+    *   **Image**: 在文档中生成图片。支持选中一段文字作为 Prompt，或者直接输入描述。
+*   **悬浮编辑**: 在笔记中选中文本，点击浮现的 🍌 图标，即可快速唤起悬浮面板进行 AI 编辑或生图。
 
 
 ## 📄 License (开源协议)
@@ -139,11 +140,9 @@ This project is licensed under the GNU General Public License v3.0 - see the [LI
 ---
 
 <span id="en-us"></span>
-# Canvas Banana (Obsidian Plugin)
+**Canvas Banana** (formerly Obsidian Canvas AI) is a comprehensive AI assistant for Obsidian. It goes beyond just **Canvas** enhancement to provide a seamless AI experience across both **Canvas** and **Markdown Notes**. Deeply integrated with advanced models like Gemini, OpenAI, and Antigravity, it empowers you to chat, create text, and generate images anywhere.
 
-**Canvas Banana** is an AI enhancement plugin designed specificially for the **Obsidian Canvas** view. It deeply integrates advanced AI models (like Gemini, OpenRouter), allowing you to conduct intelligent conversations, content generation, and image creation directly within your whiteboard.
-
-The core philosophy of this plugin is "**Node Awareness**"—it understands the context of the nodes you select (text, cards, images) and uses them as context to assist your creative process.
+The core philosophy is "**Context Awareness**"—whether it's a node on a whiteboard or a selection in a note, the plugin understands the context to assist your creative process effectively.
 
 <br><img width="2200" height="1185" alt="image" src="https://github.com/user-attachments/assets/94bfc72e-6823-42da-8f3a-2c9da7bb77b8" />
 
@@ -169,17 +168,19 @@ The core philosophy of this plugin is "**Node Awareness**"—it understands the 
     *   **Prompt Presets**: Built-in preset management to save, rename, and quickly reuse common prompts.
 
 *   **📝 Note AI Assistant** [NEW]
-    *   **Smart Floating Edit**: Select text in your notes to trigger AI for polishing, translation, or rewriting.
-    *   **Sidebar Co-pilot**: A sidebar experience similar to Google Gemini Canvas, supporting multi-turn conversations and global edit suggestions.
-    *   **Diff Review**: AI changes are presented as Diffs; apply them only after confirmation to ensure data safety.
-    *   **In-Note Image Gen**: Generate images directly within Markdown notes, with support for Image-to-Image references.
+    *   **Sidebar Co-pilot**: A Gemini Canvas-like experience in your sidebar.
+        *   **Chat**: Multi-turn conversation with document context.
+        *   **Edit**: Full-text or selection-based editing with Diff review.
+        *   **Image**: WYSIWYG image generation directly in your notes.
+    *   **Smart Floating Edit**: Select text in notes to trigger AI for polishing, translating, or rewriting.
 
 *   **⚡ Enhanced Canvas Editing**
     *   **In-Place Node Edit**: Edit text *inside* a Canvas node with AI, which understands the context from connected nodes.
     *   **File Node Support**: Directly edit .md file nodes referenced in the Canvas.
 
 *   **🌍 Multi-API Support**
-    *   Currently supports Gemini, OpenRouter, and Yunwu.
+    *   Supports **Gemini**, **OpenRouter**, **Yunwu**, **Antigravity Tools**, and more.
+    *   Customizable Base URL for OpenAI-compatible providers.
 
 ## ⚠️ Disclaimer
 
@@ -251,9 +252,8 @@ Use the icons above the input box:
 
 ### 6. Note AI Assistant (Note Mode)
 The plugin perfectly supports standard Markdown notes in addition to Canvas:
-*   **Floating Edit**: Select text in any note and click the floating 🍌 icon to quick start AI editing or image generation.
 *   **Sidebar Co-pilot**: Click the 🍌 icon in the right ribbon to open the Side Panel.
-    *   **Edit**: Global edit suggestions with Diff review.
-    *   **Image**: Generate images inside the document.
-    *   **Chat**: Pure conversation mode to chat with your document context without modifying it.
-*   **Diff Confirmation**: AI modification suggestions appear in a Diff comparison window. You can clearly see the changes and click "Confirm" to apply them.
+    *   **Chat**: Chat with your document. Use "Insert to cursor" to add AI responses to your note.
+    *   **Edit**: Select text (or leave empty for full note), enter instructions. Review changes in the Diff view and click "Confirm" to apply.
+    *   **Image**: Generate images. Use selected text as prompt or enter a description.
+*   **Floating Edit**: Select text in any note and click the floating 🍌 icon to quick start AI editing or image generation.

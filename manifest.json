@@ -3,7 +3,7 @@
     "name": "Canvas Banana",
     "version": "0.11.1",
     "minAppVersion": "1.8.0",
-    "description": "Canvas AI Plugin - use Gemini AI in Canvas view, support text / image / node generation.",
+    "description": "AI Co-pilot for Canvas & Notes. Context-aware Chat, Edit, Image & Node Generation.",
     "author": "LiuYang",
     "isDesktopOnly": false
 }
