@@ -223,7 +223,7 @@ export class NotesSelectionHandler {
             } else if (isSidebar) {
                 // 点击侧栏时在 mousedown 阶段捕获选区（此时焦点还在编辑器，能获取选区）
                 // 注意：必须在焦点转移前捕获，否则 window.getSelection() 会失效
-                console.debug('[Sidebar Debug] mousedown on sidebar, target:', target.tagName, target.className);
+                // console.debug('[Sidebar Debug] mousedown on sidebar, target:', target.tagName, target.className);
                 this.captureSelectionForSidebar();
             } else if (!isPalette) {
                 // 点击 palette 外部（非按钮）时，隐藏面板
@@ -361,9 +361,9 @@ export class NotesSelectionHandler {
 
     private clearSelectionHighlight(): void {
         // 追踪清除调用栈
-        if (this.highlightContainer) {
-            console.debug('[Sidebar Debug] clearSelectionHighlight called, stack:', new Error().stack);
-        }
+        // if (this.highlightContainer) {
+        //     console.debug('[Sidebar Debug] clearSelectionHighlight called, stack:', new Error().stack);
+        // }
         // 移除高亮容器
         if (this.highlightContainer) {
             this.highlightContainer.remove();
@@ -384,7 +384,7 @@ export class NotesSelectionHandler {
         this.clearSelectionHighlight();
 
         const selection = window.getSelection();
-        console.debug('[Sidebar Debug] captureSelectionHighlight: selection =', selection?.toString().substring(0, 50), 'rangeCount =', selection?.rangeCount, 'isCollapsed =', selection?.isCollapsed);
+        // console.debug('[Sidebar Debug] captureSelectionHighlight: selection =', selection?.toString().substring(0, 50), 'rangeCount =', selection?.rangeCount, 'isCollapsed =', selection?.isCollapsed);
         if (!selection || selection.rangeCount === 0 || selection.isCollapsed) return;
 
         const range = selection.getRangeAt(0);
@@ -401,7 +401,7 @@ export class NotesSelectionHandler {
             : anchorNode.parentElement;
         const scrollerEl = anchorEl?.closest('.cm-scroller');
         
-        console.debug('[Sidebar Debug] captureSelectionHighlight: scrollerEl =', scrollerEl ? 'found' : 'null');
+        // console.debug('[Sidebar Debug] captureSelectionHighlight: scrollerEl =', scrollerEl ? 'found' : 'null');
         if (!scrollerEl) return;
 
         const scrollerRect = scrollerEl.getBoundingClientRect();
@@ -429,7 +429,7 @@ export class NotesSelectionHandler {
         }
 
         scrollerEl.appendChild(this.highlightContainer);
-        console.debug('[Sidebar Debug] captureSelectionHighlight: highlight created with', this.highlightContainer.children.length, 'rects');
+        // console.debug('[Sidebar Debug] captureSelectionHighlight: highlight created with', this.highlightContainer.children.length, 'rects');
     }
 
     /**
@@ -906,14 +906,14 @@ export class NotesSelectionHandler {
         // 使用 window.getSelection() 获取 DOM 选区
         const domSelection = window.getSelection();
         if (!domSelection || domSelection.rangeCount === 0 || domSelection.isCollapsed) {
-            console.debug('[Sidebar Debug] captureSelectionForSidebar: no DOM selection');
+            // console.debug('[Sidebar Debug] captureSelectionForSidebar: no DOM selection');
             return null;
         }
 
         // 从选区的 anchorNode 找到包含它的编辑器容器
         const anchorNode = domSelection.anchorNode;
         if (!anchorNode) {
-            console.debug('[Sidebar Debug] captureSelectionForSidebar: no anchorNode');
+            // console.debug('[Sidebar Debug] captureSelectionForSidebar: no anchorNode');
             return null;
         }
 
@@ -924,7 +924,7 @@ export class NotesSelectionHandler {
         )?.closest('.workspace-leaf');
         
         if (!leafEl) {
-            console.debug('[Sidebar Debug] captureSelectionForSidebar: no workspace-leaf found');
+            // console.debug('[Sidebar Debug] captureSelectionForSidebar: no workspace-leaf found');
             return null;
         }
 
@@ -942,18 +942,18 @@ export class NotesSelectionHandler {
         }
 
         if (!targetView || !targetView.file) {
-            console.debug('[Sidebar Debug] captureSelectionForSidebar: no matching MarkdownView found');
+            // console.debug('[Sidebar Debug] captureSelectionForSidebar: no matching MarkdownView found');
             return null;
         }
 
-        console.debug('[Sidebar Debug] captureSelectionForSidebar: found view for', targetView.file.path);
+        // console.debug('[Sidebar Debug] captureSelectionForSidebar: found view for', targetView.file.path);
 
         const editor = targetView.editor;
         const selection = editor.getSelection();
-        console.debug('[Sidebar Debug] captureSelectionForSidebar: selection =', selection?.substring(0, 50));
+        // console.debug('[Sidebar Debug] captureSelectionForSidebar: selection =', selection?.substring(0, 50));
 
         if (!selection || selection.trim().length === 0) {
-            console.debug('[Sidebar Debug] captureSelectionForSidebar: EARLY RETURN - no editor selection');
+            // console.debug('[Sidebar Debug] captureSelectionForSidebar: EARLY RETURN - no editor selection');
             return null;
         }
 

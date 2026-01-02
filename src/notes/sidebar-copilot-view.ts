@@ -933,30 +933,37 @@ export class SideBarCoPilotView extends ItemView {
      * 在编辑器中选中指定范围的文本
      */
     private selectTextRange(editor: Editor, startOffset: number, endOffset: number): void {
-        const doc = editor.getDoc();
-        const totalLines = doc.lineCount();
+        // 先确保编辑器获得焦点
+        editor.focus();
 
-        // 计算 startOffset 对应的 line:ch
-        let currentOffset = 0;
-        let startPos: EditorPosition | null = null;
-        let endPos: EditorPosition | null = null;
+        // 延迟执行以等待 Modal 关闭和焦点稳定
+        setTimeout(() => {
+            const doc = editor.getDoc();
+            const totalLines = doc.lineCount();
 
-        for (let line = 0; line < totalLines; line++) {
-            const lineText = doc.getLine(line);
-            const lineLength = lineText.length + 1; // +1 for newline
+            // 计算 startOffset 对应的 line:ch
+            let currentOffset = 0;
+            let startPos: EditorPosition | null = null;
+            let endPos: EditorPosition | null = null;
 
-            if (startPos === null && currentOffset + lineLength > startOffset) {
-                startPos = { line, ch: startOffset - currentOffset };
+            for (let line = 0; line < totalLines; line++) {
+                const lineText = doc.getLine(line);
+                const lineLength = lineText.length + 1; // +1 for newline
+
+                if (startPos === null && currentOffset + lineLength > startOffset) {
+                    startPos = { line, ch: startOffset - currentOffset };
+                }
+                if (endPos === null && currentOffset + lineLength > endOffset) {
+                    endPos = { line, ch: endOffset - currentOffset };
+                    break;
+                }
+                currentOffset += lineLength;
             }
-            if (endPos === null && currentOffset + lineLength > endOffset) {
-                endPos = { line, ch: endOffset - currentOffset };
-                break;
-            }
-            currentOffset += lineLength;
-        }
 
-        if (startPos && endPos) {
-            editor.setSelection(startPos, endPos);
-        }
+            if (startPos && endPos) {
+                editor.setSelection(startPos, endPos);
+                editor.focus();
+            }
+        }, 100);
     }
 }
