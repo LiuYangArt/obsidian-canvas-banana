@@ -75,6 +75,42 @@ export default [
             // ========== 代码质量 ==========
             "no-var": "error",
             "prefer-const": "warn",
+            
+            // ========== Restricted Globals & Imports ==========
+            "no-restricted-globals": [
+                "error",
+                {
+                    "name": "app",
+                    "message": "Avoid using the global app object. Instead use the reference provided by your plugin instance."
+                },
+                {
+                    "name": "fetch",
+                    "message": "Use the built-in `requestUrl` function instead of `fetch` for network requests in Obsidian."
+                },
+                {
+                    "name": "localStorage",
+                    "message": "Prefer `App#saveLocalStorage` / `App#loadLocalStorage` functions to write / read localStorage data that's unique to a vault."
+                }
+            ],
+            "no-restricted-imports": [
+                "error",
+                {
+                    "name": "axios",
+                    "message": "Use the built-in `requestUrl` function instead of `axios`."
+                },
+                {
+                    "name": "superagent",
+                    "message": "Use the built-in `requestUrl` function instead of `superagent`."
+                },
+                {
+                    "name": "got",
+                    "message": "Use the built-in `requestUrl` function instead of `got`."
+                },
+                {
+                    "name": "node-fetch",
+                    "message": "Use the built-in `requestUrl` function instead of `node-fetch`."
+                }
+            ],
         }
     }
     // 注意：JSON 语言文件不需要特殊的 sentence-case 规则

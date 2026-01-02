@@ -98,6 +98,7 @@ export class OpenRouterProvider {
         console.debug('Canvas AI: [OpenRouter] Sending stream chat request...');
 
         try {
+            // eslint-disable-next-line no-restricted-globals -- Fetch is required for streaming as requestUrl does not support it
             const response = await fetch(this.getChatEndpoint(), {
                 method: 'POST',
                 headers: {
