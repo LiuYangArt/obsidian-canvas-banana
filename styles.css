@@ -950,7 +950,7 @@
   background-color: var(--text-selection);
   pointer-events: none;
   border-radius: 2px;
-  opacity: 0.18;
+  opacity: 0.4;
 }
 
 /* ========== Notes AI Palette ========== */
