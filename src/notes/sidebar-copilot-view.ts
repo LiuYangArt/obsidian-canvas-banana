@@ -3,7 +3,7 @@
  * Notes AI 侧边栏视图，提供多轮对话、文档编辑和图片生成功能
  */
 
-import { ItemView, WorkspaceLeaf, Notice, setIcon, Scope, Editor, EditorPosition } from 'obsidian';
+import { ItemView, WorkspaceLeaf, Notice, setIcon, Scope, Editor } from 'obsidian';
 import type CanvasAIPlugin from '../../main';
 import { ApiManager } from '../api/api-manager';
 import { PromptPreset, QuickSwitchModel, ApiProvider } from '../settings/settings';
@@ -933,37 +933,12 @@ export class SideBarCoPilotView extends ItemView {
      * 在编辑器中选中指定范围的文本
      */
     private selectTextRange(editor: Editor, startOffset: number, endOffset: number): void {
-        // 先确保编辑器获得焦点
-        editor.focus();
-
-        // 延迟执行以等待 Modal 关闭和焦点稳定
-        setTimeout(() => {
-            const doc = editor.getDoc();
-            const totalLines = doc.lineCount();
-
-            // 计算 startOffset 对应的 line:ch
-            let currentOffset = 0;
-            let startPos: EditorPosition | null = null;
-            let endPos: EditorPosition | null = null;
-
-            for (let line = 0; line < totalLines; line++) {
-                const lineText = doc.getLine(line);
-                const lineLength = lineText.length + 1; // +1 for newline
-
-                if (startPos === null && currentOffset + lineLength > startOffset) {
-                    startPos = { line, ch: startOffset - currentOffset };
-                }
-                if (endPos === null && currentOffset + lineLength > endOffset) {
-                    endPos = { line, ch: endOffset - currentOffset };
-                    break;
-                }
-                currentOffset += lineLength;
-            }
-
-            if (startPos && endPos) {
-                editor.setSelection(startPos, endPos);
-                editor.focus();
-            }
-        }, 100);
+        // 使用 handler 的统一方法选中文字
+        const notesHandler = this.plugin.getNotesHandler();
+        if (notesHandler) {
+            const startPos = editor.offsetToPos(startOffset);
+            const endPos = editor.offsetToPos(endOffset);
+            notesHandler.selectGeneratedText(editor, startPos, endPos);
+        }
     }
 }

@@ -438,7 +438,7 @@ export class NotesSelectionHandler {
     /**
      * Select the generated text after a short delay
      */
-    private selectGeneratedText(editor: Editor, startPos: EditorPosition, endPos: EditorPosition): void {
+    public selectGeneratedText(editor: Editor, startPos: EditorPosition, endPos: EditorPosition): void {
         // Ensure editor has focus first
         editor.focus();
 
