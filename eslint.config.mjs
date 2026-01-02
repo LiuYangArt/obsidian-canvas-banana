@@ -1,6 +1,7 @@
 import typescriptParser from "@typescript-eslint/parser";
 import tseslint from "@typescript-eslint/eslint-plugin";
 import obsidianmd from "eslint-plugin-obsidianmd";
+import eslintComments from "@eslint-community/eslint-plugin-eslint-comments";
 
 export default [
     // 忽略非 TypeScript 文件和构建产物
@@ -20,8 +21,11 @@ export default [
         plugins: {
             "@typescript-eslint": tseslint,
             "obsidianmd": obsidianmd,
+            "@eslint-community/eslint-comments": eslintComments,
         },
         rules: {
+            // ========== ESLint Comments 规则 (Obsidian Review 必需) ==========
+            "@eslint-community/eslint-comments/require-description": ["error", { ignore: [] }],
             // ========== Obsidian 官方审核规则 ==========
             "obsidianmd/commands/no-command-in-command-id": "error",
             "obsidianmd/commands/no-command-in-command-name": "error",

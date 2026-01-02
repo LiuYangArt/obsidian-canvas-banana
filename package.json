@@ -19,6 +19,7 @@
     "author": "LiuYang",
     "license": "GPL-3.0",
     "devDependencies": {
+        "@eslint-community/eslint-plugin-eslint-comments": "^4.5.0",
         "@eslint/eslintrc": "^3.3.3",
         "@types/node": "^16.11.6",
         "@typescript-eslint/eslint-plugin": "^8.50.0",

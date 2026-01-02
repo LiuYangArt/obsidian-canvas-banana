@@ -101,7 +101,7 @@ export class SideBarCoPilotView extends ItemView {
         return 'banana';
     }
 
-    // eslint-disable-next-line @typescript-eslint/require-await
+    // eslint-disable-next-line @typescript-eslint/require-await -- Obsidian ItemView interface requires async signature but no await needed
     async onOpen(): Promise<void> {
         const container = this.containerEl.children[1] as HTMLElement;
         container.empty();
@@ -123,7 +123,7 @@ export class SideBarCoPilotView extends ItemView {
         this.registerActiveFileListener();
     }
 
-    // eslint-disable-next-line @typescript-eslint/require-await
+    // eslint-disable-next-line @typescript-eslint/require-await -- Obsidian ItemView interface requires async signature but no await needed
     async onClose(): Promise<void> {
         this.chatHistory = [];
         this.currentDocPath = null;
