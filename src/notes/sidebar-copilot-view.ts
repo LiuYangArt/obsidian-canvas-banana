@@ -205,7 +205,10 @@ export class SideBarCoPilotView extends ItemView {
             if (selectedId) {
                 const presets = this.getCurrentPresets();
                 const p = presets.find(x => x.id === selectedId);
-                if (p) this.inputEl.value = p.prompt;
+                if (p) {
+                    this.inputEl.value = p.prompt;
+                    this.updateGenerateButtonState();
+                }
             }
         };
         this.presetRow.select.addEventListener('change', applyPreset);
