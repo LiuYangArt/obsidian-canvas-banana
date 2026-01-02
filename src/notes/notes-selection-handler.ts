@@ -360,6 +360,10 @@ export class NotesSelectionHandler {
     }
 
     private clearSelectionHighlight(): void {
+        // 追踪清除调用栈
+        if (this.highlightContainer) {
+            console.debug('[Sidebar Debug] clearSelectionHighlight called, stack:', new Error().stack);
+        }
         // 移除高亮容器
         if (this.highlightContainer) {
             this.highlightContainer.remove();
@@ -387,11 +391,17 @@ export class NotesSelectionHandler {
         const rects = range.getClientRects();
         if (rects.length === 0) return;
 
-        const view = this.app.workspace.getActiveViewOfType(MarkdownView);
-        if (!view) return;
+        // 通过 selection 的 anchorNode 找到包含它的 .cm-scroller
+        // 不能使用 getActiveViewOfType，因为点击侧栏时活动视图会变化
+        const anchorNode = selection.anchorNode;
+        if (!anchorNode) return;
 
-        // 获取 .cm-scroller 作为定位参考（它是滚动容器）
-        const scrollerEl = view.containerEl.querySelector('.cm-scroller');
+        const anchorEl = anchorNode.nodeType === Node.ELEMENT_NODE 
+            ? anchorNode as HTMLElement 
+            : anchorNode.parentElement;
+        const scrollerEl = anchorEl?.closest('.cm-scroller');
+        
+        console.debug('[Sidebar Debug] captureSelectionHighlight: scrollerEl =', scrollerEl ? 'found' : 'null');
         if (!scrollerEl) return;
 
         const scrollerRect = scrollerEl.getBoundingClientRect();
@@ -419,6 +429,7 @@ export class NotesSelectionHandler {
         }
 
         scrollerEl.appendChild(this.highlightContainer);
+        console.debug('[Sidebar Debug] captureSelectionHighlight: highlight created with', this.highlightContainer.children.length, 'rects');
     }
 
     /**
