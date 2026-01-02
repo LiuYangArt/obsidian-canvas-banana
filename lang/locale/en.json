@@ -173,5 +173,7 @@
     "Image disabled during edit generation": "Image is disabled while editing is in progress",
     "Image generation failed": "Image generation failed",
     "Note floating icon": "Note floating icon",
-    "Note floating icon desc": "Show floating icon when text is selected in notes. Disable if you prefer using only the sidebar."
+    "Note floating icon desc": "Show floating icon when text is selected in notes. Disable if you prefer using only the sidebar.",
+    "Image generation task started...": "Image generation task started...",
+    "Services not initialized": "Plugin services not initialized"
 }

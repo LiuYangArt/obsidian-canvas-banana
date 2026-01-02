@@ -789,14 +789,35 @@ export class NotesSelectionHandler {
     /**
      * 处理 Image 模式的图片生成
      */
-    private async handleImageGeneration(prompt: string): Promise<void> {
-        if (!this.lastContext) {
-            new Notice(t('No active file'));
-            return;
-        }
+    /**
+     * 处理 Image 模式的图片生成
+     * @param prompt 提示词
+     * @param manualContext 可选的手动上下文 (供 Sidebar 调用)
+     */
+    public async handleImageGeneration(prompt: string, manualContext?: NotesSelectionContext | null): Promise<void> {
+        let context = manualContext || this.lastContext;
+        let editor: Editor;
+        let file: TFile;
+        let selectedText = '';
+        let insertPos: EditorPosition;
 
-        const context = this.lastContext;
-        const { editor, file, selectedText } = context;
+        if (context) {
+            // Case 1: 有选区上下文
+            editor = context.editor;
+            file = context.file;
+            selectedText = context.selectedText;
+            insertPos = editor.getCursor('to');
+        } else {
+            // Case 2: 无选区，尝试获取当前活动文档
+            const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+            if (!view || !view.file) {
+                new Notice(t('No active file'));
+                return;
+            }
+            editor = view.editor;
+            file = view.file;
+            insertPos = editor.getCursor();
+        }
 
         // 获取 Image Options（使用 Canvas 统一配置）
         const imageOptions = this.editPalette?.getImageOptions() || {
@@ -817,10 +838,11 @@ export class NotesSelectionHandler {
             return;
         }
 
-        // 选中文本作为上下文
+        // 选中文本作为上下文 (如果没有选区则为空)
         const contextText = selectedText || '';
 
         // 提取选中文本中的内嵌图片作为参考
+        // 如果没有选区，contextText 为空，不会提取到图片，符合预期
         const inputImages = await extractDocumentImages(this.app, contextText, file.path, this.plugin.settings);
         const imagesWithRoles = inputImages.map(img => ({
             base64: img.base64,
@@ -834,16 +856,21 @@ export class NotesSelectionHandler {
 
         console.debug(`Notes AI Image: Generating with prompt="${instruction}", context="${contextText.substring(0, 50)}..."`);
 
-        // 获取插入位置 - 选区末尾
-        const insertPos = editor.getCursor('to');
-
         // 显示生成状态 - 悬浮按钮变绿色动态效果
+        // 如果是 Sidebar 触发且没有关联的悬浮按钮位置，使用默认位置或保持隐藏？
+        // 这里的逻辑主要服务于悬浮按钮，Sidebar 调用时也会触发这个
+        // 不过 Sidebar 会在调用前自己 setFloatingButtonGenerating(true)
         this.floatingButton.setGenerating(true);
-        const btnPos = this.floatingButton.getPosition();
-        this.floatingButton.show(
-            parseInt(this.floatingButton.getElement().style.left) || btnPos.x,
-            parseInt(this.floatingButton.getElement().style.top) || btnPos.y
-        );
+        if (this.plugin.settings.noteFloatingIconEnabled) {
+             const btnPos = this.floatingButton.getPosition();
+             // 只有当按钮已经显示或有选区时才强制显示，否则可能显得突兀？
+             // 但原逻辑是强制显示。Sidebar 无选区生成时，也许希望看到悬浮状态？
+             // 保持原逻辑，确保用户知道正在生成
+             this.floatingButton.show(
+                 parseInt(this.floatingButton.getElement().style.left) || btnPos.x,
+                 parseInt(this.floatingButton.getElement().style.top) || btnPos.y
+             );
+        }
 
         // 禁用 Edit Tab (同步)
         this.setEditBlocked(true);

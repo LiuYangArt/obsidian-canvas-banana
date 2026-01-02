@@ -13,7 +13,7 @@ import { buildEditModeSystemPrompt } from '../prompts/edit-mode-prompt';
 import { applyPatches, TextChange } from './text-patcher';
 import { t } from '../../lang/helpers';
 import { formatProviderName } from '../utils/format-utils';
-import { extractDocumentImages, saveImageToVault } from '../utils/image-utils';
+import { extractDocumentImages } from '../utils/image-utils';
 import { NotesSelectionContext } from './notes-selection-handler';
 
 export const VIEW_TYPE_SIDEBAR_COPILOT = 'canvas-ai-sidebar-copilot';
@@ -749,11 +749,6 @@ export class SideBarCoPilotView extends ItemView {
     private async handleImageGenerate(): Promise<void> {
         const prompt = this.inputEl.value.trim();
 
-        if (this.isGenerating) {
-            new Notice(t('Generation in progress'));
-            return;
-        }
-
         // 获取当前文档
         const activeFile = this.app.workspace.getActiveFile();
         if (!activeFile || activeFile.extension !== 'md') {
@@ -761,15 +756,17 @@ export class SideBarCoPilotView extends ItemView {
             return;
         }
 
-        const file = activeFile;
-
         // 从 handler 获取最新的选区上下文（在 mousedown 阶段捕获）
         const notesHandler = this.plugin.getNotesHandler();
-        if (notesHandler) {
-            const latestContext = notesHandler.getLastContext();
-            if (latestContext) {
-                this.capturedContext = latestContext;
-            }
+        if (!notesHandler) {
+            new Notice(t('Services not initialized'));
+            return;
+        }
+        
+        // 尝试更新 context
+        const latestContext = notesHandler.getLastContext();
+        if (latestContext) {
+            this.capturedContext = latestContext;
         }
 
         // 判断是否使用选区模式
@@ -783,79 +780,30 @@ export class SideBarCoPilotView extends ItemView {
         this.addMessage('user', instruction);
         this.inputEl.value = '';
 
-        // 更新 UI 状态
-        this.isGenerating = true;
-        this.generateBtn.textContent = t('Generating');
-        this.generateBtn.addClass('generating');
-
-        // 禁用 Edit Tab
-        this.setEditBlocked(true);
-
-        // 同步悬浮图标状态（复用上面声明的 notesHandler）
-        notesHandler?.setFloatingButtonGenerating(true);
-
+        // 不设置 isGenerating，支持并发异步任务
+        // 但可以暂时禁用一下防止重复提交
+        
         try {
-            // 创建 ApiManager
-            const localApiManager = this.createLocalApiManager('image');
+            // 委托给 NotesSelectionHandler 处理
+            // 使用 void 不等待 Promise，实现"后台任务"效果
+            notesHandler.handleImageGeneration(instruction, context)
+                .catch(err => {
+                    const msg = err instanceof Error ? err.message : String(err);
+                    console.error('Sidebar Image Error:', err);
+                    this.addMessage('assistant', `Error: ${msg}`);
+                });
 
-            // 获取 Image Options
-            const aspectRatio = this.aspectRatioSelect?.value || '16:9';
-            const resolution = this.resolutionSelect?.value || '1K';
-
-            // 提取选区中的图片作为输入
-            let inputImages: { base64: string; mimeType: string; role: string }[] = [];
-            let contextText = '';
-
-            if (hasSelection) {
-                // 使用选区文本作为上下文
-                contextText = context.selectedText;
-                // 提取选区中的图片
-                const extractedImages = await extractDocumentImages(this.app, context.selectedText, file.path, this.plugin.settings);
-                inputImages = extractedImages.map(img => ({ ...img, role: 'reference' }));
-                console.debug(`Sidebar Image: Using selection as context, found ${inputImages.length} images`);
-            }
-
-            console.debug(`Sidebar Image: Generating with prompt="${instruction}"`);
-
-            // 调用 API 生成图片
-            const result = await localApiManager.generateImageWithRoles(
-                instruction,
-                inputImages,
-                contextText,
-                aspectRatio,
-                resolution
-            );
-
-            // 保存图片到 vault
-            const imagePath = await saveImageToVault(this.app.vault, result, file);
-
-            // 获取当前 editor 并插入图片
-            const editor = this.app.workspace.activeEditor?.editor;
-            if (editor) {
-                const cursor = editor.getCursor();
-                const insertText = `\n![[${imagePath}]]\n`;
-                editor.replaceRange(insertText, cursor);
-            }
-
-            this.addMessage('assistant', t('Image generated'));
-            new Notice(t('Image generated'));
+            // 立即反馈任务已开始
+            this.addMessage('assistant', t('Image generation task started...'));
 
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
             this.addMessage('assistant', `Error: ${errorMsg}`);
-            console.error('Sidebar Image Error:', error);
-        } finally {
-            this.isGenerating = false;
-            this.generateBtn.textContent = t('Generate');
-            this.generateBtn.removeClass('generating');
-            // 恢复 Edit Tab
-            this.setEditBlocked(false);
-            // 恢复悬浮图标状态并清除高亮
-            const notesHandler = this.plugin.getNotesHandler();
-            notesHandler?.setFloatingButtonGenerating(false);
-            this.clearCapturedContext();
+            console.error('Sidebar CoPilot Error:', error);
         }
     }
+
+
 
     private createLocalApiManager(type: 'text' | 'image'): ApiManager {
         const selectedModel = type === 'text' ? this.selectedTextModel : this.selectedImageModel;

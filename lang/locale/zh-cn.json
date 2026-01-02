@@ -173,5 +173,7 @@
     "Image disabled during edit generation": "编辑期间禁用图片生成功能",
     "Image generation failed": "图片生成失败",
     "Note floating icon": "笔记悬浮图标",
-    "Note floating icon desc": "选中文字时显示悬浮图标。如果您更喜欢只使用侧边栏，可以禁用此功能。"
+    "Note floating icon desc": "选中文字时显示悬浮图标。如果您更喜欢只使用侧边栏，可以禁用此功能。",
+    "Image generation task started...": "图片生成任务已启动...",
+    "Services not initialized": "插件服务未初始化"
 }

@@ -203,4 +203,8 @@ sequenceDiagram
 - [ ] 4.1 侧栏快捷键
   - [ ] `main.ts` 注册快捷键 "Focus sidebar with selection"
   - [ ] 快捷键处理：捕获选区 + 打开侧栏
+- [x] 优化侧栏图片生成 (Async Support & Cursor Fallback) ✅
+  - [x] Refactor `NotesSelectionHandler` to support optional context
+  - [x] Update `SidebarCoPilotView` to use shared handler
+  - [x] Support generation without selection (cursor insert)
 
