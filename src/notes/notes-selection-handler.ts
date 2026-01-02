@@ -801,6 +801,13 @@ export class NotesSelectionHandler {
         let selectedText = '';
         let insertPos: EditorPosition;
 
+        // 验证 Context 是否匹配当前活动文件 (防止 stale context 导致写入错误文件)
+        const activeFile = this.app.workspace.getActiveFile();
+        if (context && activeFile && context.file.path !== activeFile.path) {
+            console.debug('Notes AI: Context file mismatch, ignoring stale context.', context.file.path, activeFile.path);
+            context = null;
+        }
+
         if (context) {
             // Case 1: 有选区上下文
             editor = context.editor;
@@ -809,7 +816,22 @@ export class NotesSelectionHandler {
             insertPos = editor.getCursor('to');
         } else {
             // Case 2: 无选区，尝试获取当前活动文档
-            const view = this.app.workspace.getActiveViewOfType(MarkdownView);
+            let view = this.app.workspace.getActiveViewOfType(MarkdownView);
+            
+            // 如果由于点击侧栏导致 MarkdownView 失去焦点（不是 active），尝试通过 ActiveFile 反查
+            if (!view) {
+                const activeFile = this.app.workspace.getActiveFile();
+                if (activeFile && activeFile.extension === 'md') {
+                    // 在所有 leaves 中寻找打开了这个文件的 MarkdownView
+                    const leaves = this.app.workspace.getLeavesOfType('markdown');
+                    // 优先找当前 active (虽然上面返回null，但为了保险)，或者第一个匹配的
+                    const targetLeaf = leaves.find(leaf => (leaf.view as MarkdownView).file?.path === activeFile.path);
+                    if (targetLeaf) {
+                        view = targetLeaf.view as MarkdownView;
+                    }
+                }
+            }
+
             if (!view || !view.file) {
                 new Notice(t('No active file'));
                 return;

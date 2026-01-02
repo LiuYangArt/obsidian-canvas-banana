@@ -223,15 +223,41 @@ export class NoteImageTaskManager {
      */
     private removeMarker(editor: Editor, markerId: string): void {
         const content = editor.getValue();
-        // 移除 Marker 及其前后的换行符
-        const newContent = content.replace(`\n${markerId}\n`, '\n');
+        const markerIndex = content.indexOf(markerId);
         
-        if (content !== newContent) {
-            // 保存当前光标位置
-            const cursor = editor.getCursor();
-            editor.setValue(newContent);
-            // 尝试恢复光标位置
-            editor.setCursor(cursor);
+        if (markerIndex === -1) {
+            return;
+        }
+
+        // 计算 Marker 的起始和结束位置
+        // 注意：插入时我们添加了前后的换行符 `\n${markerId}\n`
+        // 移除时我们应该小心，尽量只移除我们添加的部分
+        // 这里简化策略：定位 markerId，扩展到前后可能存在的换行
+        
+        const pos = editor.offsetToPos(markerIndex);
+        const endPos = editor.offsetToPos(markerIndex + markerId.length);
+        
+        // 检查 text around marker
+        let endOffset = markerIndex + markerId.length;
+        
+        // 尝试移除后继换行
+        if (endOffset < content.length && content[endOffset] === '\n') {
+            endOffset += 1;
+        }
+
+        // 使用 replaceRange 移除
+        // 如果前后都有换行，我们保留一个换行，即只移除 `\n${markerId}` 或 `${markerId}\n`
+        // 还是还原回插入前的状态？
+        // 插入是 `\n${markerId}\n` (in strict sense `replaceRange('\n'+id+'\n', pos)`)
+        // 所以我们应该移除 `\n${markerId}\n` 并替换为 `\n` ? 
+        // 实际上 `text.replace('\n'+id+'\n', '\n')` 等价于移除了 `\n`+id 或 id+`\n`
+        
+        // 让我们只移除 `\n` + markerId
+        if (markerIndex > 0 && content[markerIndex - 1] === '\n') {
+             editor.replaceRange('', editor.offsetToPos(markerIndex - 1), endPos);
+        } else {
+             // 只有 marker
+             editor.replaceRange('', pos, endPos);
         }
     }
 
