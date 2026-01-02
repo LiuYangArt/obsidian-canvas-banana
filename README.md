@@ -34,6 +34,16 @@ Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增�
     *   **多任务并发**：支持“发射后不管”，你可以同时发起多个生成任务，无需等待上一个完成。
     *   **提示词预设 (Prompt Presets)**：内置预设管理功能，支持保存、重命名和快速调用常用的提示词。
 
+*   **📝 笔记 AI 助手 (Note AI Assistant)** [NEW]
+    *   **智能悬浮编辑**: 选中笔记文本即可唤起 AI 进行润色、翻译或改写。
+    *   **侧边栏副驾驶 (Sidebar Co-pilot)**: 类似 Google Gemini Canvas 的侧边栏体验，支持多轮对话和全文级修改建议。
+    *   **Diff 视图审阅**: AI 的修改建议会以 Diff 形式呈现，确认后才应用，拒绝"吃字"，确保数据安全。
+    *   **笔记内生图**: 支持在 Markdown 笔记中直接生成图片，支持“图生图”参考。
+
+*   **⚡ 增强的 Canvas 编辑**
+    *   **节点级原位编辑**: 直接在 Canvas 节点内部选中文字进行 AI 修改，AI 会同时参考连线节点的上下文。
+    *   **文件节点支持**: 支持直接编辑 Canvas 中引用的 .md 文件节点。
+
 *   **🌍 多 API 支持**
     *   目前支持gemini/openrouter/yunwu
       
@@ -108,6 +118,13 @@ Canvas Banana 是一个专为 Obsidian Canvas（白板）视图打造的 AI 增�
 *   **💾 (Save)**: 更新当前选中的预设内容。
 *   **❌ (Delete)**: 删除当前选中的预设。
 *   **📖 (Rename)**: 重命名当前预设。
+*   **📌 (Pin)**: 固定悬浮面板（避免自动关闭）。
+
+### 6. 笔记 AI 助手 (Note Mode)
+插件不仅支持 Canvas，也完美适配普通 Markdown 笔记编辑：
+*   **悬浮编辑**: 在笔记中选中文本，点击浮现的 🍌 图标，即可快速进行 AI 编辑或生图。
+*   **侧边栏对话**: 点击 Obsidian 右侧边栏的 🍌 图标打开 Side Panel，进行长文档协作。
+*   **Diff 确认**: AI 的修改建议会弹出一个 Diff 对比窗口，你可以清晰地看到变化，点击 "Confirm" 才会应用修改。
 
 
 ## 📄 License (开源协议)
@@ -147,6 +164,16 @@ The core philosophy of this plugin is "**Node Awareness**"—it understands the 
 *   **⚡ Efficient Workflow**
     *   **Concurrency**: Supports "fire and forget"—initiate multiple generation tasks simultaneously without waiting.
     *   **Prompt Presets**: Built-in preset management to save, rename, and quickly reuse common prompts.
+
+*   **📝 Note AI Assistant** [NEW]
+    *   **Smart Floating Edit**: Select text in your notes to trigger AI for polishing, translation, or rewriting.
+    *   **Sidebar Co-pilot**: A sidebar experience similar to Google Gemini Canvas, supporting multi-turn conversations and global edit suggestions.
+    *   **Diff Review**: AI changes are presented as Diffs; apply them only after confirmation to ensure data safety.
+    *   **In-Note Image Gen**: Generate images directly within Markdown notes, with support for Image-to-Image references.
+
+*   **⚡ Enhanced Canvas Editing**
+    *   **In-Place Node Edit**: Edit text *inside* a Canvas node with AI, which understands the context from connected nodes.
+    *   **File Node Support**: Directly edit .md file nodes referenced in the Canvas.
 
 *   **🌍 Multi-API Support**
     *   Currently supports Gemini, OpenRouter, and Yunwu.
@@ -217,3 +244,10 @@ Use the icons above the input box:
 *   **💾 (Save)**: Update the selected preset.
 *   **❌ (Delete)**: Remove the selected preset.
 *   **📖 (Rename)**: Rename the selected preset.
+*   **📌 (Pin)**: Pin the floating panel.
+
+### 6. Note AI Assistant (Note Mode)
+The plugin perfectly supports standard Markdown notes in addition to Canvas:
+*   **Floating Edit**: Select text in any note and click the floating 🍌 icon to quick start AI editing or image generation.
+*   **Sidebar Chat**: Click the 🍌 icon in the right ribbon to open the Side Panel for long-form document collaboration.
+*   **Diff Confirmation**: AI modification suggestions appear in a Diff comparison window. You can clearly see the changes and click "Confirm" to apply them.
