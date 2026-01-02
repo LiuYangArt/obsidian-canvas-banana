@@ -1061,6 +1061,13 @@ export class NotesSelectionHandler {
         this.clearSelectionHighlight();
         // 重置侧栏捕获标志
         this.hasSidebarCapturedContext = false;
+        // 清除缓存的选区上下文
+        this.lastContext = null;
+        // 通知侧栏清除其 capturedContext 并更新按钮状态
+        const sidebar = this.getSidebarView();
+        if (sidebar) {
+            sidebar.onSelectionCleared();
+        }
     }
 
     /**

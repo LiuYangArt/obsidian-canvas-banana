@@ -723,6 +723,7 @@ export class SideBarCoPilotView extends ItemView {
                 .finally(() => {
                     this.pendingTaskCount = Math.max(0, this.pendingTaskCount - 1);
                     this.updateGenerateButtonState();
+                    this.clearCapturedContext();
                 });
 
             this.addMessage('assistant', t('Generating image based on your request'));
@@ -967,6 +968,14 @@ export class SideBarCoPilotView extends ItemView {
         if (notesHandler) {
             notesHandler.clearHighlightForSidebar();
         }
+    }
+
+    /**
+     * 供 NotesSelectionHandler 调用：当用户在编辑器中取消选区时
+     */
+    public onSelectionCleared(): void {
+        this.capturedContext = null;
+        this.updateGenerateButtonState();
     }
 
     private selectTextRange(editor: Editor, startOffset: number, endOffset: number): void {
