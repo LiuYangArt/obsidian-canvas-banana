@@ -144,21 +144,21 @@ export class NotesSelectionHandler {
      * @param mode 新模式
      * @param source 来源 ('palette' | 'sidebar' | 'internal')
      */
-    private setMode(mode: NotesPaletteMode, source: 'palette' | 'sidebar' | 'internal' = 'internal'): void {
+    private setMode(mode: NotesPaletteMode, _source: 'palette' | 'sidebar' | 'internal' = 'internal'): void {
         if (this.currentMode === mode) return; // 避免重复更新
         
         this.currentMode = mode;
         
         // 同步到 Palette (如果不是来源)
-        if (source !== 'palette' && this.editPalette) {
-            this.editPalette.setMode(mode);
-        }
+        // if (source !== 'palette' && this.editPalette) {
+        //     this.editPalette.setMode(mode);
+        // }
         
         // 同步到 Sidebar (如果不是来源)
-        const sidebar = this.getSidebarView();
-        if (source !== 'sidebar' && sidebar) {
-            sidebar.setMode(mode);
-        }
+        // const sidebar = this.getSidebarView();
+        // if (source !== 'sidebar' && sidebar) {
+        //     sidebar.setMode(mode);
+        // }
     }
     
     /**
@@ -277,7 +277,7 @@ export class NotesSelectionHandler {
                 this.setMode(mode, 'sidebar');
             });
             // 同步当前状态到 Sidebar (例如刚打开 Sidebar)
-            sidebar.setMode(this.currentMode);
+            // sidebar.setMode(this.currentMode);
         }
     }
 
