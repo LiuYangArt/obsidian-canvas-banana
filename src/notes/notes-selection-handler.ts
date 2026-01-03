@@ -101,7 +101,9 @@ export class NotesSelectionHandler {
             settings.quickSwitchImageModels || [],
             settings.paletteImageModel || '',
             settings.defaultResolution || '1K',
-            settings.defaultAspectRatio || '1:1'
+            settings.defaultAspectRatio || '1:1',
+            settings.chatThinkingEnabled ?? true,
+            settings.chatThinkingLevel || 'HIGH'
         );
     }
 
@@ -131,6 +133,11 @@ export class NotesSelectionHandler {
             this.plugin.settings.defaultResolution = options.resolution;
             this.plugin.settings.defaultAspectRatio = options.aspectRatio;
             void this.plugin.saveSettings();
+        });
+        this.editPalette.setOnThinkingChange((enabled, level) => {
+             this.plugin.settings.chatThinkingEnabled = enabled;
+             this.plugin.settings.chatThinkingLevel = level as 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH';
+             void this.plugin.saveSettings();
         });
         
         // 监听 Palette 模式切换
@@ -631,8 +638,9 @@ export class NotesSelectionHandler {
         // 禁用 Image Tab (同步)
         this.setImageBlocked(true);
 
-        // 同步用户消息到侧栏
         const sidebarView = this.getSidebarView();
+        
+        // Add user message to sidebar
         if (sidebarView) {
             sidebarView.addExternalMessage('user', prompt);
         }
@@ -645,37 +653,82 @@ export class NotesSelectionHandler {
             );
 
             // 从选中文本提取内嵌图片 ![[image.png]] 作为上下文
-            // 注意：只从选中文本提取图片，而非全文档，避免发送过多图片
             const images = await extractDocumentImages(this.app, selectedText, context.file.path, this.plugin.settings);
 
             // 构建用户消息 - 如果开启全局一致性，包含全文
-            let userMessage: string;
+            let userMessageStr: string;
             if (enableGlobal) {
-                userMessage = `Full document context:\n\`\`\`\n${context.fullText}\n\`\`\`\n\nTarget text to edit (marked selection):\n\`\`\`\n${selectedText}\n\`\`\`\n\nInstruction: ${prompt}`;
+                userMessageStr = `Full document context:\n\`\`\`\n${context.fullText}\n\`\`\`\n\nTarget text to edit (marked selection):\n\`\`\`\n${selectedText}\n\`\`\`\n\nInstruction: ${prompt}`;
             } else {
-                userMessage = `Target text to edit:\n\`\`\`\n${selectedText}\n\`\`\`\n\nInstruction: ${prompt}`;
+                userMessageStr = `Target text to edit:\n\`\`\`\n${selectedText}\n\`\`\`\n\nInstruction: ${prompt}`;
             }
-
-            // 使用 multimodalChat 或 chatCompletion
-            let response: string;
+            
+            // Construct Prompt for Streaming
+            let finalPrompt: string | unknown[]; // Type as string | GeminiContent[] if imported
             if (images.length > 0) {
-                console.debug(`Notes AI: Sending request with ${images.length} images as context`);
-                const result = await this.plugin.apiManager.multimodalChat(
-                    userMessage,
-                    images,
-                    systemPrompt,
-                    1 // temperature
-                );
-                response = result.content;
+                 const parts: { text?: string; inlineData?: { mimeType: string; data: string } }[] = [];
+                 parts.push({ text: userMessageStr });
+                 images.forEach(img => {
+                     parts.push({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+                 });
+                 finalPrompt = [{ role: 'user', parts }];
+                 console.debug(`Notes AI: Sending request with ${images.length} images`);
             } else {
-                response = await this.plugin.apiManager.chatCompletion(
-                    userMessage,
-                    systemPrompt,
-                    1 // temperature
-                );
+                finalPrompt = userMessageStr;
             }
 
-            // 解析 JSON 响应
+            // Get Thinking Config
+            const thinkingConfig = this.editPalette ? this.editPalette.getThinkingConfig() : { enabled: true, level: 'HIGH' };
+            // Ensure types match what apiManager expects
+            const apiThinkingConfig = {
+                enabled: thinkingConfig.enabled,
+                level: thinkingConfig.level as 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH'
+            };
+
+            // Prepare Sidebar for Assistant Response
+            if (sidebarView) {
+                sidebarView.addExternalMessage('assistant', ''); // Placeholder
+            }
+
+            // Use Stream Chat Completion
+            const stream = this.plugin.apiManager.streamChatCompletion(
+                // @ts-ignore
+                finalPrompt,
+                systemPrompt,
+                1, // temperature
+                apiThinkingConfig
+            );
+
+            let accumulatedContent = '';
+            let accumulatedThinking = '';
+            let capturedSignature = '';
+
+            for await (const chunk of stream) {
+                if (chunk.thinking) {
+                    accumulatedThinking += chunk.thinking;
+                }
+                if (chunk.content) {
+                    accumulatedContent += chunk.content;
+                }
+                // @ts-ignore
+                if (chunk.thoughtSignature) {
+                    // @ts-ignore
+                    capturedSignature = chunk.thoughtSignature;
+                }
+
+                // Update Sidebar
+                if (sidebarView) {
+                    await sidebarView.updateStreamingMessage(accumulatedContent, accumulatedThinking);
+                }
+            }
+            
+            // Final Update to Sidebar
+            if (sidebarView) {
+                sidebarView.updateLastAssistantMessageWithThinking(accumulatedContent, accumulatedThinking, capturedSignature);
+            }
+
+            // 解析 JSON 响应 (使用 accumulatedContent)
+            const response = accumulatedContent;
             let replacementText = response;
             let globalChanges: TextChange[] = [];
             let summary = '';
@@ -693,20 +746,23 @@ export class NotesSelectionHandler {
                     jsonStr = jsonStr.slice(0, -3);
                 }
                 jsonStr = jsonStr.trim();
-
-                const parsed = JSON.parse(jsonStr);
-                if (parsed.replacement) {
-                    replacementText = parsed.replacement;
-                }
-                if (parsed.summary) {
-                    summary = parsed.summary;
-                }
-                // 解析全局变更
-                if (enableGlobal && Array.isArray(parsed.globalChanges)) {
-                    globalChanges = parsed.globalChanges.filter(
-                        (c: { original?: string; new?: string }) => c.original && c.new !== undefined
-                    );
-                    console.debug(`Notes AI: Found ${globalChanges.length} global changes`);
+                
+                // Only try parse if it looks like JSON
+                if (jsonStr.startsWith('{')) {
+                    const parsed = JSON.parse(jsonStr);
+                    if (parsed.replacement) {
+                        replacementText = parsed.replacement;
+                    }
+                    if (parsed.summary) {
+                        summary = parsed.summary;
+                    }
+                    // 解析全局变更
+                    if (enableGlobal && Array.isArray(parsed.globalChanges)) {
+                        globalChanges = parsed.globalChanges.filter(
+                            (c: { original?: string; new?: string }) => c.original && c.new !== undefined
+                        );
+                        console.debug(`Notes AI: Found ${globalChanges.length} global changes`);
+                    }
                 }
             } catch {
                 console.debug('Notes AI: Failed to parse JSON response, using raw text');
@@ -720,10 +776,15 @@ export class NotesSelectionHandler {
                     summary = t('Applied changes');
                 }
             }
-
-            // 同步 AI 回复到侧栏
-            if (sidebarView) {
-                sidebarView.addExternalMessage('assistant', summary);
+            
+            // 如果成功解析了 JSON，更新侧栏显示 Summary (而不是原始 JSON)
+            if (sidebarView && (replacementText !== response || globalChanges.length > 0)) {
+                 // We only update the content part, keeping thinking intact
+                 // But wait, updateLastAssistantMessageWithThinking overwrites everything.
+                 // We should probably just let it display the JSON/Text for now as it's "Thinking" mode...
+                 // OR, we overwrite with summary. User might want to see the "code" (JSON) though.
+                 // Let's overwrite with summary to be consistent with old behavior
+                 sidebarView.updateLastAssistantMessageWithThinking(summary, accumulatedThinking, capturedSignature);
             }
 
             // 显示 DiffModal
@@ -770,7 +831,8 @@ export class NotesSelectionHandler {
                 () => {
                     // 取消 - 更新侧栏状态
                     if (sidebarView) {
-                        sidebarView.updateLastAssistantMessage(t('Changes rejected by user'));
+                        // Keep thinking and signature
+                        sidebarView.updateLastAssistantMessageWithThinking(t('Changes rejected by user'), accumulatedThinking, capturedSignature);
                     }
                 }
             ).open();
@@ -779,6 +841,10 @@ export class NotesSelectionHandler {
             const message = error instanceof Error ? error.message : String(error);
             console.error('Notes AI: Generation error:', message);
             new Notice(`Notes AI Error: ${message}`);
+            
+            if (sidebarView) {
+                sidebarView.updateLastAssistantMessage(`Error: ${message}`);
+            }
         } finally {
             this.isGenerating = false;
             this.floatingButton.setGenerating(false);

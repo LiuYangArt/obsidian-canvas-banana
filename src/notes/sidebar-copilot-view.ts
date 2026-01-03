@@ -629,7 +629,7 @@ export class SideBarCoPilotView extends ItemView {
         // Render empty message container (will update in real-time)
         const messageWrapperEl = this.messagesContainer.createDiv(`sidebar-chat-message-wrapper assistant`);
         // Thinking container
-        const { contentEl: thinkingContentEl, container: thinkingContainer } = this.createThinkingContainer(messageWrapperEl, 'expanded');
+        const { contentEl: thinkingContentEl, container: thinkingContainer } = this.createThinkingContainer(messageWrapperEl, 'streaming');
         // By default hide if no thinking
         if (!this.thinkingEnabled) {
             thinkingContainer.addClass('is-hidden');
@@ -714,8 +714,8 @@ export class SideBarCoPilotView extends ItemView {
                     thinkingContentEl.empty();
                     await MarkdownRenderer.render(this.app, fullThinking, thinkingContentEl, this.currentDocPath || '', this);
                     
-                    // Auto-scroll
-                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                    // Auto-scroll thinking container
+                    thinkingContentEl.scrollTop = thinkingContentEl.scrollHeight;
                 }
 
                 if (chunk.content) {
@@ -728,18 +728,21 @@ export class SideBarCoPilotView extends ItemView {
                         contentEl.textContent = t('Processing result...');
                     }
                 }
+                
+                // Keep main container scrolled to bottom
+                this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
             }
             
             // Streaming finished
             assistantMsg.content = fullResponse;
             if (fullThinking) {
                  // Collapse thinking after done
-                 const header = thinkingContainer.querySelector('.canvas-ai-thinking-header');
-                 const content = thinkingContainer.querySelector('.canvas-ai-thinking-content');
-                 const icon = header?.querySelector('.canvas-ai-thinking-toggle-icon');
+                 thinkingContainer.removeClass('is-streaming');
+                 thinkingContainer.addClass('is-collapsed');
                  
-                 content?.addClass('is-collapsed');
-                 icon?.removeClass('is-open'); // Assuming is-open rotates it
+                 // Update icon
+                 const iconEl = thinkingContainer.querySelector('.thinking-header-icon');
+                 if (iconEl) setIcon(iconEl as HTMLElement, 'chevron-right');
             }
 
             let summary = '';
@@ -1100,7 +1103,7 @@ export class SideBarCoPilotView extends ItemView {
         }
     }
 
-    private async updateStreamingMessage(content: string, thinking?: string): Promise<void> {
+    public async updateStreamingMessage(content: string, thinking?: string): Promise<void> {
         if (this.chatHistory.length === 0) return;
 
         const lastMsg = this.chatHistory[this.chatHistory.length - 1];
@@ -1246,7 +1249,7 @@ export class SideBarCoPilotView extends ItemView {
      * 更新最后一条 assistant 消息，分别存储 content 和 thinking
      * 显示时格式化 thinking 为 callout，但复制/历史上下文仅使用 content
      */
-    private updateLastAssistantMessageWithThinking(content: string, thinking: string, signature?: string): void {
+    public updateLastAssistantMessageWithThinking(content: string, thinking: string, signature?: string): void {
         if (this.chatHistory.length === 0) return;
 
         const lastMsg = this.chatHistory[this.chatHistory.length - 1];

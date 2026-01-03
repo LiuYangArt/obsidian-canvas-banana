@@ -14,12 +14,14 @@ import {
     createPresetRow,
     createModelSelectRow,
     createImageOptionsRow,
+    createThinkingOptionsRow,
     refreshPresetSelect,
     updateModelSelect,
     setupKeyboardIsolation,
     TabsElements,
     PresetRowElements,
-    ImageOptionsElements
+    ImageOptionsElements,
+    ThinkingOptionsElements
 } from './shared-ui-builder';
 
 export type NotesPaletteMode = PaletteMode;
@@ -46,6 +48,7 @@ export class NotesEditPalette {
     private tabs: TabsElements;
     private presetRow: PresetRowElements;
     private editModelRow: { container: HTMLElement; select: HTMLSelectElement };
+    private editThinkingOptions: ThinkingOptionsElements;
     private imageOptions: ImageOptionsElements;
 
     // Preset data
@@ -61,6 +64,11 @@ export class NotesEditPalette {
     private quickSwitchImageModels: QuickSwitchModel[] = [];
     private selectedImageModel: string = '';
     private onImageModelChange: ((modelKey: string) => void) | null = null;
+
+    // Thinking options
+    private thinkingEnabled: boolean = true;
+    private thinkingLevel: string = 'HIGH';
+    private onThinkingChange: ((enabled: boolean, level: string) => void) | null = null;
 
     // Image options
     private defaultResolution: string = '1K';
@@ -156,6 +164,7 @@ export class NotesEditPalette {
 
         // Edit Model Selection Row
         const editOptionsContainer = body.createDiv({ cls: 'canvas-ai-chat-options' });
+        this.editThinkingOptions = createThinkingOptionsRow(editOptionsContainer, this.thinkingEnabled, this.thinkingLevel);
         this.editModelRow = createModelSelectRow(editOptionsContainer, t('Palette Model'));
 
         // Image Options (using shared builder)
@@ -224,6 +233,18 @@ export class NotesEditPalette {
 
         this.imageOptions.resolutionSelect.addEventListener('change', () => this.emitImageOptionsChange());
         this.imageOptions.aspectRatioSelect.addEventListener('change', () => this.emitImageOptionsChange());
+
+        // Thinking events
+        if (this.editThinkingOptions) {
+            this.editThinkingOptions.toggle.addEventListener('change', () => {
+                this.thinkingEnabled = this.editThinkingOptions.toggle.checked;
+                this.emitThinkingChange();
+            });
+            this.editThinkingOptions.levelSelect.addEventListener('change', () => {
+                this.thinkingLevel = this.editThinkingOptions.levelSelect.value;
+                this.emitThinkingChange();
+            });
+        }
 
         // Keyboard isolation
         setupKeyboardIsolation(this.promptInput);
@@ -326,6 +347,30 @@ export class NotesEditPalette {
         return this.selectedImageModel;
     }
 
+    setOnThinkingChange(callback: (enabled: boolean, level: string) => void): void {
+        this.onThinkingChange = callback;
+    }
+
+    private emitThinkingChange(): void {
+        this.onThinkingChange?.(this.thinkingEnabled, this.thinkingLevel);
+    }
+
+    initThinkingOptions(enabled: boolean, level: string): void {
+        this.thinkingEnabled = enabled;
+        this.thinkingLevel = level;
+        if (this.editThinkingOptions) {
+            this.editThinkingOptions.toggle.checked = enabled;
+            this.editThinkingOptions.levelSelect.value = level;
+        }
+    }
+
+    getThinkingConfig() {
+        return {
+            enabled: this.thinkingEnabled,
+            level: this.thinkingLevel
+        };
+    }
+
     // ========== Presets ==========
 
     initPresets(editPresets: PromptPreset[], imagePresets: PromptPreset[]): void {
@@ -342,11 +387,14 @@ export class NotesEditPalette {
         imageModels: QuickSwitchModel[],
         selectedImageModel: string,
         resolution: string,
-        aspectRatio: string
+        aspectRatio: string,
+        thinkingEnabled: boolean,
+        thinkingLevel: string
     ): void {
         this.initPresets(editPresets, imagePresets);
         this.initQuickSwitchModels(textModels, selectedTextModel, imageModels, selectedImageModel);
         this.initImageOptions(resolution, aspectRatio);
+        this.initThinkingOptions(thinkingEnabled, thinkingLevel);
     }
 
     setOnEditPresetChange(callback: (presets: PromptPreset[]) => void): void {
