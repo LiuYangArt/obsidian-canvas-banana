@@ -17,7 +17,7 @@
 
 | 文件 | 功能 |
 |-----|------|
-| `intent-resolver.ts` | 意图解析 (Chat/Image/Node/Edit 模式) |
+| `intent-resolver.ts` | 意图解析 (Text/Image/Node/Edit 模式) |
 | `canvas-converter.ts` | 节点→Markdown/Mermaid 转换、图片压缩 |
 | `node-operations.ts` | 创建群组、选择连接节点、新建节点 |
 | `node-mode-utils.ts` | JSON 提取/验证、坐标重映射、布局优化 |
@@ -34,7 +34,7 @@
 | `sidebar-copilot-view.ts` | 侧边栏 CoPilot (多轮对话 Chat、文档编辑 Edit、图片生成 Image) |
 | `note-image-task-manager.ts` | 图片生成任务队列、并发控制 |
 | `text-patcher.ts` | 文本 patch 应用 |
-| `mode-controller.ts` | 面板模式切换控制器 (Edit/Image/Chat) |
+| `mode-controller.ts` | 面板模式切换控制器 (Edit/Image/Text) |
 | `notes-floating-button.ts` | 悬浮香蕉按钮逻辑 |
 | `shared-ui-builder.ts` | Notes 通用 UI 组件构建器 (Tab/Preset/ImageOptions) |
 
@@ -42,7 +42,7 @@
 
 | 文件 | 功能 |
 |-----|------|
-| `floating-palette.ts` | Canvas 浮动面板 (Chat/Image/Node/Edit 四模式) |
+| `floating-palette.ts` | Canvas 浮动面板 (Text/Image/Node/Edit 四模式) |
 | `modals.ts` | DiffModal (diff 对比确认)、InputModal、ConfirmModal |
 | `preset-manager.ts` | Preset 下拉管理器 |
 

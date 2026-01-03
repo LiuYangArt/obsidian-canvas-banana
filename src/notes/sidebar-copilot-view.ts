@@ -486,24 +486,8 @@ export class SideBarCoPilotView extends ItemView {
         
         // Render Thinking Container if exists (collapsed by default for history)
         if (msg.thinking) {
-            const thinkingContainer = wrapperEl.createDiv('canvas-ai-thinking-container is-collapsed');
-            
-            // Header
-            const header = thinkingContainer.createDiv('thinking-header');
-            const iconEl = header.createDiv('thinking-header-icon');
-            setIcon(iconEl, 'chevron-right'); 
-            header.createSpan({ text: 'Thinking Process', cls: 'thinking-header-text' });
-
-            // Toggle logic
-            header.addEventListener('click', () => {
-                const isCollapsed = thinkingContainer.classList.toggle('is-collapsed');
-                setIcon(iconEl, isCollapsed ? 'chevron-right' : 'chevron-down');
-            });
-
-            // Content
-            const contentWrapper = thinkingContainer.createDiv('thinking-content-wrapper');
-            const thinkingContent = contentWrapper.createDiv('thinking-content markdown-preview-view');
-            void MarkdownRenderer.render(this.app, msg.thinking, thinkingContent, this.currentDocPath || '', this);
+            const { contentEl } = this.createThinkingContainer(wrapperEl, 'collapsed');
+            void MarkdownRenderer.render(this.app, msg.thinking, contentEl, this.currentDocPath || '', this);
         }
 
         // Message bubble (content only)
@@ -534,7 +518,7 @@ export class SideBarCoPilotView extends ItemView {
 
     private async handleCopyMessage(content: string): Promise<void> {
         await navigator.clipboard.writeText(content);
-        new Notice(t('Image copied')); // Reusing 'Image copied' or I should add 'Message copied'
+        new Notice(t('Message copied'));
     }
 
     private handleInsertMessage(content: string): void {
@@ -568,7 +552,7 @@ export class SideBarCoPilotView extends ItemView {
     private handleDeleteMessage(msg: ChatMessage, el: HTMLElement): void {
         this.chatHistory.remove(msg);
         el.remove();
-        new Notice(t('Conversation cleared')); // Closest existing key
+        new Notice(t('Message deleted'));
     }
 
     private async handleGenerate(): Promise<void> {
@@ -1018,39 +1002,17 @@ export class SideBarCoPilotView extends ItemView {
 
             const lastMsgEl = this.messagesContainer.lastElementChild;
             if (lastMsgEl) {
-                const wrapperEl = lastMsgEl.closest('.sidebar-chat-message-wrapper');
-                const msgEl = lastMsgEl.querySelector('.sidebar-chat-message') || lastMsgEl; // handle structure nuances
+                const wrapperEl = lastMsgEl.closest('.sidebar-chat-message-wrapper') as HTMLElement;
+                const msgEl = (lastMsgEl.querySelector('.sidebar-chat-message') || lastMsgEl) as HTMLElement; // handle structure nuances
                 
                 // Handle Thinking Container
                 if (thinking) {
-                    let thinkingContainer = wrapperEl?.querySelector('.canvas-ai-thinking-container');
+                    let thinkingContainer = wrapperEl?.querySelector('.canvas-ai-thinking-container') as HTMLElement;
                     
                     if (!thinkingContainer && wrapperEl) {
                         // Create structure if missing
-                        thinkingContainer = createDiv('canvas-ai-thinking-container is-streaming');
-                        
-                        // Insert BEFORE the message bubble
-                        if (msgEl) {
-                            wrapperEl.insertBefore(thinkingContainer, msgEl);
-                        } else {
-                            wrapperEl.prepend(thinkingContainer);
-                        }
-
-                        // Header
-                        const header = thinkingContainer.createDiv('thinking-header');
-                        const iconEl = header.createDiv('thinking-header-icon');
-                        setIcon(iconEl, 'chevron-down'); // Down arrow for expanded
-                        header.createSpan({ text: 'Thinking Process', cls: 'thinking-header-text' });
-                        
-                        // Toggle logic
-                        header.addEventListener('click', () => {
-                            const isCollapsed = thinkingContainer!.classList.toggle('is-collapsed');
-                            setIcon(iconEl, isCollapsed ? 'chevron-right' : 'chevron-down');
-                        });
-
-                        // Content Wrapper and Body
-                        const contentWrapper = thinkingContainer.createDiv('thinking-content-wrapper');
-                        contentWrapper.createDiv('thinking-content markdown-preview-view');
+                        const result = this.createThinkingContainer(wrapperEl, 'streaming', msgEl);
+                        thinkingContainer = result.container;
                     }
                     
                     if (thinkingContainer) {
@@ -1228,4 +1190,35 @@ export class SideBarCoPilotView extends ItemView {
     }
 
 
+
+    private createThinkingContainer(wrapperEl: HTMLElement, initialState: 'collapsed' | 'streaming' | 'expanded', insertBeforeEl?: Element | null): { container: HTMLElement, contentEl: HTMLElement } {
+        const isCollapsed = initialState === 'collapsed';
+        
+        const thinkingContainer = document.createElement('div');
+        thinkingContainer.className = `canvas-ai-thinking-container ${isCollapsed ? 'is-collapsed' : ''} ${initialState === 'streaming' ? 'is-streaming' : ''}`;
+        
+        if (insertBeforeEl) {
+            wrapperEl.insertBefore(thinkingContainer, insertBeforeEl);
+        } else {
+            wrapperEl.appendChild(thinkingContainer);
+        }
+
+        // Header
+        const header = thinkingContainer.createDiv('thinking-header');
+        const iconEl = header.createDiv('thinking-header-icon');
+        setIcon(iconEl, isCollapsed ? 'chevron-right' : 'chevron-down'); 
+        header.createSpan({ text: 'Thinking Process', cls: 'thinking-header-text' });
+
+        // Toggle logic
+        header.addEventListener('click', () => {
+            const isColl = thinkingContainer.classList.toggle('is-collapsed');
+            setIcon(iconEl, isColl ? 'chevron-right' : 'chevron-down');
+        });
+
+        // Content
+        const contentWrapper = thinkingContainer.createDiv('thinking-content-wrapper');
+        const contentEl = contentWrapper.createDiv('thinking-content markdown-preview-view');
+        
+        return { container: thinkingContainer, contentEl };
+    }
 }
