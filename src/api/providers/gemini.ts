@@ -328,7 +328,12 @@ export class GeminiProvider {
     /**
      * Chat completion with streaming
      */
-    async *streamChatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): AsyncGenerator<string, void, unknown> {
+    async *streamChatCompletion(
+        prompt: string,
+        systemPrompt?: string,
+        temperature: number = 0.5,
+        thinkingConfig?: { enabled: boolean; budgetTokens?: number }
+    ): AsyncGenerator<{ content?: string; thinking?: string }, void, unknown> {
         const model = this.getTextModel();
         // Append :streamGenerateContent and alt=sse for streaming
         const endpoint = `${this.getBaseUrl()}/v1beta/models/${model}:streamGenerateContent?key=${this.getApiKey()}&alt=sse`;
@@ -340,6 +345,14 @@ export class GeminiProvider {
             contents: [{ role: 'user', parts: parts }],
             generationConfig: { temperature: temperature }
         };
+
+        // Add thinking config if enabled
+        if (thinkingConfig?.enabled) {
+            requestBody.generationConfig!.thinkingConfig = {
+                thinkingBudget: thinkingConfig.budgetTokens || 8192
+            };
+            console.debug(`Canvas AI: [${this.providerName}] Thinking enabled with budget:`, thinkingConfig.budgetTokens);
+        }
 
         if (systemPrompt) {
             requestBody.systemInstruction = { parts: [{ text: systemPrompt }] };
@@ -394,7 +407,12 @@ export class GeminiProvider {
                                 if (parts) {
                                     for (const part of parts) {
                                         if (part.text) {
-                                            yield part.text;
+                                            // Check for thought marker
+                                            if (part.thought) {
+                                                yield { thinking: part.text };
+                                            } else {
+                                                yield { content: part.text };
+                                            }
                                         }
                                     }
                                 }

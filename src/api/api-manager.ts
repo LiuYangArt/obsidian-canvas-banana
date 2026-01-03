@@ -130,11 +130,13 @@ export class ApiManager {
              return;
         }
 
-        if (provider === 'gemini' || provider === 'yunwu') {
-             // Gemini provider still yields string, wrap it
-             for await (const chunk of this.gemini.streamChatCompletion(prompt, systemPrompt, temperature)) {
-                 yield { content: chunk };
-             }
+        if (provider === 'gemini') {
+             yield* this.gemini.streamChatCompletion(prompt, systemPrompt, temperature, thinkingConfig);
+             return;
+        }
+
+        if (provider === 'yunwu') {
+             yield* this.yunwu.streamChatCompletion(prompt, systemPrompt, temperature, thinkingConfig);
              return;
         }
 
