@@ -280,8 +280,7 @@ export class SideBarCoPilotView extends ItemView {
         // Thinking toggle and budget select
         const saveThinkingSettings = () => {
              this.plugin.settings.chatThinkingEnabled = this.thinkingEnabled;
-             // @ts-ignore
-             this.plugin.settings.chatThinkingLevel = this.thinkingLevel;
+             this.plugin.settings.chatThinkingLevel = this.thinkingLevel as 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH';
              void this.plugin.saveSettings();
         };
 
@@ -378,23 +377,7 @@ export class SideBarCoPilotView extends ItemView {
     }
 
     public refreshFromSettings(): void {
-        this.editPresets = [...(this.plugin.settings.editPresets || [])];
-        this.imagePresets = [...(this.plugin.settings.imagePresets || [])];
-        this.refreshPresetDropdown();
-
-        this.quickSwitchTextModels = [...(this.plugin.settings.quickSwitchTextModels || [])];
-        this.quickSwitchImageModels = [...(this.plugin.settings.quickSwitchImageModels || [])];
-        this.selectedTextModel = this.plugin.settings.paletteEditModel || '';
-        this.selectedImageModel = this.plugin.settings.paletteImageModel || '';
-        this.updateTextModelSelect();
-        this.updateImageModelSelect();
-
-        if (this.imageOptions.resolutionSelect) {
-            this.imageOptions.resolutionSelect.value = this.plugin.settings.defaultResolution || '1K';
-        }
-        if (this.imageOptions.aspectRatioSelect) {
-            this.imageOptions.aspectRatioSelect.value = this.plugin.settings.defaultAspectRatio || '1:1';
-        }
+        this.initFromSettings();
     }
 
     private getCurrentPresets(): PromptPreset[] {

@@ -29,9 +29,9 @@
 
 | 文件 | 功能 |
 |-----|------|
-| `notes-selection-handler.ts` | 文本选中监听、Edit/Image 状态中央同步控制、Edit 模式流式生成 (Thinking) |
-| `notes-edit-palette.ts` | Notes 悬浮面板 (Edit/Image 双 Tab)、Thinking 配置 |
-| `sidebar-copilot-view.ts` | side CoPilot (Chat/Edit/Image)、Thinking 流式显示与自动折叠 |
+| `notes-selection-handler.ts` | 文本选中监听、Edit/Image 状态中央同步控制、Edit 模式流式生成 (Thinking)、配置全屏同步 |
+| `notes-edit-palette.ts` | Notes 悬浮面板 (Edit/Image 双 Tab)、Thinking 配置与实时同步 |
+| `sidebar-copilot-view.ts` | side CoPilot (Chat/Edit/Image)、Thinking 流式显示与自动折叠、配置全屏同步 |
 | `note-image-task-manager.ts` | 图片生成任务队列、并发控制 |
 | `text-patcher.ts` | 文本 patch 应用 |
 | `mode-controller.ts` | 面板模式切换控制器 (Edit/Image/Text) |
@@ -42,7 +42,7 @@
 
 | 文件 | 功能 |
 |-----|------|
-| `floating-palette.ts` | Canvas 浮动面板 (Text/Image/Node/Edit 四模式) |
+| `floating-palette.ts` | Canvas 浮动面板 (Text/Image/Node/Edit 四模式)、Thinking 配置全组件同步 |
 | `modals.ts` | DiffModal (diff 对比确认)、InputModal、ConfirmModal |
 | `preset-manager.ts` | Preset 下拉管理器 |
 
