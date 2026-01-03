@@ -40,7 +40,7 @@ Canvas Banana 是一个原名为 Obsidian Canvas AI 的插件，现在它不仅�
         *   **Chat**: 与当前文档进行多轮对话，支持引用选中内容。
         *   **Edit**: 全文级或段落级修改建议，支持 Diff 视图审阅，确认后才应用。
         *   **Image**: "所见即所得"的文档内生图，支持基于上下文生成配图。
-    *   **智能悬浮编辑**: 选中笔记文本即可唤起 AI 进行润色、翻译或改写。
+    *   **智能悬浮编辑**: 选中笔记文本即可唤起 AI 进行润色、翻译或改写。支持实时显示 AI **思考过程 (Thinking Process)**。
    
 *   **⚡ 增强的 Canvas 编辑**
     *   **节点级原位编辑**: 直接在 Canvas 节点内部选中文字进行 AI 修改，AI 会同时参考连线节点的上下文。
@@ -127,9 +127,53 @@ Canvas Banana 是一个原名为 Obsidian Canvas AI 的插件，现在它不仅�
 插件不仅支持 Canvas，也完美适配普通 Markdown 笔记编辑：
 *   **侧边栏副驾驶 (Sidebar Co-pilot)**: 点击 Obsidian 右侧边栏的 🍌 图标打开 Side Panel。
     *   **Chat**: 纯对话模式，基于文档上下文进行问答。支持 "Insert to cursor" 将 AI 回复插入文档。
-    *   **Edit**: 选中一段文本（或不选以针对全文），输入指令。AI 的修改建议会以 Diff 形式呈现，点击 "Confirm" 应用修改。
+    *   **Edit**: 选中一段文本（或不选以针对全文），输入指令。AI 的修改建议会以 Diff 形式呈现，点击 "Confirm" 应用修改。支持 Thinking 模型流式输出。
     *   **Image**: 在文档中生成图片。支持选中一段文字作为 Prompt，或者直接输入描述。
 *   **悬浮编辑**: 在笔记中选中文本，点击浮现的 🍌 图标，即可快速唤起悬浮面板进行 AI 编辑或生图。
+
+## 📄 License (开源协议)
+
+This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](LICENSE) file for details.
+
+本项目采用 GNU General Public License v3.0 开源协议，详情请参阅 [LICENSE](LICENSE) 文件。
+
+---
+
+<span id="en-us"></span>
+**Canvas Banana** (formerly Obsidian Canvas AI) is a comprehensive AI assistant for Obsidian. It goes beyond just **Canvas** enhancement to provide a seamless AI experience across both **Canvas** and **Markdown Notes**. Deeply integrated with advanced models like Gemini, OpenAI, and Antigravity, it empowers you to chat, create text, and generate images anywhere.
+
+The core philosophy is "**Context Awareness**"—whether it's a node on a whiteboard or a selection in a note, the plugin understands the context to assist your creative process effectively.
+
+<br><img width="2200" height="1185" alt="image" src="https://github.com/user-attachments/assets/94bfc72e-6823-42da-8f3a-2c9da7bb77b8" />
+
+
+## 🌟 Core Features
+
+*   **🤖 Context-Aware Chat**
+    *   Intelligently recognizes selected Canvas node content as conversation context.
+    *   Discuss ideas, summarize content, or brainstorm with AI directly on the canvas.
+    *   Supports "Temperature" adjustment to control the creativity of responses.
+    *   **Streaming Support**: Typewriter-style streaming response for all major providers (Gemini, OpenAI, GptGod, Antigravity, etc.).
+
+*   **🎨 AI Image Generation**
+    *   Transforms text descriptions into high-quality images.
+    *   Offers rich **Aspect Ratio** options: 1:1, 16:9, 4:3, 9:16, etc.
+    *   Supports multiple **Resolutions**: 1K, 2K, 4K.
+    *   Capable of using selected node text as the prompt for image generation.
+
+*   **🧠 Canvas Node Generation**
+    *   Let the LLM answer your questions in the form of a mind map or interconnected nodes.
+
+*   **⚡ Efficient Workflow**
+    *   **Concurrency**: Supports "fire and forget"—initiate multiple generation tasks simultaneously without waiting.
+    *   **Prompt Presets**: Built-in preset management to save, rename, and quickly reuse common prompts.
+
+*   **📝 Note AI Assistant** [NEW]
+    *   **Sidebar Co-pilot**: A Gemini Canvas-like experience in your sidebar.
+        *   **Chat**: Multi-turn conversation with document context.
+        *   **Edit**: Full-text or selection-based editing with Diff review. Supports streaming output from Thinking models.
+        *   **Image**: WYSIWYG image generation directly in your notes.
+    *   **Smart Floating Edit**: Select text in notes to trigger AI for polishing, translating, or rewriting. Supports real-time visualization of the **Thinking Process**.
 
 
 ## 📄 License (开源协议)
