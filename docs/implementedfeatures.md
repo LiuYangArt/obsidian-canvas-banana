@@ -64,8 +64,15 @@
 
 | 文件 | 功能 |
 |-----|------|
-| `settings.ts` | 类型定义、DEFAULT_SETTINGS |
+| `settings.ts` | 类型定义、DEFAULT_SETTINGS、System Prompt 配置 (Canvas Text / Notes Chat 分离) |
 | `settings-tab.ts` | 设置页面 UI |
+
+**System Prompt 设计**:
+- `textSystemPrompt`: Canvas Text 模式专用 (多模态内容创作)
+- `notesChatSystemPrompt`: Notes 侧边栏 Chat 模式专用 (知识助手)
+- `editSystemPrompt`: Edit 模式 (Canvas & Notes 共用)
+- `nodeSystemPrompt`: Node 模式
+- `imageSystemPrompt`: Image 模式
 
 ## i18n (`lang/`)
 

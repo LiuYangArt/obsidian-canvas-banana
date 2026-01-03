@@ -89,6 +89,17 @@ export default class CanvasAIPlugin extends Plugin {
             this.settings.chatSystemPrompt = undefined;
         }
 
+        // Migration: Initialize notesChatSystemPrompt from textSystemPrompt for existing users
+        if (!this.settings.notesChatSystemPrompt) {
+            // If user has customized textSystemPrompt, use it for notesChatSystemPrompt too
+            if (this.settings.textSystemPrompt && this.settings.textSystemPrompt !== DEFAULT_SETTINGS.textSystemPrompt) {
+                this.settings.notesChatSystemPrompt = this.settings.textSystemPrompt;
+            } else {
+                // Use new default for Notes Chat
+                this.settings.notesChatSystemPrompt = DEFAULT_SETTINGS.notesChatSystemPrompt;
+            }
+        }
+
         await this.saveSettings();
 
         // Register settings tab

@@ -1205,7 +1205,7 @@ export class SideBarCoPilotView extends ItemView {
     try {
       const localApiManager = this.createLocalApiManager("text");
       const systemPrompt =
-        this.plugin.settings.textSystemPrompt ||
+        this.plugin.settings.notesChatSystemPrompt ||
         "You are a helpful assistant. Answer questions based on the provided context. Respond in the same language as the user's question.";
 
       let userMsg: string | GeminiContent[];

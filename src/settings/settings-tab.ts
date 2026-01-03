@@ -598,16 +598,29 @@ export class CanvasAISettingTab extends PluginSettingTab {
         // ========== Prompt Settings ==========
         new Setting(containerEl).setHeading().setName(t('Prompt settings'));
 
-        // Text System Prompt
+        // Canvas Text System Prompt
         new Setting(containerEl)
             .setClass('canvas-ai-block-setting')
-            .setName(t('Text system prompt'))
-            .setDesc(t('System prompt for text chat mode'))
+            .setName(t('Canvas text system prompt'))
+            .setDesc(t('System prompt for Canvas text mode (multi-modal content creation)'))
             .addTextArea(text => text
-                .setPlaceholder('You are a helpful AI assistant...')
+                .setPlaceholder('You are a creative AI assistant...')
                 .setValue(this.plugin.settings.textSystemPrompt)
                 .onChange(async (value) => {
                     this.plugin.settings.textSystemPrompt = value;
+                    await this.plugin.saveSettings();
+                }));
+
+        // Notes Chat System Prompt
+        new Setting(containerEl)
+            .setClass('canvas-ai-block-setting')
+            .setName(t('Notes chat system prompt'))
+            .setDesc(t('System prompt for Notes sidebar chat mode (knowledge assistant)'))
+            .addTextArea(text => text
+                .setPlaceholder('You are a knowledge assistant...')
+                .setValue(this.plugin.settings.notesChatSystemPrompt)
+                .onChange(async (value) => {
+                    this.plugin.settings.notesChatSystemPrompt = value;
                     await this.plugin.saveSettings();
                 }));
 
