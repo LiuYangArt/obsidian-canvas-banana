@@ -36,7 +36,7 @@
 | `text-patcher.ts` | 文本 patch 应用 |
 | `mode-controller.ts` | 面板模式切换控制器 (Edit/Image/Text) |
 | `notes-floating-button.ts` | 悬浮香蕉按钮逻辑 |
-| `shared-ui-builder.ts` | Notes 通用 UI 组件构建器 (Tab/Preset/ImageOptions) |
+| `shared-ui-builder.ts` | Notes 通用 UI 组件构建器 (Tab/Preset/Image/ThinkingOptions) |
 
 ## UI 组件 (`src/ui/`)
 

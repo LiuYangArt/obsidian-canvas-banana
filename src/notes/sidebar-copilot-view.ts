@@ -21,12 +21,14 @@ import {
     createPresetRow,
     createModelSelectRow,
     createImageOptionsRow,
+    createThinkingOptionsRow,
     refreshPresetSelect,
     updateModelSelect,
     setupKeyboardIsolation,
     TabsElements,
     PresetRowElements,
-    ImageOptionsElements
+    ImageOptionsElements,
+    ThinkingOptionsElements
 } from './shared-ui-builder';
 
 export const VIEW_TYPE_SIDEBAR_COPILOT = 'canvas-ai-sidebar-copilot';
@@ -63,6 +65,10 @@ export class SideBarCoPilotView extends ItemView {
     private chatModelRow: { container: HTMLElement; select: HTMLSelectElement };
     private imageOptions: ImageOptionsElements;
     private chatOptionsContainer: HTMLElement;
+    
+    // UI Elements for Thinking
+    private editThinkingOptions: ThinkingOptionsElements;
+    private chatThinkingOptions: ThinkingOptionsElements;
 
     // Settings
     private editPresets: PromptPreset[] = [];
@@ -75,8 +81,6 @@ export class SideBarCoPilotView extends ItemView {
     // Thinking options (loaded from settings)
     private thinkingEnabled: boolean = true;
     private thinkingLevel: string = 'HIGH';
-    private thinkingToggleEl: HTMLInputElement | null = null;
-    private levelSelectEl: HTMLSelectElement | null = null;
 
     // State
     private isGenerating: boolean = false;
@@ -175,6 +179,8 @@ export class SideBarCoPilotView extends ItemView {
 
         // Edit Model Selection (using shared builder)
         const editOptionsContainer = this.footerEl.createDiv('canvas-ai-chat-options');
+        // Add Thinking options to Edit
+        this.editThinkingOptions = createThinkingOptionsRow(editOptionsContainer, this.thinkingEnabled, this.thinkingLevel);
         this.editModelRow = createModelSelectRow(editOptionsContainer, t('Palette Model'));
 
         // Image Options (using shared builder)
@@ -183,17 +189,8 @@ export class SideBarCoPilotView extends ItemView {
         // Chat Options (hidden by default, shown when Chat tab is active)
         this.chatOptionsContainer = this.footerEl.createDiv('canvas-ai-chat-mode-options is-hidden');
 
-        // Thinking Options Row
-        const thinkingRow = this.chatOptionsContainer.createDiv('canvas-ai-option-row');
-        const thinkingGrp = thinkingRow.createEl('span', 'canvas-ai-option-group');
-        thinkingGrp.createEl('label', { text: t('Thinking') });
-        this.thinkingToggleEl = thinkingGrp.createEl('input', { type: 'checkbox', cls: 'canvas-ai-thinking-toggle' });
-
-        const budgetGrp = thinkingRow.createEl('span', 'canvas-ai-option-group');
-        budgetGrp.createEl('label', { text: 'Level' }); // Fixed translation key issue
-        this.levelSelectEl = budgetGrp.createEl('select', 'canvas-ai-level-select dropdown');
-        ['MINIMAL', 'LOW', 'MEDIUM', 'HIGH'].forEach(v => this.levelSelectEl!.createEl('option', { value: v, text: v }));
-        this.levelSelectEl.value = 'HIGH';
+        // Thinking Options Row (Chat)
+        this.chatThinkingOptions = createThinkingOptionsRow(this.chatOptionsContainer, this.thinkingEnabled, this.thinkingLevel);
 
         this.chatModelRow = createModelSelectRow(this.chatOptionsContainer, t('Palette Model'));
 
@@ -281,18 +278,33 @@ export class SideBarCoPilotView extends ItemView {
         });
 
         // Thinking toggle and budget select
-        this.thinkingToggleEl?.addEventListener('change', () => {
-            this.thinkingEnabled = this.thinkingToggleEl!.checked;
-            this.plugin.settings.chatThinkingEnabled = this.thinkingEnabled;
-            void this.plugin.saveSettings();
-        });
+        const saveThinkingSettings = () => {
+             this.plugin.settings.chatThinkingEnabled = this.thinkingEnabled;
+             // @ts-ignore
+             this.plugin.settings.chatThinkingLevel = this.thinkingLevel;
+             void this.plugin.saveSettings();
+        };
 
-        this.levelSelectEl?.addEventListener('change', () => {
-            this.thinkingLevel = this.levelSelectEl!.value;
-            // @ts-ignore
-            this.plugin.settings.chatThinkingLevel = this.thinkingLevel;
-            void this.plugin.saveSettings();
-        });
+        const setupThinkingEvents = (opts: ThinkingOptionsElements) => {
+            opts.toggle.addEventListener('change', () => {
+                this.thinkingEnabled = opts.toggle.checked;
+                // Sync other toggle
+                if (this.editThinkingOptions) this.editThinkingOptions.toggle.checked = this.thinkingEnabled;
+                if (this.chatThinkingOptions) this.chatThinkingOptions.toggle.checked = this.thinkingEnabled;
+                saveThinkingSettings();
+            });
+
+            opts.levelSelect.addEventListener('change', () => {
+                this.thinkingLevel = opts.levelSelect.value;
+                // Sync other select
+                 if (this.editThinkingOptions) this.editThinkingOptions.levelSelect.value = this.thinkingLevel;
+                 if (this.chatThinkingOptions) this.chatThinkingOptions.levelSelect.value = this.thinkingLevel;
+                saveThinkingSettings();
+            });
+        };
+
+        setupThinkingEvents(this.editThinkingOptions);
+        setupThinkingEvents(this.chatThinkingOptions);
 
         this.generateBtn.addEventListener('click', () => void this.handleGenerate());
 
@@ -352,11 +364,14 @@ export class SideBarCoPilotView extends ItemView {
         // Initialize thinking options from settings
         this.thinkingEnabled = this.plugin.settings.chatThinkingEnabled ?? true;
         this.thinkingLevel = this.plugin.settings.chatThinkingLevel || 'HIGH';
-        if (this.thinkingToggleEl) {
-            this.thinkingToggleEl.checked = this.thinkingEnabled;
+        
+        if (this.editThinkingOptions) {
+            this.editThinkingOptions.toggle.checked = this.thinkingEnabled;
+            this.editThinkingOptions.levelSelect.value = this.thinkingLevel;
         }
-        if (this.levelSelectEl) {
-            this.levelSelectEl.value = this.thinkingLevel;
+        if (this.chatThinkingOptions) {
+            this.chatThinkingOptions.toggle.checked = this.thinkingEnabled;
+            this.chatThinkingOptions.levelSelect.value = this.thinkingLevel;
         }
 
         this.updateGenerateButtonState();
@@ -606,38 +621,125 @@ export class SideBarCoPilotView extends ItemView {
         this.setImageBlocked(true);
 
         notesHandler?.setFloatingButtonGenerating(true);
-        // notesHandler?.clearHighlightForSidebar();
+
+        // Create placeholder message for Assistant response
+        const assistantMsg: ChatMessage = { role: 'assistant', content: '', timestamp: Date.now() };
+        this.chatHistory.push(assistantMsg);
+        
+        // Render empty message container (will update in real-time)
+        const messageWrapperEl = this.messagesContainer.createDiv(`sidebar-chat-message-wrapper assistant`);
+        // Thinking container
+        const { contentEl: thinkingContentEl, container: thinkingContainer } = this.createThinkingContainer(messageWrapperEl, 'expanded');
+        // By default hide if no thinking
+        if (!this.thinkingEnabled) {
+            thinkingContainer.addClass('is-hidden');
+        }
+
+        const msgBubbleEl = messageWrapperEl.createDiv(`sidebar-chat-message assistant`);
+        const contentEl = msgBubbleEl.createDiv('sidebar-message-content markdown-preview-view');
+        
+        // Add valid actions
+        const actionsEl = messageWrapperEl.createDiv('sidebar-message-actions');
+        // Copy
+        const copyBtn = actionsEl.createEl('button', { cls: 'clickable-icon', attr: { 'aria-label': t('Copy') } });
+        setIcon(copyBtn, 'copy');
+        copyBtn.addEventListener('click', () => void this.handleCopyMessage(assistantMsg.content));
+        // Simple delete for now (since we detached from standard render)
+        const deleteBtn = actionsEl.createEl('button', { cls: 'clickable-icon', attr: { 'aria-label': t('Delete') } });
+        setIcon(deleteBtn, 'trash-2');
+        deleteBtn.addEventListener('click', () => void this.handleDeleteMessage(assistantMsg, messageWrapperEl));
+
 
         try {
             const localApiManager = this.createLocalApiManager('text');
             const systemPrompt = buildEditModeSystemPrompt(this.plugin.settings.editSystemPrompt);
 
-            let userMsg: string;
+            // Construct Prompt
+            let finalPrompt: string | GeminiContent[];
+            let userInstruction: string;
             let images: { base64: string; mimeType: string; type: 'image' | 'pdf' }[] = [];
 
             if (hasSelection) {
-                userMsg = `Target Text:\n${context.selectedText}\n\nInstruction:\n${prompt}`;
+                userInstruction = `Target Text:\n${context.selectedText}\n\nInstruction:\n${prompt}`;
                 const extractedImages = await extractDocumentImages(this.app, context.selectedText, file.path, this.plugin.settings);
                 images = extractedImages.map(img => ({ ...img, type: 'image' as const }));
             } else {
-                userMsg = `Document content:\n${docContent}\n\nInstruction:\n${prompt}`;
+                userInstruction = `Document content:\n${docContent}\n\nInstruction:\n${prompt}`;
                 const extractedImages = await extractDocumentImages(this.app, docContent, file.path, this.plugin.settings);
                 images = extractedImages.map(img => ({ ...img, type: 'image' as const }));
             }
 
             if (this.chatHistory.length > 2) {
-                const historyContext = this.chatHistory.slice(0, -1).map(m =>
+                // exclude current user msg and the new empty assistant msg
+                const historyContext = this.chatHistory.slice(0, -2).map(m =>
                     `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`
                 ).join('\n');
-                userMsg = `Previous conversation:\n${historyContext}\n\n${userMsg}`;
+                userInstruction = `Previous conversation:\n${historyContext}\n\n${userInstruction}`;
             }
 
-            let response: string;
             if (images.length > 0) {
-                const result = await localApiManager.multimodalChat(userMsg, images, systemPrompt, 0.5);
-                response = result.content;
+                 const parts: GeminiPart[] = [];
+                 parts.push({ text: userInstruction });
+                 images.forEach(img => {
+                     parts.push({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+                 });
+                 finalPrompt = [{ role: 'user', parts }];
             } else {
-                response = await localApiManager.chatCompletion(userMsg, systemPrompt, 0.5);
+                finalPrompt = userInstruction;
+            }
+
+            // Thinking Config
+            const thinkingConfig = {
+                enabled: this.thinkingEnabled,
+                level: this.thinkingLevel as 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH'
+            };
+
+            let fullResponse = '';
+            let fullThinking = '';
+
+            // Stream Request
+            const stream = localApiManager.streamChatCompletion(finalPrompt, systemPrompt, 0.5, thinkingConfig);
+            
+            for await (const chunk of stream) {
+                if (chunk.thinking) {
+                    fullThinking += chunk.thinking;
+                    assistantMsg.thinking = fullThinking;
+                    
+                    // Show thinking container if hidden and we have thinking
+                    if (fullThinking.length > 0 && thinkingContainer.hasClass('is-hidden')) {
+                        thinkingContainer.removeClass('is-hidden');
+                    }
+                    
+                    // Render thinking markdown
+                    thinkingContentEl.empty();
+                    await MarkdownRenderer.render(this.app, fullThinking, thinkingContentEl, this.currentDocPath || '', this);
+                    
+                    // Auto-scroll
+                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                }
+
+                if (chunk.content) {
+                    fullResponse += chunk.content;
+                    // Note: We don't partial-render JSON content as it looks bad. 
+                    // But we could show raw progress if desired. 
+                    // For now, let's show a "Processing..." indicator in content if empty
+                    if (!assistantMsg.content) {
+                        // @ts-ignore
+                        contentEl.textContent = t('Processing result...');
+                    }
+                }
+            }
+            
+            // Streaming finished
+            assistantMsg.content = fullResponse;
+            if (fullThinking) {
+                 // Collapse thinking after done
+                 const header = thinkingContainer.querySelector('.canvas-ai-thinking-header');
+                 const content = thinkingContainer.querySelector('.canvas-ai-thinking-content');
+                 const icon = header?.querySelector('.canvas-ai-thinking-toggle-icon');
+                 
+                 content?.addClass('is-collapsed');
+                 icon?.removeClass('is-open'); // Assuming is-open rotates it
             }
 
             let summary = '';
@@ -645,8 +747,8 @@ export class SideBarCoPilotView extends ItemView {
             let globalChanges: TextChange[] = [];
 
             try {
-                const jsonMatch = response.match(/\{[\s\S]*\}/);
-                const jsonStr = jsonMatch ? jsonMatch[0] : response;
+                const jsonMatch = fullResponse.match(/\{[\s\S]*\}/);
+                const jsonStr = jsonMatch ? jsonMatch[0] : fullResponse;
                 const parsed = JSON.parse(jsonStr);
                 replacementText = parsed.replacement || '';
                 globalChanges = parsed.globalChanges || [];
@@ -661,10 +763,14 @@ export class SideBarCoPilotView extends ItemView {
                     summary = t('No changes needed');
                 }
             } catch {
-                summary = response.substring(0, 200) + (response.length > 200 ? '...' : '');
+                summary = fullResponse.substring(0, 200) + (fullResponse.length > 200 ? '...' : '');
             }
-
-            this.addMessage('assistant', summary);
+            
+            // Update the message content with summary/result
+            assistantMsg.content = summary;
+            contentEl.empty();
+            await MarkdownRenderer.render(this.app, summary, contentEl, this.currentDocPath || '', this);
+            this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
 
             if (globalChanges.length > 0) {
                 const changesSummary = globalChanges.map((c, i) =>
@@ -725,7 +831,9 @@ export class SideBarCoPilotView extends ItemView {
 
         } catch (error) {
             const errorMsg = error instanceof Error ? error.message : String(error);
-            this.addMessage('assistant', `Error: ${errorMsg}`);
+            // Update the assistant message to show error
+            assistantMsg.content = `Error: ${errorMsg}`;
+            contentEl.setText(`Error: ${errorMsg}`);
             console.error('Sidebar CoPilot Error:', error);
         } finally {
             this.isGenerating = false;

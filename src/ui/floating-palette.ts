@@ -9,6 +9,7 @@ import { PromptPreset, QuickSwitchModel } from '../settings/settings';
 import { InputModal, ConfirmModal } from './modals';
 import { t } from '../../lang/helpers';
 import { formatProviderName } from '../utils/format-utils';
+import { createThinkingOptionsRow, ThinkingOptionsElements } from '../notes/shared-ui-builder';
 
 // Palette Mode Type
 export type PaletteMode = 'text' | 'image' | 'node' | 'edit';
@@ -40,6 +41,13 @@ export class FloatingPalette {
     private ratioSelect: HTMLSelectElement | null = null;
     private resolutionSelect: HTMLSelectElement | null = null;
     private nodeOptionsEl: HTMLElement | null = null;
+
+    private textThinkingOptions: ThinkingOptionsElements | null = null;
+    private editThinkingOptions: ThinkingOptionsElements | null = null;
+    
+    // Thinking defaults
+    private thinkingEnabled: boolean = true;
+    private thinkingLevel: string = 'HIGH';
 
     private debugBtnEl: HTMLButtonElement | null = null;
     private versionInfoEl: HTMLElement | null = null;
@@ -229,6 +237,8 @@ export class FloatingPalette {
         // Text Options
         this.textOptionsEl = body.createDiv('canvas-ai-chat-options');
 
+        this.textThinkingOptions = createThinkingOptionsRow(this.textOptionsEl, this.thinkingEnabled, this.thinkingLevel);
+
         const textModelRow = this.textOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-model-select-row is-hidden' });
         const textModelGrp = textModelRow.createEl('span', 'canvas-ai-option-group');
         textModelGrp.createEl('label', { text: t('Palette Model') });
@@ -244,6 +254,8 @@ export class FloatingPalette {
 
         // Edit Options (only model selection, temperature is fixed at 1)
         this.editOptionsEl = body.createDiv({ cls: 'canvas-ai-edit-options is-hidden' });
+
+        this.editThinkingOptions = createThinkingOptionsRow(this.editOptionsEl, this.thinkingEnabled, this.thinkingLevel);
 
         const editModelRow = this.editOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-model-select-row canvas-ai-edit-model-select-row is-hidden' });
         const editModelGrp = editModelRow.createEl('span', 'canvas-ai-option-group');
@@ -782,27 +794,53 @@ export class FloatingPalette {
     /**
      * Get current text options including thinking config
      */
-    getTextOptions(): { temperature: number } {
+    getTextOptions(): { temperature: number, thinking?: { enabled: boolean, level: 'MINIMAL'|'LOW'|'MEDIUM'|'HIGH' } } {
         // Temperature is fixed at 1 for optimal results
+        const enabled = this.textThinkingOptions ? this.textThinkingOptions.toggle.checked : this.thinkingEnabled;
+        const level = (this.textThinkingOptions ? this.textThinkingOptions.levelSelect.value : this.thinkingLevel) as 'MINIMAL'|'LOW'|'MEDIUM'|'HIGH';
+        
         return {
-            temperature: 1
+            temperature: 1,
+            thinking: { enabled, level }
         };
     }
+
+    /**
+     * Get current edit options
+    */
+    getEditOptions(): { temperature: number, thinking?: { enabled: boolean, level: 'MINIMAL'|'LOW'|'MEDIUM'|'HIGH' } } {
+         const enabled = this.editThinkingOptions ? this.editThinkingOptions.toggle.checked : this.thinkingEnabled;
+         const level = (this.editThinkingOptions ? this.editThinkingOptions.levelSelect.value : this.thinkingLevel) as 'MINIMAL'|'LOW'|'MEDIUM'|'HIGH';
+         
+         return {
+             temperature: 1,
+             thinking: { enabled, level }
+         };
+    }
+
+    /**
+     * Initialize Thinking Options
+     */
+    initThinkingOptions(enabled: boolean, level: string): void {
+        this.thinkingEnabled = enabled;
+        this.thinkingLevel = level;
+        
+        if (this.textThinkingOptions) {
+            this.textThinkingOptions.toggle.checked = enabled;
+            this.textThinkingOptions.levelSelect.value = level;
+        }
+        if (this.editThinkingOptions) {
+            this.editThinkingOptions.toggle.checked = enabled;
+            this.editThinkingOptions.levelSelect.value = level;
+        }
+    }
+
+
 
     /**
      * Get current node mode options
      */
     getNodeOptions(): { temperature: number } {
-        // Temperature is fixed at 1 for optimal results
-        return {
-            temperature: 1
-        };
-    }
-
-    /**
-     * Get current edit mode options
-     */
-    getEditOptions(): { temperature: number } {
         // Temperature is fixed at 1 for optimal results
         return {
             temperature: 1
