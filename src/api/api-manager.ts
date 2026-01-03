@@ -24,6 +24,7 @@ export type {
     GeminiCandidate,
     GeminiResponse
 } from './types';
+import type { GeminiContent } from './types';
 
 export class ApiManager {
     private settings: CanvasAISettings;
@@ -114,45 +115,66 @@ export class ApiManager {
      * Send a stream chat completion request
      */
     async *streamChatCompletion(
-        prompt: string,
+        prompt: string | GeminiContent[],
         systemPrompt?: string,
         temperature: number = 1.0,
         thinkingConfig?: { enabled: boolean; budgetTokens?: number; level?: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH' }
-    ): AsyncGenerator<{ content?: string; thinking?: string }, void, unknown> {
+    ): AsyncGenerator<{ content?: string; thinking?: string; thoughtSignature?: string }, void, unknown> {
         if (!this.isConfigured()) {
             throw new Error('API Key not configured. Please set it in plugin settings.');
         }
 
         const provider = this.getActiveProvider();
         
+
+
+        // Convert to string for providers that don't support native history object
+        const textPrompt = this.convertContentToString(prompt);
+
         if (provider === 'openrouter') { 
-             yield* this.openrouter.streamChatCompletion(prompt, systemPrompt, temperature);
+             yield* this.openrouter.streamChatCompletion(textPrompt, systemPrompt, temperature);
              return;
         }
 
         if (provider === 'gemini') {
+             // Gemini provider updated to take GeminiContent[]
              yield* this.gemini.streamChatCompletion(prompt, systemPrompt, temperature, thinkingConfig);
              return;
         }
 
         if (provider === 'yunwu') {
+             // Yunwu (GeminiProvider) updated to take GeminiContent[]
              yield* this.yunwu.streamChatCompletion(prompt, systemPrompt, temperature, thinkingConfig);
              return;
         }
 
         if (provider === 'gptgod') {
-             yield* this.gptgod.streamChatCompletion(prompt, systemPrompt, temperature);
+             yield* this.gptgod.streamChatCompletion(textPrompt, systemPrompt, temperature);
              return;
         }
 
         if (provider === 'antigravitytools') {
+             // AntigravityTools updated to support GeminiContent[]
              yield* this.antigravitytools.streamChatCompletion(prompt, systemPrompt, temperature, thinkingConfig);
              return;
         }
 
         // Fallback for others: wait for full response and yield it
-        const fullResponse = await this.chatCompletion(prompt, systemPrompt, temperature);
+        const fullResponse = await this.chatCompletion(textPrompt, systemPrompt, temperature);
         yield { content: fullResponse };
+    }
+
+    private convertContentToString(content: string | GeminiContent[]): string {
+        if (typeof content === 'string') return content;
+        
+        // Convert history array to string format
+        // User: ...
+        // Model: ...
+        return content.map(item => {
+            const role = item.role === 'user' ? 'User' : 'Model';
+            const text = item.parts.map(p => p.text || '').join('');
+            return `${role}: ${text}`;
+        }).join('\n\n');
     }
 
     /**

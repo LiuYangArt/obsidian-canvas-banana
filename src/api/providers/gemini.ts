@@ -5,7 +5,7 @@
 
 import { requestUrl, RequestUrlParam } from 'obsidian';
 import type { CanvasAISettings } from '../../settings/settings';
-import type { GeminiRequest, GeminiResponse, GeminiPart } from '../types';
+import type { GeminiRequest, GeminiResponse, GeminiPart, GeminiContent } from '../types';
 import { isHttpError, getErrorMessage, requestUrlWithTimeout } from '../utils';
 
 export class GeminiProvider {
@@ -58,15 +58,24 @@ export class GeminiProvider {
     /**
      * Chat completion
      */
-    async chatCompletion(prompt: string, systemPrompt?: string, temperature: number = 1.0): Promise<string> {
+    async chatCompletion(
+        prompt: string | GeminiContent[],
+        systemPrompt?: string,
+        temperature: number = 1.0
+    ): Promise<string> {
         const model = this.getTextModel();
         const endpoint = this.getEndpoint(model);
 
-        const parts: Array<{ text: string }> = [];
-        parts.push({ text: prompt });
+        let contents: GeminiContent[] = [];
+
+        if (typeof prompt === 'string') {
+            contents = [{ role: 'user', parts: [{ text: prompt }] }];
+        } else {
+            contents = prompt;
+        }
 
         const requestBody: GeminiRequest = {
-            contents: [{ role: 'user', parts: parts }],
+            contents: contents,
             generationConfig: { temperature: temperature }
         };
 
@@ -239,7 +248,7 @@ export class GeminiProvider {
     /**
      * Extract text and thinking from response
      */
-    private extractTextAndThinkingFromResponse(data: GeminiResponse): { content: string; thinking?: string } {
+    private extractTextAndThinkingFromResponse(data: GeminiResponse): { content: string; thinking?: string; thoughtSignature?: string } {
         const candidates = data.candidates;
         if (!candidates || candidates.length === 0) {
             throw new Error('Gemini returned no candidates');
@@ -263,11 +272,16 @@ export class GeminiProvider {
         }
 
         const thinking = thinkingParts.map(p => p.text).join('');
-        console.debug(`Canvas AI: [${this.providerName}] Received response (thinking: ${thinking.length > 0 ? 'yes' : 'no'})`);
+        // Extract thought signatures
+        const thoughtSignature = parts.find(p => p.thoughtSignature)?.thoughtSignature;
+
+        console.debug(`Canvas AI: [${this.providerName}] Received response (thinking: ${thinking.length > 0 ? 'yes' : 'no'}, signature: ${thoughtSignature ? 'yes' : 'no'})`);
         
         return {
             content: textPart.text,
-            thinking: thinking || undefined
+            thinking: thinking || undefined,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Casting any to ensure type compatibility during refactor
+            thoughtSignature: thoughtSignature as any 
         };
     }
 
@@ -360,20 +374,25 @@ export class GeminiProvider {
      * Chat completion with streaming
      */
     async *streamChatCompletion(
-        prompt: string,
+        prompt: string | GeminiContent[],
         systemPrompt?: string,
         temperature: number = 1.0,
         thinkingConfig?: { enabled: boolean; budgetTokens?: number; level?: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH' }
-    ): AsyncGenerator<{ content?: string; thinking?: string }, void, unknown> {
+    ): AsyncGenerator<{ content?: string; thinking?: string; thoughtSignature?: string }, void, unknown> {
         const model = this.getTextModel();
         // Append :streamGenerateContent and alt=sse for streaming
         const endpoint = `${this.getBaseUrl()}/v1beta/models/${model}:streamGenerateContent?key=${this.getApiKey()}&alt=sse`;
 
-        const parts: Array<{ text: string }> = [];
-        parts.push({ text: prompt });
+        let contents: GeminiContent[] = [];
+
+        if (typeof prompt === 'string') {
+            contents = [{ role: 'user', parts: [{ text: prompt }] }];
+        } else {
+            contents = prompt;
+        }
 
         const requestBody: GeminiRequest = {
-            contents: [{ role: 'user', parts: parts }],
+            contents: contents,
             generationConfig: { temperature: temperature }
         };
 
@@ -450,6 +469,11 @@ export class GeminiProvider {
                                             } else {
                                                 yield { content: part.text };
                                             }
+                                        }
+                                        
+                                        // Capture thought signature
+                                        if (part.thoughtSignature) {
+                                            yield { thoughtSignature: part.thoughtSignature };
                                         }
                                     }
                                 }

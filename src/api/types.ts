@@ -106,6 +106,7 @@ export interface GeminiPart {
         mime_type: string;
     };
     thought?: boolean;
+    thoughtSignature?: string;
 }
 
 export interface GeminiContent {

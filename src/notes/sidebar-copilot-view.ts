@@ -14,6 +14,7 @@ import { t } from '../../lang/helpers';
 import { extractDocumentImages } from '../utils/image-utils';
 import { NotesSelectionContext } from './notes-selection-handler';
 import { ApiManager } from '../api/api-manager';
+import type { GeminiContent, GeminiPart } from '../api/types';
 import { ModeController, PaletteMode } from './mode-controller';
 import {
     createTabs,
@@ -37,6 +38,8 @@ interface ChatMessage {
     content: string;
     /** 思考内容，仅用于显示，不计入历史上下文和复制 */
     thinking?: string;
+    /** Gemini 3.0+ thought signature */
+    thoughtSignature?: string;
     timestamp: number;
 }
 
@@ -830,7 +833,7 @@ export class SideBarCoPilotView extends ItemView {
             const localApiManager = this.createLocalApiManager('text');
             const systemPrompt = this.plugin.settings.textSystemPrompt || 'You are a helpful assistant. Answer questions based on the provided context. Respond in the same language as the user\'s question.';
 
-            let userMsg: string;
+            let userMsg: string | GeminiContent[];
             let images: { base64: string; mimeType: string; type: 'image' | 'pdf' }[] = [];
 
             if (hasSelection) {
@@ -843,11 +846,69 @@ export class SideBarCoPilotView extends ItemView {
                 images = extractedImages.map(img => ({ ...img, type: 'image' as const }));
             }
 
-            if (this.chatHistory.length > 2) {
-                const historyContext = this.chatHistory.slice(0, -1).map(m =>
-                    `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`
-                ).join('\n');
-                userMsg = `Previous conversation:\n${historyContext}\n\n${userMsg}`;
+            const isGemini = this.selectedTextModel.startsWith('gemini') || this.selectedTextModel.startsWith('antigravity');
+            
+            // Construct message based on provider capability
+            if (isGemini) {
+                if (this.chatHistory.length > 0) {
+                     // Construct native history for Gemini
+                     const history: GeminiContent[] = [];
+                     
+                     const previousMsgs = this.chatHistory.slice(0, -1);
+                     for (const msg of previousMsgs) {
+                         const parts: GeminiPart[] = [];
+                         if (msg.role === 'assistant' && msg.thinking) {
+                             parts.push({ text: msg.thinking, thought: true });
+                         }
+                         if (msg.role === 'assistant' && msg.thoughtSignature) {
+                              parts.push({ text: msg.content, thoughtSignature: msg.thoughtSignature });
+                         } else {
+                              parts.push({ text: msg.content });
+                         }
+                         history.push({ role: msg.role === 'user' ? 'user' : 'model', parts: parts });
+                     }
+                     
+                     // Current message parts
+                     const currentParts: GeminiPart[] = [];
+                     if (hasSelection) {
+                          currentParts.push({ text: `Context (selected text):\n${context.selectedText}\n\nQuestion:\n${prompt}` });
+                     } else {
+                          currentParts.push({ text: `Context (document content):\n${docContent}\n\nQuestion:\n${prompt}` });
+                     }
+                     
+                     for (const img of images) {
+                          currentParts.push({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+                     }
+                     
+                     history.push({ role: 'user', parts: currentParts });
+                     userMsg = history; 
+                } else {
+                     // First turn
+                      const currentParts: GeminiPart[] = [];
+                      if (hasSelection) {
+                           currentParts.push({ text: `Context (selected text):\n${context.selectedText}\n\nQuestion:\n${prompt}` });
+                      } else {
+                           currentParts.push({ text: `Context (document content):\n${docContent}\n\nQuestion:\n${prompt}` });
+                      }
+                      for (const img of images) {
+                           currentParts.push({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+                      }
+                      userMsg = [{ role: 'user', parts: currentParts }];
+                }
+            } else {
+                // Legacy string construction for other providers
+                if (hasSelection) {
+                    userMsg = `Context (selected text):\n${context.selectedText}\n\nQuestion:\n${prompt}`;
+                } else {
+                    userMsg = `Context (document content):\n${docContent}\n\nQuestion:\n${prompt}`;
+                }
+
+                if (this.chatHistory.length > 2) {
+                    const historyContext = this.chatHistory.slice(0, -1).map(m =>
+                        `${m.role === 'user' ? 'User' : 'AI'}: ${m.content}`
+                    ).join('\n');
+                    userMsg = `Previous conversation:\n${historyContext}\n\n${userMsg}`;
+                }
             }
 
             this.addMessage('assistant', ''); // Empty placeholder for streaming
@@ -858,15 +919,18 @@ export class SideBarCoPilotView extends ItemView {
                 ? { enabled: true, level: this.thinkingLevel as any }
                 : undefined;
 
-            if (images.length > 0) {
-                // Multimodal with thinking support
-                const response = await localApiManager.multimodalChat(userMsg, images, systemPrompt, this.plugin.settings.defaultChatTemperature, thinkingConfig);
+            if (images.length > 0 && !isGemini) {
+                // Multimodal with thinking support (Legacy/non-Gemini)
+                // Gemini native handles images in streamChatCompletion via userMsg content
+                const response = await localApiManager.multimodalChat(userMsg as string, images, systemPrompt, this.plugin.settings.defaultChatTemperature, thinkingConfig); // Cast as string because non-Gemini path ensures string
                 this.updateLastAssistantMessageWithThinking(response.content, response.thinking || '');
             } else {
-                // Text streaming with thinking support
+                // Text streaming with thinking support (or Gemini Multimodal)
+                // @ts-ignore -- userMsg can be string or GeminiContent[]
                 const stream = localApiManager.streamChatCompletion(userMsg, systemPrompt, this.plugin.settings.defaultChatTemperature, thinkingConfig);
                 let accumulatedContent = '';
                 let accumulatedThinking = '';
+                let capturedSignature = '';
                 
                 for await (const chunk of stream) {
                     if (chunk.thinking) {
@@ -874,6 +938,11 @@ export class SideBarCoPilotView extends ItemView {
                     }
                     if (chunk.content) {
                         accumulatedContent += chunk.content;
+                    }
+                    // @ts-ignore -- thoughtSignature might exist
+                    if (chunk.thoughtSignature) {
+                         // @ts-ignore
+                        capturedSignature = chunk.thoughtSignature;
                     }
                     // 显示时格式化 thinking 为 callout
                     const formattedThinking = accumulatedThinking 
@@ -883,7 +952,7 @@ export class SideBarCoPilotView extends ItemView {
                 }
                 
                 // Final render: store raw thinking separately, format for display
-                this.updateLastAssistantMessageWithThinking(accumulatedContent, accumulatedThinking);
+                this.updateLastAssistantMessageWithThinking(accumulatedContent, accumulatedThinking, capturedSignature);
             }
 
         } catch (error) {
@@ -1018,7 +1087,7 @@ export class SideBarCoPilotView extends ItemView {
      * 更新最后一条 assistant 消息，分别存储 content 和 thinking
      * 显示时格式化 thinking 为 callout，但复制/历史上下文仅使用 content
      */
-    private updateLastAssistantMessageWithThinking(content: string, thinking: string): void {
+    private updateLastAssistantMessageWithThinking(content: string, thinking: string, signature?: string): void {
         if (this.chatHistory.length === 0) return;
 
         const lastMsg = this.chatHistory[this.chatHistory.length - 1];
@@ -1026,6 +1095,7 @@ export class SideBarCoPilotView extends ItemView {
             // 存储原始文本
             lastMsg.content = content;
             lastMsg.thinking = thinking || undefined;
+            lastMsg.thoughtSignature = signature || undefined;
 
             const lastMsgEl = this.messagesContainer.lastElementChild;
             if (lastMsgEl) {

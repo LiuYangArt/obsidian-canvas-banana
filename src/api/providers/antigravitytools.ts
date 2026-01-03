@@ -5,7 +5,7 @@
 
 import { requestUrl, RequestUrlParam } from 'obsidian';
 import type { CanvasAISettings } from '../../settings/settings';
-import type { GeminiRequest, GeminiResponse, GeminiPart } from '../types';
+import type { GeminiRequest, GeminiResponse, GeminiPart, GeminiContent } from '../types';
 import { isHttpError, getErrorMessage, requestUrlWithTimeout } from '../utils';
 
 
@@ -106,15 +106,30 @@ export class AntigravityToolsProvider {
     /**
      * Chat completion - 使用 Gemini 原生格式
      */
-    async chatCompletion(prompt: string, systemPrompt?: string, temperature: number = 1.0): Promise<string> {
+    /**
+     * Chat completion - 使用 Gemini 原生格式
+     * Now supports optional history for multi-turn chat with thought signatures
+     */
+    async chatCompletion(
+        prompt: string | GeminiContent[],
+        systemPrompt?: string,
+        temperature: number = 1.0
+    ): Promise<string> {
         const model = this.getTextModel();
         const endpoint = this.getGeminiEndpoint(model);
 
-        const parts: Array<{ text: string }> = [];
-        parts.push({ text: prompt });
+        let contents: GeminiContent[] = [];
+
+        if (typeof prompt === 'string') {
+            // Legacy/Single turn mode
+            contents = [{ role: 'user', parts: [{ text: prompt }] }];
+        } else {
+            // Native history mode
+            contents = prompt;
+        }
 
         const requestBody: GeminiRequest = {
-            contents: [{ role: 'user', parts: parts }],
+            contents: contents,
             generationConfig: { temperature: temperature }
         };
 
@@ -356,7 +371,7 @@ export class AntigravityToolsProvider {
     /**
      * Extract text and thinking from response
      */
-    private extractTextAndThinkingFromResponse(data: GeminiResponse): { content: string; thinking?: string } {
+    private extractTextAndThinkingFromResponse(data: GeminiResponse): { content: string; thinking?: string; thoughtSignature?: string } {
         const candidates = data.candidates;
         if (!candidates || candidates.length === 0) {
             throw new Error('AntigravityTools returned no candidates');
@@ -380,11 +395,17 @@ export class AntigravityToolsProvider {
         }
 
         const thinking = thinkingParts.map(p => p.text).join('');
-        console.debug(`Canvas AI: [AntigravityTools] Received response (thinking: ${thinking.length > 0 ? 'yes' : 'no'})`);
+        // Extract thought signatures
+        // According to docs, we might get signatures on thinking parts or text parts
+        const thoughtSignature = parts.find(p => p.thoughtSignature)?.thoughtSignature;
+
+        console.debug(`Canvas AI: [AntigravityTools] Received response (thinking: ${thinking.length > 0 ? 'yes' : 'no'}, signature: ${thoughtSignature ? 'yes' : 'no'})`);
         
         return {
             content: textPart.text,
-            thinking: thinking || undefined
+            thinking: thinking || undefined,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Casting any to ensure type compatibility during refactor
+            thoughtSignature: thoughtSignature as any 
         };
     }
 
@@ -438,22 +459,27 @@ export class AntigravityToolsProvider {
      * Chat completion with streaming
      */
     async *streamChatCompletion(
-        prompt: string,
+        prompt: string | GeminiContent[],
         systemPrompt?: string,
         temperature: number = 1.0,
         thinkingConfig?: { enabled: boolean; budgetTokens?: number; level?: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH' }
-    ): AsyncGenerator<{ content?: string; thinking?: string }, void, unknown> {
+    ): AsyncGenerator<{ content?: string; thinking?: string; thoughtSignature?: string }, void, unknown> {
         const model = this.getTextModel();
         // Replace :generateContent with :streamGenerateContent and add alt=sse
         let endpoint = this.getGeminiEndpoint(model);
         endpoint = endpoint.replace(':generateContent', ':streamGenerateContent');
         endpoint += '&alt=sse';
 
-        const parts: Array<{ text: string }> = [];
-        parts.push({ text: prompt });
+        let contents: GeminiContent[] = [];
+
+        if (typeof prompt === 'string') {
+            contents = [{ role: 'user', parts: [{ text: prompt }] }];
+        } else {
+            contents = prompt;
+        }
 
         const requestBody: GeminiRequest = {
-            contents: [{ role: 'user', parts: parts }],
+            contents: contents,
             generationConfig: { temperature: temperature }
         };
 
@@ -531,6 +557,11 @@ export class AntigravityToolsProvider {
                                             } else {
                                                 yield { content: part.text };
                                             }
+                                        }
+                                        
+                                        // Capture thought signature
+                                        if (part.thoughtSignature) {
+                                            yield { thoughtSignature: part.thoughtSignature };
                                         }
                                     }
                                 }
