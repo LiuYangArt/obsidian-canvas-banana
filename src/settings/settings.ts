@@ -123,6 +123,10 @@ export interface CanvasAISettings {
     enableGlobalConsistency: boolean;  // 全局实体一致性检测
     maxConversationTurns: number;      // 侧边栏最大对话轮数
 
+    // Chat thinking settings
+    chatThinkingEnabled: boolean;      // 是否启用思考模式
+    chatThinkingBudget: string;        // 思考 token 预算
+
     // Multi-image generation
     maxParallelImageTasks: number;     // 最大并行生图任务数
 
@@ -203,6 +207,9 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
 
     enableGlobalConsistency: true,
     maxConversationTurns: 5,
+
+    chatThinkingEnabled: true,
+    chatThinkingBudget: '4K',
 
     maxParallelImageTasks: 3,
 

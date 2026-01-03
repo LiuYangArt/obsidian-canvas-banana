@@ -69,9 +69,9 @@ export class SideBarCoPilotView extends ItemView {
     private selectedTextModel: string = '';
     private selectedImageModel: string = '';
 
-    // Thinking options
-    private thinkingEnabled: boolean = false;
-    private thinkingBudget: string = '8K';
+    // Thinking options (loaded from settings)
+    private thinkingEnabled: boolean = true;
+    private thinkingBudget: string = '4K';
     private thinkingToggleEl: HTMLInputElement | null = null;
     private budgetSelectEl: HTMLSelectElement | null = null;
 
@@ -280,10 +280,14 @@ export class SideBarCoPilotView extends ItemView {
         // Thinking toggle and budget select
         this.thinkingToggleEl?.addEventListener('change', () => {
             this.thinkingEnabled = this.thinkingToggleEl!.checked;
+            this.plugin.settings.chatThinkingEnabled = this.thinkingEnabled;
+            void this.plugin.saveSettings();
         });
 
         this.budgetSelectEl?.addEventListener('change', () => {
             this.thinkingBudget = this.budgetSelectEl!.value;
+            this.plugin.settings.chatThinkingBudget = this.thinkingBudget;
+            void this.plugin.saveSettings();
         });
 
         this.generateBtn.addEventListener('click', () => void this.handleGenerate());
@@ -340,6 +344,17 @@ export class SideBarCoPilotView extends ItemView {
         if (this.imageOptions.aspectRatioSelect) {
             this.imageOptions.aspectRatioSelect.value = this.plugin.settings.defaultAspectRatio || '1:1';
         }
+
+        // Initialize thinking options from settings
+        this.thinkingEnabled = this.plugin.settings.chatThinkingEnabled ?? true;
+        this.thinkingBudget = this.plugin.settings.chatThinkingBudget || '4K';
+        if (this.thinkingToggleEl) {
+            this.thinkingToggleEl.checked = this.thinkingEnabled;
+        }
+        if (this.budgetSelectEl) {
+            this.budgetSelectEl.value = this.thinkingBudget;
+        }
+
         this.updateGenerateButtonState();
     }
 
