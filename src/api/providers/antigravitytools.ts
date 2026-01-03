@@ -328,6 +328,12 @@ export class AntigravityToolsProvider {
             requestBody.systemInstruction = { parts: [{ text: systemPrompt }] };
         }
 
+        console.debug('Canvas AI: [AntigravityTools] Sending multimodal chat request...', JSON.stringify(requestBody));
+
+        if (systemPrompt) {
+            requestBody.systemInstruction = { parts: [{ text: systemPrompt }] };
+        }
+
         console.debug('Canvas AI: [AntigravityTools] Sending multimodal chat request...');
 
         const requestParams: RequestUrlParam = {
