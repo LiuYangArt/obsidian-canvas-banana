@@ -1076,7 +1076,7 @@
 }
 
 .sidebar-message-content {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
@@ -1260,7 +1260,7 @@
   padding: 6px 10px;
   cursor: pointer;
   background-color: var(--background-secondary-alt);
-  font-size: 0.85em;
+  font-size: 12px;
   color: var(--text-muted);
   border-bottom: 1px solid transparent;
   transition: background-color 0.15s ease;
@@ -1303,7 +1303,7 @@
 
 .thinking-content {
   padding: 8px 10px; /* Match message padding */
-  font-size: 0.9em;
+  font-size: 11px !important;  /* Force smaller font size */
   line-height: 1.5;
   color: var(--text-muted);
   background-color: var(--background-primary);
@@ -1314,6 +1314,22 @@
 
   /* Ensure markdown elements don't add too much spacing */
   white-space: pre-wrap;
+}
+
+/* Force all elements inside thinking-content to use smaller font */
+.thinking-content *,
+.thinking-content p,
+.thinking-content h1,
+.thinking-content h2,
+.thinking-content h3,
+.thinking-content h4,
+.thinking-content h5,
+.thinking-content h6,
+.thinking-content li,
+.thinking-content code,
+.thinking-content strong,
+.thinking-content em {
+  font-size: 11px !important;
 }
 
 /* Remove default margins from markdown rendered content to keep it compact */
