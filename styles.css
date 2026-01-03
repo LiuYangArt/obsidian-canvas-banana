@@ -1184,6 +1184,7 @@
     margin-bottom: 12px;
     overflow: hidden;
     transition: all 0.2s ease;
+    max-width: 95%; /* Match message bubble width */
 }
 
 .thinking-header {
@@ -1234,7 +1235,7 @@
 }
 
 .thinking-content {
-    padding: 8px 12px;
+    padding: 8px 10px; /* Match message padding */
     font-size: 0.9em;
     line-height: 1.5;
     color: var(--text-muted);
