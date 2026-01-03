@@ -169,10 +169,10 @@ export class NotesEditPalette {
         this.modeController = new ModeController({
             editTabBtn: this.tabs.editBtn,
             imageTabBtn: this.tabs.imageBtn,
-            chatTabBtn: null,  // 浮动面板不支持 Chat
+            textTabBtn: null,  // 浮动面板不支持 Chat
             editOptionsEl: editOptionsContainer,
             imageOptionsEl: this.imageOptions.container,
-            chatOptionsEl: null,  // 浮动面板不支持 Chat
+            textOptionsEl: null,  // 浮动面板不支持 Chat
             promptInput: this.promptInput
         }, {
             onModeChange: (mode) => {

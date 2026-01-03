@@ -205,10 +205,10 @@ export class SideBarCoPilotView extends ItemView {
         this.modeController = new ModeController({
             editTabBtn: this.tabs.editBtn,
             imageTabBtn: this.tabs.imageBtn,
-            chatTabBtn: this.tabs.chatBtn,
+            textTabBtn: this.tabs.chatBtn,
             editOptionsEl: editOptionsContainer,
             imageOptionsEl: this.imageOptions.container,
-            chatOptionsEl: this.chatOptionsContainer,
+            textOptionsEl: this.chatOptionsContainer,
             promptInput: this.inputEl
         }, {
             onModeChange: (mode) => {
@@ -221,7 +221,7 @@ export class SideBarCoPilotView extends ItemView {
         // Event Bindings
         this.tabs.editBtn.addEventListener('click', () => this.modeController.handleUserSwitch('edit'));
         this.tabs.imageBtn.addEventListener('click', () => this.modeController.handleUserSwitch('image'));
-        this.tabs.chatBtn.addEventListener('click', () => this.modeController.handleUserSwitch('chat'));
+        this.tabs.chatBtn.addEventListener('click', () => this.modeController.handleUserSwitch('text'));
 
         // Preset events
         const applyPreset = () => {
@@ -575,7 +575,7 @@ export class SideBarCoPilotView extends ItemView {
         const mode = this.modeController.getMode();
         if (mode === 'image') {
             return this.handleImageGenerate();
-        } else if (mode === 'chat') {
+        } else if (mode === 'text') {
             return this.handleChatGenerate();
         }
         return this.handleEditGenerate();
@@ -1098,8 +1098,8 @@ export class SideBarCoPilotView extends ItemView {
         const hasSelection = (this.capturedContext?.selectedText?.trim().length ?? 0) > 0;
 
         let shouldDisable = false;
-        if (mode === 'edit' || mode === 'chat') {
-            // Edit/Chat mode: require prompt
+        if (mode === 'edit' || mode === 'text') {
+            // Edit/Text mode: require prompt
             shouldDisable = !hasPrompt && this.pendingTaskCount === 0;
         } else if (mode === 'image') {
             // Image mode: require prompt OR selection

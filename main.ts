@@ -187,7 +187,7 @@ export default class CanvasAIPlugin extends Plugin {
 
         // Set up preset change callback for persisting presets
         this.floatingPalette.setOnPresetChange((presets, mode) => {
-            if (mode === 'chat') {
+            if (mode === 'text') {
                 this.settings.chatPresets = presets;
             } else if (mode === 'image') {
                 this.settings.imagePresets = presets;
@@ -229,7 +229,7 @@ export default class CanvasAIPlugin extends Plugin {
 
         // Set up model change callback for persisting selected models
         this.floatingPalette.setOnModelChange((mode, modelKey) => {
-            if (mode === 'chat') {
+            if (mode === 'text') {
                 this.settings.paletteTextModel = modelKey;
             } else if (mode === 'image') {
                 this.settings.paletteImageModel = modelKey;
@@ -514,18 +514,18 @@ export default class CanvasAIPlugin extends Plugin {
         try {
             let response: string;
 
-            if (mode === 'chat') {
-                // Chat Mode - use context and instruction
+            if (mode === 'text') {
+                // Text Mode (formerly Chat Mode) - use context and instruction
                 let systemPrompt = this.settings.textSystemPrompt || 'You are a helpful AI assistant embedded in an Obsidian Canvas. Answer concisely and use Markdown formatting.';
 
                 if (intent.contextText) {
                     systemPrompt += `\n\n---\nThe user has selected the following content from their canvas:\n\n${intent.contextText}\n\n---\nBased on this context, respond to the user's request.`;
                 }
 
-                // Get chat options from palette
-                const chatOptions = this.floatingPalette!.getChatOptions();
+                // Get text options from palette
+                const textOptions = this.floatingPalette!.getTextOptions();
 
-                console.debug('Canvas Banana: Sending chat request with context');
+                console.debug('Canvas Banana: Sending text request with context');
 
                 // Build media list for multimodal request (images + PDFs)
                 const mediaList: { base64: string, mimeType: string, type: 'image' | 'pdf' }[] = [];
@@ -555,11 +555,11 @@ export default class CanvasAIPlugin extends Plugin {
                         intent.instruction,
                         mediaList,
                         systemPrompt,
-                        chatOptions.temperature
+                        textOptions.temperature
                     );
                     response = result.content;
                 } else {
-                    response = await localApiManager.chatCompletion(intent.instruction, systemPrompt, chatOptions.temperature);
+                    response = await localApiManager.chatCompletion(intent.instruction, systemPrompt, textOptions.temperature);
                 }
                 console.debug('Canvas Banana: API Response received');
                 this.ghostNodeManager!.updateGhostNode(ghostNode, response, false);
