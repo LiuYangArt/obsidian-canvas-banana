@@ -433,8 +433,6 @@ export class AntigravityToolsProvider {
 
         console.debug('Canvas AI: [AntigravityTools] Sending stream chat request...');
 
-        let hasEmittedThinkingHeader = false;
-
         try {
             // eslint-disable-next-line no-restricted-globals -- Fetch is required for streaming as requestUrl does not support it
             const response = await fetch(endpoint, {
@@ -484,13 +482,8 @@ export class AntigravityToolsProvider {
                                         if (part.text) {
                                             // Gemini 的 thought 标记
                                             if (part.thought) {
-                                                let thinkingText = '';
-                                                if (!hasEmittedThinkingHeader) {
-                                                    thinkingText = '> [!THINK|no-icon]- Thinking Process\n> ';
-                                                    hasEmittedThinkingHeader = true;
-                                                }
-                                                thinkingText += part.text.replace(/\n/g, '\n> ');
-                                                yield { thinking: thinkingText };
+                                                // yield 原始 thinking 文本
+                                                yield { thinking: part.text };
                                             } else {
                                                 yield { content: part.text };
                                             }
