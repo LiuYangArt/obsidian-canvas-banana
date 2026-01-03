@@ -25,6 +25,7 @@ export class FloatingPalette {
     private onDebug: ((mode: PaletteMode) => void) | null = null;
     private onGenerate: ((prompt: string, mode: PaletteMode) => Promise<void>) | null = null;
     private onSettingsChange: ((key: 'aspectRatio' | 'resolution', value: string) => void) | null = null;
+    private onThinkingChange: ((enabled: boolean, level: string) => void) | null = null;
 
     private apiManager: ApiManager;
     private pendingTaskCount: number = 0;
@@ -43,6 +44,7 @@ export class FloatingPalette {
     private nodeOptionsEl: HTMLElement | null = null;
 
     private textThinkingOptions: ThinkingOptionsElements | null = null;
+    private nodeThinkingOptions: ThinkingOptionsElements | null = null;
     private editThinkingOptions: ThinkingOptionsElements | null = null;
     
     // Thinking defaults
@@ -138,6 +140,13 @@ export class FloatingPalette {
     }
 
 
+
+    /**
+     * Set the thinking change callback
+     */
+    setOnThinkingChange(callback: (enabled: boolean, level: string) => void): void {
+        this.onThinkingChange = callback;
+    }
 
     /**
      * Set debug mode visibility for the Debug button
@@ -246,6 +255,8 @@ export class FloatingPalette {
 
         // Node Options (only model selection, temperature is fixed at 1)
         this.nodeOptionsEl = body.createDiv({ cls: 'canvas-ai-node-options is-hidden' });
+        
+        this.nodeThinkingOptions = createThinkingOptionsRow(this.nodeOptionsEl, this.thinkingEnabled, this.thinkingLevel);
 
         const nodeModelRow = this.nodeOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-node-model-select-row is-hidden' });
         const nodeModelGrp = nodeModelRow.createEl('span', 'canvas-ai-option-group');
@@ -362,6 +373,47 @@ export class FloatingPalette {
             this.imageResolution = this.resolutionSelect!.value;
             this.onSettingsChange?.('resolution', this.imageResolution);
         });
+
+        // Thinking Options Listeners
+        const handleThinkingChange = () => {
+             const enabled = this.currentMode === 'text' 
+                 ? (this.textThinkingOptions?.toggle.checked ?? this.thinkingEnabled)
+                 : this.currentMode === 'node'
+                    ? (this.nodeThinkingOptions?.toggle.checked ?? this.thinkingEnabled)
+                    : (this.editThinkingOptions?.toggle.checked ?? this.thinkingEnabled);
+             const level = this.currentMode === 'text'
+                 ? (this.textThinkingOptions?.levelSelect.value ?? this.thinkingLevel)
+                 : this.currentMode === 'node'
+                    ? (this.nodeThinkingOptions?.levelSelect.value ?? this.thinkingLevel)
+                    : (this.editThinkingOptions?.levelSelect.value ?? this.thinkingLevel);
+             
+             // Update internal state
+             this.thinkingEnabled = enabled;
+             this.thinkingLevel = level;
+             
+             // Sync UI
+             if (this.textThinkingOptions) {
+                 this.textThinkingOptions.toggle.checked = enabled;
+                 this.textThinkingOptions.levelSelect.value = level;
+             }
+             if (this.nodeThinkingOptions) {
+                 this.nodeThinkingOptions.toggle.checked = enabled;
+                 this.nodeThinkingOptions.levelSelect.value = level;
+             }
+             if (this.editThinkingOptions) {
+                 this.editThinkingOptions.toggle.checked = enabled;
+                 this.editThinkingOptions.levelSelect.value = level;
+             }
+             
+             this.onThinkingChange?.(enabled, level);
+        };
+
+        this.textThinkingOptions?.toggle.addEventListener('change', handleThinkingChange);
+        this.textThinkingOptions?.levelSelect.addEventListener('change', handleThinkingChange);
+        this.nodeThinkingOptions?.toggle.addEventListener('change', handleThinkingChange);
+        this.nodeThinkingOptions?.levelSelect.addEventListener('change', handleThinkingChange);
+        this.editThinkingOptions?.toggle.addEventListener('change', handleThinkingChange);
+        this.editThinkingOptions?.levelSelect.addEventListener('change', handleThinkingChange);
 
         return container;
     }
@@ -829,21 +881,27 @@ export class FloatingPalette {
             this.textThinkingOptions.toggle.checked = enabled;
             this.textThinkingOptions.levelSelect.value = level;
         }
+        if (this.nodeThinkingOptions) {
+            this.nodeThinkingOptions.toggle.checked = enabled;
+            this.nodeThinkingOptions.levelSelect.value = level;
+        }
         if (this.editThinkingOptions) {
             this.editThinkingOptions.toggle.checked = enabled;
             this.editThinkingOptions.levelSelect.value = level;
         }
     }
 
-
-
     /**
      * Get current node mode options
      */
-    getNodeOptions(): { temperature: number } {
+    getNodeOptions(): { temperature: number, thinking?: { enabled: boolean, level: 'MINIMAL'|'LOW'|'MEDIUM'|'HIGH' } } {
         // Temperature is fixed at 1 for optimal results
+        const enabled = this.nodeThinkingOptions ? this.nodeThinkingOptions.toggle.checked : this.thinkingEnabled;
+        const level = (this.nodeThinkingOptions ? this.nodeThinkingOptions.levelSelect.value : this.thinkingLevel) as 'MINIMAL'|'LOW'|'MEDIUM'|'HIGH';
+
         return {
-            temperature: 1
+            temperature: 1,
+            thinking: { enabled, level }
         };
     }
 
@@ -1055,7 +1113,9 @@ export class FloatingPalette {
         selectedTextModel: string,
         selectedImageModel: string,
         selectedNodeModel: string,
-        selectedEditModel: string
+        selectedEditModel: string,
+        thinkingEnabled: boolean,
+        thinkingLevel: string
     ): void {
         this.initPresets(chatPresets, imagePresets, nodePresets, editPresets);
         this.initQuickSwitchModels(
@@ -1066,6 +1126,7 @@ export class FloatingPalette {
             selectedNodeModel,
             selectedEditModel
         );
+        this.initThinkingOptions(thinkingEnabled, thinkingLevel);
     }
 
     /**
