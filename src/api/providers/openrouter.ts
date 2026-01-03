@@ -275,14 +275,14 @@ export class OpenRouterProvider {
     }
 
     /**
-     * Multimodal chat
+     * Multimodal chat - returns content and optional thinking
      */
     async multimodalChat(
         prompt: string,
         mediaList: { base64: string, mimeType: string, type: 'image' | 'pdf' }[],
         systemPrompt?: string,
         temperature: number = 0.5
-    ): Promise<string> {
+    ): Promise<{ content: string; thinking?: string }> {
         const messages: OpenRouterMessage[] = [];
 
         if (systemPrompt) {
@@ -316,8 +316,29 @@ export class OpenRouterProvider {
             throw new Error('OpenRouter returned no choices');
         }
 
-        const content = response.choices[0].message.content;
-        return typeof content === 'string' ? content : content.map(p => p.text || '').join('');
+        const message = response.choices[0].message;
+        let content = typeof message.content === 'string' 
+            ? message.content 
+            : message.content.map(p => p.text || '').join('');
+        
+        // Extract thinking from reasoning_content or <think> tags
+        let thinking: string | undefined;
+        
+        // Check for reasoning_content (DeepSeek R1 style)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- reasoning_content not in interface
+        const reasoningContent = (message as any).reasoning_content;
+        if (reasoningContent) {
+            thinking = reasoningContent;
+        }
+        
+        // Also check for <think> tags in content
+        const thinkMatch = content.match(/^<think>([\s\S]*?)<\/think>/);
+        if (thinkMatch) {
+            thinking = (thinking || '') + thinkMatch[1];
+            content = content.replace(/^<think>[\s\S]*?<\/think>/, '').trim();
+        }
+
+        return { content, thinking: thinking || undefined };
     }
 
     private async sendRequest(body: OpenRouterRequest, timeoutMs?: number): Promise<OpenRouterResponse> {

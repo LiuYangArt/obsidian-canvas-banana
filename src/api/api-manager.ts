@@ -116,8 +116,8 @@ export class ApiManager {
     async *streamChatCompletion(
         prompt: string,
         systemPrompt?: string,
-        temperature: number = 0.5,
-        thinkingConfig?: { enabled: boolean; budgetTokens?: number }
+        temperature: number = 1.0,
+        thinkingConfig?: { enabled: boolean; budgetTokens?: number; level?: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH' }
     ): AsyncGenerator<{ content?: string; thinking?: string }, void, unknown> {
         if (!this.isConfigured()) {
             throw new Error('API Key not configured. Please set it in plugin settings.');
@@ -186,13 +186,15 @@ export class ApiManager {
 
     /**
      * Send multimodal chat request with images and/or PDFs
+     * Returns content and optional thinking
      */
     async multimodalChat(
         prompt: string,
         mediaList: { base64: string, mimeType: string, type: 'image' | 'pdf' }[],
         systemPrompt?: string,
-        temperature: number = 0.5
-    ): Promise<string> {
+        temperature: number = 1.0,
+        thinkingConfig?: { enabled: boolean; budgetTokens?: number; level?: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH' }
+    ): Promise<{ content: string; thinking?: string }> {
         if (!this.isConfigured()) {
             throw new Error('API Key not configured. Please set it in plugin settings.');
         }
@@ -200,13 +202,13 @@ export class ApiManager {
         const provider = this.getActiveProvider();
         switch (provider) {
             case 'gemini':
-                return this.gemini.multimodalChat(prompt, mediaList, systemPrompt, temperature);
+                return this.gemini.multimodalChat(prompt, mediaList, systemPrompt, temperature, thinkingConfig);
             case 'yunwu':
-                return this.yunwu.multimodalChat(prompt, mediaList, systemPrompt, temperature);
+                return this.yunwu.multimodalChat(prompt, mediaList, systemPrompt, temperature, thinkingConfig);
             case 'gptgod':
                 return this.gptgod.multimodalChat(prompt, mediaList, systemPrompt, temperature);
             case 'antigravitytools':
-                return this.antigravitytools.multimodalChat(prompt, mediaList, systemPrompt, temperature);
+                return this.antigravitytools.multimodalChat(prompt, mediaList, systemPrompt, temperature, thinkingConfig);
             default:
                 return this.openrouter.multimodalChat(prompt, mediaList, systemPrompt, temperature);
         }

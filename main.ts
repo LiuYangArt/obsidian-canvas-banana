@@ -364,12 +364,13 @@ export default class CanvasAIPlugin extends Plugin {
 
                 let response: string;
                 if (mediaList.length > 0) {
-                    response = await localApiManager.multimodalChat(
+                    const result = await localApiManager.multimodalChat(
                         userMsg,
                         mediaList,
                         systemPrompt,
                         editOptions.temperature
                     );
+                    response = result.content;
                 } else {
                     response = await localApiManager.chatCompletion(
                         userMsg,
@@ -550,12 +551,13 @@ export default class CanvasAIPlugin extends Plugin {
                 }
 
                 if (mediaList.length > 0) {
-                    response = await localApiManager.multimodalChat(
+                    const result = await localApiManager.multimodalChat(
                         intent.instruction,
                         mediaList,
                         systemPrompt,
                         chatOptions.temperature
                     );
+                    response = result.content;
                 } else {
                     response = await localApiManager.chatCompletion(intent.instruction, systemPrompt, chatOptions.temperature);
                 }
@@ -637,12 +639,13 @@ ${intent.instruction}
 
                 if (mediaList.length > 0) {
                     console.debug('Canvas Banana: Sending node request with', mediaList.length, 'media items');
-                    response = await localApiManager.multimodalChat(
+                    const result = await localApiManager.multimodalChat(
                         fullInstruction,
                         mediaList,
                         nodeSystemPrompt,
                         nodeOptions.temperature
                     );
+                    response = result.content;
                 } else {
                     response = await localApiManager.chatCompletion(
                         fullInstruction,

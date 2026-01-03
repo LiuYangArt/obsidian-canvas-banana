@@ -58,7 +58,7 @@ export class GeminiProvider {
     /**
      * Chat completion
      */
-    async chatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): Promise<string> {
+    async chatCompletion(prompt: string, systemPrompt?: string, temperature: number = 1.0): Promise<string> {
         const model = this.getTextModel();
         const endpoint = this.getEndpoint(model);
 
@@ -173,14 +173,15 @@ export class GeminiProvider {
     }
 
     /**
-     * Multimodal chat
+     * Multimodal chat - returns content and optional thinking
      */
     async multimodalChat(
         prompt: string,
         mediaList: { base64: string, mimeType: string, type: 'image' | 'pdf' }[],
         systemPrompt?: string,
-        temperature: number = 0.5
-    ): Promise<string> {
+        temperature: number = 1.0,
+        thinkingConfig?: { enabled: boolean; budgetTokens?: number; level?: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH' }
+    ): Promise<{ content: string; thinking?: string }> {
         const model = this.getTextModel();
         const endpoint = this.getEndpoint(model);
 
@@ -200,6 +201,19 @@ export class GeminiProvider {
             generationConfig: { temperature: temperature }
         };
 
+        if (thinkingConfig?.enabled) {
+            const genConfig = requestBody.generationConfig!;
+            genConfig.thinkingConfig = {
+                includeThoughts: true
+            };
+            if (thinkingConfig.level) {
+                genConfig.thinkingConfig.thinkingLevel = thinkingConfig.level;
+            } else {
+                genConfig.thinkingConfig.thinkingBudget = thinkingConfig.budgetTokens || 8192;
+            }
+            console.debug(`Canvas AI: [${this.providerName}] Multimodal Thinking enabled:`, JSON.stringify(genConfig.thinkingConfig));
+        }
+
         if (systemPrompt) {
             requestBody.systemInstruction = { parts: [{ text: systemPrompt }] };
         }
@@ -216,13 +230,16 @@ export class GeminiProvider {
         try {
             const response = await requestUrl(requestParams);
             const data = response.json as GeminiResponse;
-            return this.extractTextFromResponse(data);
+            return this.extractTextAndThinkingFromResponse(data);
         } catch (error: unknown) {
             this.handleError(error);
         }
     }
 
-    private extractTextFromResponse(data: GeminiResponse): string {
+    /**
+     * Extract text and thinking from response
+     */
+    private extractTextAndThinkingFromResponse(data: GeminiResponse): { content: string; thinking?: string } {
         const candidates = data.candidates;
         if (!candidates || candidates.length === 0) {
             throw new Error('Gemini returned no candidates');
@@ -233,8 +250,10 @@ export class GeminiProvider {
             throw new Error('Gemini returned no parts in response');
         }
 
-        // Filter out thinking parts
+        // Separate thinking and output parts
+        const thinkingParts = parts.filter((p: GeminiPart) => p.text && p.thought);
         const outputParts = parts.filter((p: GeminiPart) => p.text && !p.thought);
+        
         const textPart = outputParts.length > 0
             ? outputParts[outputParts.length - 1]
             : parts.find((p: GeminiPart) => p.text);
@@ -243,8 +262,20 @@ export class GeminiProvider {
             throw new Error('Gemini returned no text in response');
         }
 
-        console.debug(`Canvas AI: [${this.providerName}] Received response (filtered thinking)`);
-        return textPart.text;
+        const thinking = thinkingParts.map(p => p.text).join('');
+        console.debug(`Canvas AI: [${this.providerName}] Received response (thinking: ${thinking.length > 0 ? 'yes' : 'no'})`);
+        
+        return {
+            content: textPart.text,
+            thinking: thinking || undefined
+        };
+    }
+
+    /**
+     * Legacy wrapper - extract text only (for backward compatibility)
+     */
+    private extractTextFromResponse(data: GeminiResponse): string {
+        return this.extractTextAndThinkingFromResponse(data).content;
     }
 
     private async parseGeminiImageResponse(data: GeminiResponse): Promise<string> {
@@ -331,8 +362,8 @@ export class GeminiProvider {
     async *streamChatCompletion(
         prompt: string,
         systemPrompt?: string,
-        temperature: number = 0.5,
-        thinkingConfig?: { enabled: boolean; budgetTokens?: number }
+        temperature: number = 1.0,
+        thinkingConfig?: { enabled: boolean; budgetTokens?: number; level?: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH' }
     ): AsyncGenerator<{ content?: string; thinking?: string }, void, unknown> {
         const model = this.getTextModel();
         // Append :streamGenerateContent and alt=sse for streaming
@@ -348,10 +379,16 @@ export class GeminiProvider {
 
         // Add thinking config if enabled
         if (thinkingConfig?.enabled) {
-            requestBody.generationConfig!.thinkingConfig = {
-                thinkingBudget: thinkingConfig.budgetTokens || 8192
+            const genConfig = requestBody.generationConfig!;
+            genConfig.thinkingConfig = {
+                includeThoughts: true
             };
-            console.debug(`Canvas AI: [${this.providerName}] Thinking enabled with budget:`, thinkingConfig.budgetTokens);
+            if (thinkingConfig.level) {
+                genConfig.thinkingConfig.thinkingLevel = thinkingConfig.level;
+            } else {
+                genConfig.thinkingConfig.thinkingBudget = thinkingConfig.budgetTokens || 8192;
+            }
+            console.debug(`Canvas AI: [${this.providerName}] Thinking enabled:`, JSON.stringify(genConfig.thinkingConfig));
         }
 
         if (systemPrompt) {

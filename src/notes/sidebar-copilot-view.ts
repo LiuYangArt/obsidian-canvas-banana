@@ -71,9 +71,9 @@ export class SideBarCoPilotView extends ItemView {
 
     // Thinking options (loaded from settings)
     private thinkingEnabled: boolean = true;
-    private thinkingBudget: string = '4K';
+    private thinkingLevel: string = 'HIGH';
     private thinkingToggleEl: HTMLInputElement | null = null;
-    private budgetSelectEl: HTMLSelectElement | null = null;
+    private levelSelectEl: HTMLSelectElement | null = null;
 
     // State
     private isGenerating: boolean = false;
@@ -187,10 +187,10 @@ export class SideBarCoPilotView extends ItemView {
         this.thinkingToggleEl = thinkingGrp.createEl('input', { type: 'checkbox', cls: 'canvas-ai-thinking-toggle' });
 
         const budgetGrp = thinkingRow.createEl('span', 'canvas-ai-option-group');
-        budgetGrp.createEl('label', { text: t('Budget') });
-        this.budgetSelectEl = budgetGrp.createEl('select', 'canvas-ai-budget-select dropdown');
-        ['1K', '4K', '8K', '16K', '32K'].forEach(v => this.budgetSelectEl!.createEl('option', { value: v, text: v }));
-        this.budgetSelectEl.value = '8K';
+        budgetGrp.createEl('label', { text: 'Level' }); // Fixed translation key issue
+        this.levelSelectEl = budgetGrp.createEl('select', 'canvas-ai-level-select dropdown');
+        ['MINIMAL', 'LOW', 'MEDIUM', 'HIGH'].forEach(v => this.levelSelectEl!.createEl('option', { value: v, text: v }));
+        this.levelSelectEl.value = 'HIGH';
 
         this.chatModelRow = createModelSelectRow(this.chatOptionsContainer, t('Palette Model'));
 
@@ -284,9 +284,10 @@ export class SideBarCoPilotView extends ItemView {
             void this.plugin.saveSettings();
         });
 
-        this.budgetSelectEl?.addEventListener('change', () => {
-            this.thinkingBudget = this.budgetSelectEl!.value;
-            this.plugin.settings.chatThinkingBudget = this.thinkingBudget;
+        this.levelSelectEl?.addEventListener('change', () => {
+            this.thinkingLevel = this.levelSelectEl!.value;
+            // @ts-ignore
+            this.plugin.settings.chatThinkingLevel = this.thinkingLevel;
             void this.plugin.saveSettings();
         });
 
@@ -347,12 +348,12 @@ export class SideBarCoPilotView extends ItemView {
 
         // Initialize thinking options from settings
         this.thinkingEnabled = this.plugin.settings.chatThinkingEnabled ?? true;
-        this.thinkingBudget = this.plugin.settings.chatThinkingBudget || '4K';
+        this.thinkingLevel = this.plugin.settings.chatThinkingLevel || 'HIGH';
         if (this.thinkingToggleEl) {
             this.thinkingToggleEl.checked = this.thinkingEnabled;
         }
-        if (this.budgetSelectEl) {
-            this.budgetSelectEl.value = this.thinkingBudget;
+        if (this.levelSelectEl) {
+            this.levelSelectEl.value = this.thinkingLevel;
         }
 
         this.updateGenerateButtonState();
@@ -624,7 +625,8 @@ export class SideBarCoPilotView extends ItemView {
 
             let response: string;
             if (images.length > 0) {
-                response = await localApiManager.multimodalChat(userMsg, images, systemPrompt, 0.5);
+                const result = await localApiManager.multimodalChat(userMsg, images, systemPrompt, 0.5);
+                response = result.content;
             } else {
                 response = await localApiManager.chatCompletion(userMsg, systemPrompt, 0.5);
             }
@@ -850,17 +852,19 @@ export class SideBarCoPilotView extends ItemView {
 
             this.addMessage('assistant', ''); // Empty placeholder for streaming
 
+            // Build thinking config
+            const thinkingConfig = this.thinkingEnabled
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Casting string to literal type union
+                ? { enabled: true, level: this.thinkingLevel as any }
+                : undefined;
+
             if (images.length > 0) {
-                // Multimodal currently non-streaming
-                const response = await localApiManager.multimodalChat(userMsg, images, systemPrompt, 0.7);
-                this.updateLastAssistantMessage(response);
+                // Multimodal with thinking support
+                const response = await localApiManager.multimodalChat(userMsg, images, systemPrompt, this.plugin.settings.defaultChatTemperature, thinkingConfig);
+                this.updateLastAssistantMessageWithThinking(response.content, response.thinking || '');
             } else {
                 // Text streaming with thinking support
-                // Build thinking config
-                const thinkingConfig = this.thinkingEnabled
-                    ? { enabled: true, budgetTokens: this.getBudgetTokens() }
-                    : undefined;
-                const stream = localApiManager.streamChatCompletion(userMsg, systemPrompt, 0.7, thinkingConfig);
+                const stream = localApiManager.streamChatCompletion(userMsg, systemPrompt, this.plugin.settings.defaultChatTemperature, thinkingConfig);
                 let accumulatedContent = '';
                 let accumulatedThinking = '';
                 
@@ -1084,14 +1088,5 @@ export class SideBarCoPilotView extends ItemView {
         }
     }
 
-    private getBudgetTokens(): number {
-        const budgetMap: Record<string, number> = {
-            '1K': 1024,
-            '4K': 4096,
-            '8K': 8192,
-            '16K': 16384,
-            '32K': 32768
-        };
-        return budgetMap[this.thinkingBudget] || 8192;
-    }
+
 }

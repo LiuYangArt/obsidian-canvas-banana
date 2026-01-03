@@ -660,12 +660,13 @@ export class NotesSelectionHandler {
             let response: string;
             if (images.length > 0) {
                 console.debug(`Notes AI: Sending request with ${images.length} images as context`);
-                response = await this.plugin.apiManager.multimodalChat(
+                const result = await this.plugin.apiManager.multimodalChat(
                     userMessage,
                     images,
                     systemPrompt,
                     1 // temperature
                 );
+                response = result.content;
             } else {
                 response = await this.plugin.apiManager.chatCompletion(
                     userMessage,

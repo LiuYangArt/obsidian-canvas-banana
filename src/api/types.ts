@@ -123,7 +123,9 @@ export interface GeminiRequest {
             imageSize?: string;
         };
         thinkingConfig?: {
+            includeThoughts?: boolean;
             thinkingBudget?: number;
+            thinkingLevel?: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH';
         };
     };
     systemInstruction?: {

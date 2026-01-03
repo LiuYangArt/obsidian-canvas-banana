@@ -106,7 +106,7 @@ export class AntigravityToolsProvider {
     /**
      * Chat completion - 使用 Gemini 原生格式
      */
-    async chatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): Promise<string> {
+    async chatCompletion(prompt: string, systemPrompt?: string, temperature: number = 1.0): Promise<string> {
         const model = this.getTextModel();
         const endpoint = this.getGeminiEndpoint(model);
 
@@ -283,14 +283,15 @@ export class AntigravityToolsProvider {
     }
 
     /**
-     * Multimodal chat - 使用 Gemini 原生格式
+     * Multimodal chat - 使用 Gemini 原生格式，返回 content 和 thinking
      */
     async multimodalChat(
         prompt: string,
         mediaList: { base64: string, mimeType: string, type: 'image' | 'pdf' }[],
         systemPrompt?: string,
-        temperature: number = 0.5
-    ): Promise<string> {
+        temperature: number = 1.0,
+        thinkingConfig?: { enabled: boolean; budgetTokens?: number; level?: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH' }
+    ): Promise<{ content: string; thinking?: string }> {
         const model = this.getTextModel();
         const endpoint = this.getGeminiEndpoint(model);
 
@@ -310,6 +311,19 @@ export class AntigravityToolsProvider {
             generationConfig: { temperature: temperature }
         };
 
+        if (thinkingConfig?.enabled) {
+            const genConfig = requestBody.generationConfig!;
+            genConfig.thinkingConfig = {
+                includeThoughts: true
+            };
+            if (thinkingConfig.level) {
+                genConfig.thinkingConfig.thinkingLevel = thinkingConfig.level;
+            } else {
+                genConfig.thinkingConfig.thinkingBudget = thinkingConfig.budgetTokens || 8192;
+            }
+            console.debug('Canvas AI: [AntigravityTools] Multimodal Thinking enabled:', JSON.stringify(genConfig.thinkingConfig));
+        }
+
         if (systemPrompt) {
             requestBody.systemInstruction = { parts: [{ text: systemPrompt }] };
         }
@@ -326,13 +340,17 @@ export class AntigravityToolsProvider {
         try {
             const response = await requestUrl(requestParams);
             const data = response.json as GeminiResponse;
-            return this.extractTextFromResponse(data);
+            console.debug('Canvas AI: [AntigravityTools] Raw Response:', JSON.stringify(data));
+            return this.extractTextAndThinkingFromResponse(data);
         } catch (error: unknown) {
             this.handleError(error);
         }
     }
 
-    private extractTextFromResponse(data: GeminiResponse): string {
+    /**
+     * Extract text and thinking from response
+     */
+    private extractTextAndThinkingFromResponse(data: GeminiResponse): { content: string; thinking?: string } {
         const candidates = data.candidates;
         if (!candidates || candidates.length === 0) {
             throw new Error('AntigravityTools returned no candidates');
@@ -343,8 +361,10 @@ export class AntigravityToolsProvider {
             throw new Error('AntigravityTools returned no parts in response');
         }
 
-        // 过滤思考部分
+        // Separate thinking and output parts
+        const thinkingParts = parts.filter((p: GeminiPart) => p.text && p.thought);
         const outputParts = parts.filter((p: GeminiPart) => p.text && !p.thought);
+        
         const textPart = outputParts.length > 0
             ? outputParts[outputParts.length - 1]
             : parts.find((p: GeminiPart) => p.text);
@@ -353,8 +373,20 @@ export class AntigravityToolsProvider {
             throw new Error('AntigravityTools returned no text in response');
         }
 
-        console.debug('Canvas AI: [AntigravityTools] Received response (filtered thinking)');
-        return textPart.text;
+        const thinking = thinkingParts.map(p => p.text).join('');
+        console.debug(`Canvas AI: [AntigravityTools] Received response (thinking: ${thinking.length > 0 ? 'yes' : 'no'})`);
+        
+        return {
+            content: textPart.text,
+            thinking: thinking || undefined
+        };
+    }
+
+    /**
+     * Legacy wrapper - extract text only
+     */
+    private extractTextFromResponse(data: GeminiResponse): string {
+        return this.extractTextAndThinkingFromResponse(data).content;
     }
 
     private async fetchImageAsDataUrl(url: string): Promise<string> {
@@ -402,8 +434,8 @@ export class AntigravityToolsProvider {
     async *streamChatCompletion(
         prompt: string,
         systemPrompt?: string,
-        temperature: number = 0.5,
-        thinkingConfig?: { enabled: boolean; budgetTokens?: number }
+        temperature: number = 1.0,
+        thinkingConfig?: { enabled: boolean; budgetTokens?: number; level?: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH' }
     ): AsyncGenerator<{ content?: string; thinking?: string }, void, unknown> {
         const model = this.getTextModel();
         // Replace :generateContent with :streamGenerateContent and add alt=sse
@@ -421,10 +453,16 @@ export class AntigravityToolsProvider {
 
         // Add thinking config if enabled
         if (thinkingConfig?.enabled) {
-            requestBody.generationConfig!.thinkingConfig = {
-                thinkingBudget: thinkingConfig.budgetTokens || 8192
+            const genConfig = requestBody.generationConfig!;
+            genConfig.thinkingConfig = {
+                includeThoughts: true
             };
-            console.debug('Canvas AI: [AntigravityTools] Thinking enabled with budget:', thinkingConfig.budgetTokens);
+            if (thinkingConfig.level) {
+                genConfig.thinkingConfig.thinkingLevel = thinkingConfig.level;
+            } else {
+                genConfig.thinkingConfig.thinkingBudget = thinkingConfig.budgetTokens || 8192;
+            }
+            console.debug('Canvas AI: [AntigravityTools] Thinking enabled:', JSON.stringify(genConfig.thinkingConfig));
         }
 
         if (systemPrompt) {

@@ -126,6 +126,7 @@ export interface CanvasAISettings {
     // Chat thinking settings
     chatThinkingEnabled: boolean;      // 是否启用思考模式
     chatThinkingBudget: string;        // 思考 token 预算
+    chatThinkingLevel: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH';     // 思考等级 (for Gemini 3+)
 
     // Multi-image generation
     maxParallelImageTasks: number;     // 最大并行生图任务数
@@ -177,7 +178,7 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
     imageMaxSize: 2048,
     defaultAspectRatio: '1:1',
     defaultResolution: '1K',
-    defaultChatTemperature: 0.5,
+    defaultChatTemperature: 1.0,
 
     debugMode: false,
     doubleClickImageOpen: true,
@@ -210,6 +211,7 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
 
     chatThinkingEnabled: true,
     chatThinkingBudget: '4K',
+    chatThinkingLevel: 'HIGH',
 
     maxParallelImageTasks: 3,
 
