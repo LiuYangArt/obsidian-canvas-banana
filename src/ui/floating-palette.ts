@@ -33,10 +33,6 @@ export class FloatingPalette {
     private imageAspectRatio: string = '1:1';
     private imageResolution: string = '1K';
 
-    // Chat thinking options
-    private thinkingEnabled: boolean = false;
-    private thinkingBudget: string = '8K';
-
     // DOM references for image options
     private imageOptionsEl: HTMLElement | null = null;
     private chatOptionsEl: HTMLElement | null = null;
@@ -44,8 +40,6 @@ export class FloatingPalette {
     private ratioSelect: HTMLSelectElement | null = null;
     private resolutionSelect: HTMLSelectElement | null = null;
     private nodeOptionsEl: HTMLElement | null = null;
-    private thinkingToggleEl: HTMLInputElement | null = null;
-    private budgetSelectEl: HTMLSelectElement | null = null;
 
     private debugBtnEl: HTMLButtonElement | null = null;
     private versionInfoEl: HTMLElement | null = null;
@@ -235,18 +229,6 @@ export class FloatingPalette {
         // Chat Options
         this.chatOptionsEl = body.createDiv('canvas-ai-chat-options');
 
-        // Thinking Options Row
-        const thinkingRow = this.chatOptionsEl.createDiv('canvas-ai-option-row');
-        const thinkingGrp = thinkingRow.createEl('span', 'canvas-ai-option-group');
-        thinkingGrp.createEl('label', { text: t('Thinking') });
-        this.thinkingToggleEl = thinkingGrp.createEl('input', { type: 'checkbox', cls: 'canvas-ai-thinking-toggle' });
-
-        const budgetGrp = thinkingRow.createEl('span', 'canvas-ai-option-group');
-        budgetGrp.createEl('label', { text: t('Budget') });
-        this.budgetSelectEl = budgetGrp.createEl('select', 'canvas-ai-budget-select dropdown');
-        ['1K', '4K', '8K', '16K', '32K'].forEach(v => this.budgetSelectEl!.createEl('option', { value: v, text: v }));
-        this.budgetSelectEl.value = '8K';
-
         const chatModelRow = this.chatOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-model-select-row is-hidden' });
         const chatModelGrp = chatModelRow.createEl('span', 'canvas-ai-option-group');
         chatModelGrp.createEl('label', { text: t('Palette Model') });
@@ -367,15 +349,6 @@ export class FloatingPalette {
         this.resolutionSelect?.addEventListener('change', () => {
             this.imageResolution = this.resolutionSelect!.value;
             this.onSettingsChange?.('resolution', this.imageResolution);
-        });
-
-        // Thinking toggle and budget select
-        this.thinkingToggleEl?.addEventListener('change', () => {
-            this.thinkingEnabled = this.thinkingToggleEl!.checked;
-        });
-
-        this.budgetSelectEl?.addEventListener('change', () => {
-            this.thinkingBudget = this.budgetSelectEl!.value;
         });
 
         return container;
@@ -808,19 +781,10 @@ export class FloatingPalette {
     /**
      * Get current chat options including thinking config
      */
-    getChatOptions(): { temperature: number; thinkingEnabled: boolean; thinkingBudget: number } {
-        // Convert budget string to token number
-        const budgetMap: Record<string, number> = {
-            '1K': 1024,
-            '4K': 4096,
-            '8K': 8192,
-            '16K': 16384,
-            '32K': 32768
-        };
+    getChatOptions(): { temperature: number } {
+        // Temperature is fixed at 1 for optimal results
         return {
-            temperature: 1,
-            thinkingEnabled: this.thinkingEnabled,
-            thinkingBudget: budgetMap[this.thinkingBudget] || 8192
+            temperature: 1
         };
     }
 

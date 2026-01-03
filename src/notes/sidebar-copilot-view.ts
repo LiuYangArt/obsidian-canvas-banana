@@ -69,6 +69,12 @@ export class SideBarCoPilotView extends ItemView {
     private selectedTextModel: string = '';
     private selectedImageModel: string = '';
 
+    // Thinking options
+    private thinkingEnabled: boolean = false;
+    private thinkingBudget: string = '8K';
+    private thinkingToggleEl: HTMLInputElement | null = null;
+    private budgetSelectEl: HTMLSelectElement | null = null;
+
     // State
     private isGenerating: boolean = false;
     private pendingTaskCount: number = 0;
@@ -173,6 +179,19 @@ export class SideBarCoPilotView extends ItemView {
 
         // Chat Options (hidden by default, shown when Chat tab is active)
         this.chatOptionsContainer = this.footerEl.createDiv('canvas-ai-chat-mode-options is-hidden');
+
+        // Thinking Options Row
+        const thinkingRow = this.chatOptionsContainer.createDiv('canvas-ai-option-row');
+        const thinkingGrp = thinkingRow.createEl('span', 'canvas-ai-option-group');
+        thinkingGrp.createEl('label', { text: t('Thinking') });
+        this.thinkingToggleEl = thinkingGrp.createEl('input', { type: 'checkbox', cls: 'canvas-ai-thinking-toggle' });
+
+        const budgetGrp = thinkingRow.createEl('span', 'canvas-ai-option-group');
+        budgetGrp.createEl('label', { text: t('Budget') });
+        this.budgetSelectEl = budgetGrp.createEl('select', 'canvas-ai-budget-select dropdown');
+        ['1K', '4K', '8K', '16K', '32K'].forEach(v => this.budgetSelectEl!.createEl('option', { value: v, text: v }));
+        this.budgetSelectEl.value = '8K';
+
         this.chatModelRow = createModelSelectRow(this.chatOptionsContainer, t('Palette Model'));
 
         // Action Row
@@ -256,6 +275,15 @@ export class SideBarCoPilotView extends ItemView {
         this.imageOptions.aspectRatioSelect.addEventListener('change', () => {
             this.plugin.settings.defaultAspectRatio = this.imageOptions.aspectRatioSelect.value;
             void this.plugin.saveSettings();
+        });
+
+        // Thinking toggle and budget select
+        this.thinkingToggleEl?.addEventListener('change', () => {
+            this.thinkingEnabled = this.thinkingToggleEl!.checked;
+        });
+
+        this.budgetSelectEl?.addEventListener('change', () => {
+            this.thinkingBudget = this.budgetSelectEl!.value;
         });
 
         this.generateBtn.addEventListener('click', () => void this.handleGenerate());
@@ -813,7 +841,11 @@ export class SideBarCoPilotView extends ItemView {
                 this.updateLastAssistantMessage(response);
             } else {
                 // Text streaming with thinking support
-                const stream = localApiManager.streamChatCompletion(userMsg, systemPrompt, 0.7);
+                // Build thinking config
+                const thinkingConfig = this.thinkingEnabled
+                    ? { enabled: true, budgetTokens: this.getBudgetTokens() }
+                    : undefined;
+                const stream = localApiManager.streamChatCompletion(userMsg, systemPrompt, 0.7, thinkingConfig);
                 let accumulatedContent = '';
                 let accumulatedThinking = '';
                 
@@ -1035,5 +1067,16 @@ export class SideBarCoPilotView extends ItemView {
             const endPos = editor.offsetToPos(endOffset);
             notesHandler.selectGeneratedText(editor, startPos, endPos);
         }
+    }
+
+    private getBudgetTokens(): number {
+        const budgetMap: Record<string, number> = {
+            '1K': 1024,
+            '4K': 4096,
+            '8K': 8192,
+            '16K': 16384,
+            '32K': 32768
+        };
+        return budgetMap[this.thinkingBudget] || 8192;
     }
 }
