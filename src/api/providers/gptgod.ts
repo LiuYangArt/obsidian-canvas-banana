@@ -351,7 +351,7 @@ export class GptGodProvider {
     /**
      * Chat completion with streaming
      */
-    async *streamChatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): AsyncGenerator<string, void, unknown> {
+    async *streamChatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): AsyncGenerator<{ content?: string; thinking?: string }, void, unknown> {
         const messages: OpenRouterMessage[] = [];
 
         if (systemPrompt) {
@@ -418,16 +418,20 @@ export class GptGodProvider {
                             const data = JSON.parse(trimmed.slice(6));
                             const delta = data.choices?.[0]?.delta;
                             
+                            // Debug: 输出完整 delta
                             if (delta) {
+                                console.debug('Canvas AI: [GPTGod] Stream delta:', JSON.stringify(delta));
                                 // Handle reasoning_content (Standard OpenAI format for reasoning)
                                 if (delta.reasoning_content) {
+                                    let thinkingText = '';
                                     if (!hasEmittedThinkingHeader) {
-                                        yield '> [!THINK|no-icon]- Thinking Process\n> ';
+                                        thinkingText = '> [!THINK|no-icon]- Thinking Process\n> ';
                                         hasEmittedThinkingHeader = true;
                                         isThinking = true;
                                     }
                                     // Ensure newlines are indented for the callout
-                                    yield delta.reasoning_content.replace(/\n/g, '\n> ');
+                                    thinkingText += delta.reasoning_content.replace(/\n/g, '\n> ');
+                                    yield { thinking: thinkingText };
                                 }
 
                                 // Handle content (Check for <think> tags)
@@ -449,18 +453,16 @@ export class GptGodProvider {
                                     if (content.includes('</think>')) {
                                         content = content.replace('</think>', '\n\n');
                                         isThinking = false;
-                                        // Reset header flag if we want to allow multiple thought blocks, 
-                                        // or keep it true if we assume only one main thought block.
-                                        // Resetting is safer for multiple turns but logic might allow mixed content.
-                                        hasEmittedThinkingHeader = false; 
+                                        hasEmittedThinkingHeader = false;
                                     }
 
-                                    // If inside thinking block and not a header replacement, prefix newlines
-                                    if (isThinking && content !== '> [!THINK|no-icon]- Thinking Process\n> ') {
+                                    // If inside thinking block, yield as thinking
+                                    if (isThinking && !content.startsWith('> [!THINK')) {
                                         content = content.replace(/\n/g, '\n> ');
+                                        yield { thinking: content };
+                                    } else if (!isThinking) {
+                                        yield { content };
                                     }
-                                    
-                                    yield content;
                                 }
                             }
                         } catch (e) {

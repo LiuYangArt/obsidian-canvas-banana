@@ -78,7 +78,7 @@ export class OpenRouterProvider {
     /**
      * Chat completion with streaming
      */
-    async *streamChatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): AsyncGenerator<string, void, unknown> {
+    async *streamChatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): AsyncGenerator<{ content?: string; thinking?: string }, void, unknown> {
         const messages: OpenRouterMessage[] = [];
 
         if (systemPrompt) {
@@ -122,6 +122,8 @@ export class OpenRouterProvider {
             const reader = response.body.getReader();
             const decoder = new TextDecoder('utf-8');
             let buffer = '';
+            let isThinking = false;
+            let hasEmittedThinkingHeader = false;
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -141,8 +143,53 @@ export class OpenRouterProvider {
                     if (trimmed.startsWith('data: ')) {
                         try {
                             const data = JSON.parse(trimmed.slice(6));
-                            if (data.choices && data.choices[0]?.delta?.content) {
-                                yield data.choices[0].delta.content;
+                            const delta = data.choices?.[0]?.delta;
+                            
+                            // Debug: 输出完整 delta
+                            if (delta) {
+                                console.debug('Canvas AI: [OpenRouter] Stream delta:', JSON.stringify(delta));
+                                // 处理 reasoning_content (DeepSeek R1 等)
+                                if (delta.reasoning_content) {
+                                    let thinkingText = '';
+                                    if (!hasEmittedThinkingHeader) {
+                                        thinkingText = '> [!THINK|no-icon]- Thinking Process\n> ';
+                                        hasEmittedThinkingHeader = true;
+                                        isThinking = true;
+                                    }
+                                    thinkingText += delta.reasoning_content.replace(/\n/g, '\n> ');
+                                    yield { thinking: thinkingText };
+                                }
+
+                                // 处理 content (可能含 <think> 标签)
+                                if (delta.content) {
+                                    let content = delta.content;
+                                    
+                                    // <think> 开始
+                                    if (content.includes('<think>')) {
+                                        if (!hasEmittedThinkingHeader) {
+                                            content = content.replace('<think>', '> [!THINK|no-icon]- Thinking Process\n> ');
+                                            hasEmittedThinkingHeader = true;
+                                        } else {
+                                            content = content.replace('<think>', '');
+                                        }
+                                        isThinking = true;
+                                    }
+
+                                    // </think> 结束
+                                    if (content.includes('</think>')) {
+                                        content = content.replace('</think>', '\n\n');
+                                        isThinking = false;
+                                        hasEmittedThinkingHeader = false;
+                                    }
+
+                                    // 思考中缩进
+                                    if (isThinking && !content.startsWith('> [!THINK')) {
+                                        content = content.replace(/\n/g, '\n> ');
+                                        yield { thinking: content };
+                                    } else if (!isThinking) {
+                                        yield { content };
+                                    }
+                                }
                             }
                         } catch (e) {
                             console.warn('Error parsing stream chunk:', e);
@@ -155,6 +202,7 @@ export class OpenRouterProvider {
             throw error;
         }
     }
+
 
     /**
      * Generate image with roles

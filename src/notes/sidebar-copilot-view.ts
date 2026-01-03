@@ -35,6 +35,8 @@ type SidebarMode = PaletteMode;
 interface ChatMessage {
     role: 'user' | 'assistant';
     content: string;
+    /** 思考内容，仅用于显示，不计入历史上下文和复制 */
+    thinking?: string;
     timestamp: number;
 }
 
@@ -803,24 +805,32 @@ export class SideBarCoPilotView extends ItemView {
                 userMsg = `Previous conversation:\n${historyContext}\n\n${userMsg}`;
             }
 
-            this.addMessage('assistant', t('AI is thinking...')); // Placeholder for streaming
+            this.addMessage('assistant', ''); // Empty placeholder for streaming
 
             if (images.length > 0) {
                 // Multimodal currently non-streaming
                 const response = await localApiManager.multimodalChat(userMsg, images, systemPrompt, 0.7);
                 this.updateLastAssistantMessage(response);
             } else {
-                // Text streaming
+                // Text streaming with thinking support
                 const stream = localApiManager.streamChatCompletion(userMsg, systemPrompt, 0.7);
-                let accumulated = '';
+                let accumulatedContent = '';
+                let accumulatedThinking = '';
                 
                 for await (const chunk of stream) {
-                    accumulated += chunk;
-                    this.updateStreamingMessage(accumulated);
+                    if (chunk.thinking) {
+                        accumulatedThinking += chunk.thinking;
+                    }
+                    if (chunk.content) {
+                        accumulatedContent += chunk.content;
+                    }
+                    // 显示时合并：thinking + content
+                    const displayText = accumulatedThinking + accumulatedContent;
+                    this.updateStreamingMessage(displayText);
                 }
                 
-                // Final render with full markdown support
-                this.updateLastAssistantMessage(accumulated);
+                // Final render: update message with separate thinking/content
+                this.updateLastAssistantMessageWithThinking(accumulatedContent, accumulatedThinking);
             }
 
         } catch (error) {
@@ -945,6 +955,32 @@ export class SideBarCoPilotView extends ItemView {
                     // Clear and re-render with MarkdownRenderer for proper formatting
                     contentEl.empty();
                     void MarkdownRenderer.render(this.app, content, contentEl, this.currentDocPath || '', this);
+                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
+                }
+            }
+        }
+    }
+
+    /**
+     * 更新最后一条 assistant 消息，分别存储 content 和 thinking
+     * 显示时合并，但复制/历史上下文仅使用 content
+     */
+    private updateLastAssistantMessageWithThinking(content: string, thinking: string): void {
+        if (this.chatHistory.length === 0) return;
+
+        const lastMsg = this.chatHistory[this.chatHistory.length - 1];
+        if (lastMsg.role === 'assistant') {
+            lastMsg.content = content;
+            lastMsg.thinking = thinking || undefined;
+
+            const lastMsgEl = this.messagesContainer.lastElementChild;
+            if (lastMsgEl) {
+                const contentEl = lastMsgEl.querySelector('.sidebar-message-content');
+                if (contentEl instanceof HTMLElement) {
+                    contentEl.empty();
+                    // 显示时合并 thinking + content
+                    const displayText = (thinking || '') + content;
+                    void MarkdownRenderer.render(this.app, displayText, contentEl, this.currentDocPath || '', this);
                     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
                 }
             }
