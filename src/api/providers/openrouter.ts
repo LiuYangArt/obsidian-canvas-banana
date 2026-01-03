@@ -123,7 +123,6 @@ export class OpenRouterProvider {
             const decoder = new TextDecoder('utf-8');
             let buffer = '';
             let isThinking = false;
-            let hasEmittedThinkingHeader = false;
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -148,45 +147,33 @@ export class OpenRouterProvider {
                             // Debug: 输出完整 delta
                             if (delta) {
                                 console.debug('Canvas AI: [OpenRouter] Stream delta:', JSON.stringify(delta));
+                                
                                 // 处理 reasoning_content (DeepSeek R1 等)
                                 if (delta.reasoning_content) {
-                                    let thinkingText = '';
-                                    if (!hasEmittedThinkingHeader) {
-                                        thinkingText = '> [!THINK|no-icon]- Thinking Process\n> ';
-                                        hasEmittedThinkingHeader = true;
-                                        isThinking = true;
-                                    }
-                                    thinkingText += delta.reasoning_content.replace(/\n/g, '\n> ');
-                                    yield { thinking: thinkingText };
+                                    yield { thinking: delta.reasoning_content };
                                 }
 
                                 // 处理 content (可能含 <think> 标签)
                                 if (delta.content) {
                                     let content = delta.content;
                                     
-                                    // <think> 开始
                                     if (content.includes('<think>')) {
-                                        if (!hasEmittedThinkingHeader) {
-                                            content = content.replace('<think>', '> [!THINK|no-icon]- Thinking Process\n> ');
-                                            hasEmittedThinkingHeader = true;
-                                        } else {
-                                            content = content.replace('<think>', '');
-                                        }
                                         isThinking = true;
+                                        content = content.replace('<think>', '');
                                     }
 
-                                    // </think> 结束
                                     if (content.includes('</think>')) {
-                                        content = content.replace('</think>', '\n\n');
+                                        const parts = content.split('</think>');
+                                        if (parts[0] && isThinking) {
+                                            yield { thinking: parts[0] };
+                                        }
                                         isThinking = false;
-                                        hasEmittedThinkingHeader = false;
-                                    }
-
-                                    // 思考中缩进
-                                    if (isThinking && !content.startsWith('> [!THINK')) {
-                                        content = content.replace(/\n/g, '\n> ');
+                                        if (parts[1]) {
+                                            yield { content: parts[1] };
+                                        }
+                                    } else if (isThinking) {
                                         yield { thinking: content };
-                                    } else if (!isThinking) {
+                                    } else if (content) {
                                         yield { content };
                                     }
                                 }

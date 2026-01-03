@@ -824,12 +824,14 @@ export class SideBarCoPilotView extends ItemView {
                     if (chunk.content) {
                         accumulatedContent += chunk.content;
                     }
-                    // 显示时合并：thinking + content
-                    const displayText = accumulatedThinking + accumulatedContent;
-                    this.updateStreamingMessage(displayText);
+                    // 显示时格式化 thinking 为 callout
+                    const formattedThinking = accumulatedThinking 
+                        ? this.formatThinkingAsCallout(accumulatedThinking) 
+                        : '';
+                    this.updateStreamingMessage(formattedThinking + accumulatedContent);
                 }
                 
-                // Final render: update message with separate thinking/content
+                // Final render: store raw thinking separately, format for display
                 this.updateLastAssistantMessageWithThinking(accumulatedContent, accumulatedThinking);
             }
 
@@ -963,13 +965,14 @@ export class SideBarCoPilotView extends ItemView {
 
     /**
      * 更新最后一条 assistant 消息，分别存储 content 和 thinking
-     * 显示时合并，但复制/历史上下文仅使用 content
+     * 显示时格式化 thinking 为 callout，但复制/历史上下文仅使用 content
      */
     private updateLastAssistantMessageWithThinking(content: string, thinking: string): void {
         if (this.chatHistory.length === 0) return;
 
         const lastMsg = this.chatHistory[this.chatHistory.length - 1];
         if (lastMsg.role === 'assistant') {
+            // 存储原始文本
             lastMsg.content = content;
             lastMsg.thinking = thinking || undefined;
 
@@ -978,13 +981,24 @@ export class SideBarCoPilotView extends ItemView {
                 const contentEl = lastMsgEl.querySelector('.sidebar-message-content');
                 if (contentEl instanceof HTMLElement) {
                     contentEl.empty();
-                    // 显示时合并 thinking + content
-                    const displayText = (thinking || '') + content;
+                    // 显示时格式化 thinking 为 callout
+                    const formattedThinking = thinking ? this.formatThinkingAsCallout(thinking) : '';
+                    const displayText = formattedThinking + content;
                     void MarkdownRenderer.render(this.app, displayText, contentEl, this.currentDocPath || '', this);
                     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
                 }
             }
         }
+    }
+
+    /**
+     * 将原始 thinking 文本格式化为 Obsidian callout
+     */
+    private formatThinkingAsCallout(thinking: string): string {
+        if (!thinking) return '';
+        // 缩进每行以符合 callout 格式
+        const indented = thinking.replace(/\n/g, '\n> ');
+        return `> [!THINK|no-icon]- Thinking Process\n> ${indented}\n\n`;
     }
 
     private captureSelectionOnFocus(): void {

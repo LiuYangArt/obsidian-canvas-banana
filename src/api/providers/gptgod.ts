@@ -396,7 +396,6 @@ export class GptGodProvider {
             const decoder = new TextDecoder('utf-8');
             let buffer = '';
             let isThinking = false;
-            let hasEmittedThinkingHeader = false;
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -421,46 +420,38 @@ export class GptGodProvider {
                             // Debug: 输出完整 delta
                             if (delta) {
                                 console.debug('Canvas AI: [GPTGod] Stream delta:', JSON.stringify(delta));
-                                // Handle reasoning_content (Standard OpenAI format for reasoning)
+                                
+                                // Handle reasoning_content (DeepSeek R1 等)
                                 if (delta.reasoning_content) {
-                                    let thinkingText = '';
-                                    if (!hasEmittedThinkingHeader) {
-                                        thinkingText = '> [!THINK|no-icon]- Thinking Process\n> ';
-                                        hasEmittedThinkingHeader = true;
-                                        isThinking = true;
-                                    }
-                                    // Ensure newlines are indented for the callout
-                                    thinkingText += delta.reasoning_content.replace(/\n/g, '\n> ');
-                                    yield { thinking: thinkingText };
+                                    // yield 原始 thinking 文本，不格式化
+                                    yield { thinking: delta.reasoning_content };
                                 }
 
-                                // Handle content (Check for <think> tags)
+                                // Handle content (可能含 <think> 标签)
                                 if (delta.content) {
                                     let content = delta.content;
                                     
-                                    // Check for start of thinking block
+                                    // 提取 <think> 内容
                                     if (content.includes('<think>')) {
-                                        if (!hasEmittedThinkingHeader) {
-                                            content = content.replace('<think>', '> [!THINK|no-icon]- Thinking Process\n> ');
-                                            hasEmittedThinkingHeader = true;
-                                        } else {
-                                            content = content.replace('<think>', '');
-                                        }
                                         isThinking = true;
+                                        content = content.replace('<think>', '');
                                     }
 
-                                    // Check for end of thinking block
                                     if (content.includes('</think>')) {
-                                        content = content.replace('</think>', '\n\n');
+                                        const parts = content.split('</think>');
+                                        // 思考部分
+                                        if (parts[0] && isThinking) {
+                                            yield { thinking: parts[0] };
+                                        }
                                         isThinking = false;
-                                        hasEmittedThinkingHeader = false;
-                                    }
-
-                                    // If inside thinking block, yield as thinking
-                                    if (isThinking && !content.startsWith('> [!THINK')) {
-                                        content = content.replace(/\n/g, '\n> ');
+                                        // 结束后的正常内容
+                                        if (parts[1]) {
+                                            yield { content: parts[1] };
+                                        }
+                                    } else if (isThinking) {
+                                        // 仍在思考中，yield raw thinking
                                         yield { thinking: content };
-                                    } else if (!isThinking) {
+                                    } else if (content) {
                                         yield { content };
                                     }
                                 }
