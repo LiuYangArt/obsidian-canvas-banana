@@ -371,7 +371,7 @@ export default class CanvasAIPlugin extends Plugin {
                 const editOptions = this.floatingPalette!.getEditOptions();
                 
                 // System Prompt for Editing
-                const systemPrompt = buildEditModeSystemPrompt(this.settings.editSystemPrompt);
+                const systemPrompt = buildEditModeSystemPrompt(this.settings.textSystemPrompt);
                 
                 // Construct User Message with Context
                 let userMsgString = `Target Text:\n${editIntent.targetText}`;

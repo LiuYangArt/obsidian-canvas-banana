@@ -624,16 +624,16 @@ export class CanvasAISettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 }));
 
-        // Edit System Prompt
+        // Note Edit System Prompt
         new Setting(containerEl)
             .setClass('canvas-ai-block-setting')
-            .setName(t('Edit system prompt'))
+            .setName(t('Note edit system prompt'))
             .setDesc(t('System prompt for edit mode'))
             .addTextArea(text => text
                 .setPlaceholder('You are an expert text editor...')
-                .setValue(this.plugin.settings.editSystemPrompt)
+                .setValue(this.plugin.settings.noteEditSystemPrompt)
                 .onChange(async (value) => {
-                    this.plugin.settings.editSystemPrompt = value;
+                    this.plugin.settings.noteEditSystemPrompt = value;
                     await this.plugin.saveSettings();
                 }));
 

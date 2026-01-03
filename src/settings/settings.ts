@@ -93,7 +93,7 @@ export interface CanvasAISettings {
     // System prompts for different modes
     textSystemPrompt: string;          // Canvas Text mode
     notesChatSystemPrompt: string;     // Notes sidebar Chat mode
-    editSystemPrompt: string;
+    noteEditSystemPrompt: string;
     nodeSystemPrompt: string;
     imageSystemPrompt: string;
 
@@ -187,7 +187,7 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
 
     textSystemPrompt: 'You are a creative AI assistant in Obsidian Canvas. Analyze images, text nodes, and their relationships. Provide insights and suggestions for content creation. Answer concisely and use Markdown formatting.',
     notesChatSystemPrompt: 'You are a knowledge assistant for Obsidian notes. Help users organize, improve, and understand their documents. Answer questions based on note content. Use Markdown formatting.',
-    editSystemPrompt: DEFAULT_EDIT_MODE_PROMPT,
+    noteEditSystemPrompt: DEFAULT_EDIT_MODE_PROMPT,
     nodeSystemPrompt: '',
     imageSystemPrompt: 'Role: A Professional Image Creator. Use the following references for image creation.',
 

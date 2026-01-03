@@ -34,7 +34,7 @@
     "Notes chat system prompt": "笔记对话系统提示词",
     "System prompt for Notes sidebar chat mode (knowledge assistant)": "笔记侧边栏对话模式的系统提示词（知识助手）",
     "System prompt for text chat mode": "文本聊天模式的系统提示词",
-    "Edit system prompt": "编辑模式系统提示词",
+    "Note edit system prompt": "笔记编辑模式系统提示词",
     "System prompt for edit mode": "编辑模式的角色和风格设置。JSON 输出格式已自动处理。",
     "Node system prompt": "节点模式系统提示词",
     "System prompt for node mode (leave empty to use default built-in prompt)": "节点模式的系统提示词（留空使用默认内置提示词）",

@@ -648,7 +648,7 @@ export class NotesSelectionHandler {
         try {
             // System Prompt - 根据是否开启全局一致性选择格式
             const systemPrompt = buildEditModeSystemPrompt(
-                this.plugin.settings.editSystemPrompt,
+                this.plugin.settings.noteEditSystemPrompt,
                 enableGlobal
             );
 

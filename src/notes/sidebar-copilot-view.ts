@@ -841,7 +841,7 @@ export class SideBarCoPilotView extends ItemView {
     try {
       const localApiManager = this.createLocalApiManager("text");
       const systemPrompt = buildEditModeSystemPrompt(
-        this.plugin.settings.editSystemPrompt
+        this.plugin.settings.noteEditSystemPrompt
       );
 
       // Construct Prompt
