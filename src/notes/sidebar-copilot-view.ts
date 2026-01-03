@@ -363,7 +363,7 @@ export class SideBarCoPilotView extends ItemView {
 
         // Initialize thinking options from settings
         this.thinkingEnabled = this.plugin.settings.chatThinkingEnabled ?? true;
-        this.thinkingLevel = this.plugin.settings.chatThinkingLevel || 'HIGH';
+        this.thinkingLevel = this.plugin.settings.chatThinkingLevel || 'LOW';
         
         if (this.editThinkingOptions) {
             this.editThinkingOptions.toggle.checked = this.thinkingEnabled;

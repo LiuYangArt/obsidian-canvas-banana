@@ -103,7 +103,7 @@ export class NotesSelectionHandler {
             settings.defaultResolution || '1K',
             settings.defaultAspectRatio || '1:1',
             settings.chatThinkingEnabled ?? true,
-            settings.chatThinkingLevel || 'HIGH'
+            settings.chatThinkingLevel || 'LOW'
         );
     }
 
@@ -678,7 +678,7 @@ export class NotesSelectionHandler {
             }
 
             // Get Thinking Config
-            const thinkingConfig = this.editPalette ? this.editPalette.getThinkingConfig() : { enabled: true, level: 'HIGH' };
+            const thinkingConfig = this.editPalette ? this.editPalette.getThinkingConfig() : { enabled: true, level: 'LOW' };
             // Ensure types match what apiManager expects
             const apiThinkingConfig = {
                 enabled: thinkingConfig.enabled,

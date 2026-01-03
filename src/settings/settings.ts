@@ -211,7 +211,7 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
 
     chatThinkingEnabled: true,
     chatThinkingBudget: '4K',
-    chatThinkingLevel: 'HIGH',
+    chatThinkingLevel: 'LOW',
 
     maxParallelImageTasks: 3,
 
