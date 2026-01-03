@@ -1261,6 +1261,21 @@ export class SideBarCoPilotView extends ItemView {
 
             // Re-use logic to render thinking and content in their respective containers
             void this.updateStreamingMessage(content, thinking);
+
+            // Finalize thinking state: remove streaming animation and collapse
+            const lastMsgEl = this.messagesContainer.lastElementChild;
+            if (lastMsgEl) {
+                const wrapperEl = lastMsgEl.closest('.sidebar-chat-message-wrapper');
+                const thinkingContainer = wrapperEl?.querySelector('.canvas-ai-thinking-container');
+                if (thinkingContainer) {
+                    thinkingContainer.classList.remove('is-streaming');
+                    thinkingContainer.classList.add('is-collapsed');
+                    
+                    // Update icon to chevron-right
+                    const iconEl = thinkingContainer.querySelector('.thinking-header-icon');
+                    if (iconEl) setIcon(iconEl as HTMLElement, 'chevron-right');
+                }
+            }
         }
     }
 
