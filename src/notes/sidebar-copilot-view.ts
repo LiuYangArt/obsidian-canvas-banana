@@ -538,10 +538,6 @@ export class SideBarCoPilotView extends ItemView {
    * This eliminates extra spacing caused by .markdown-preview-sizer and other containers
    */
   private flattenMarkdownDOM(containerEl: HTMLElement): void {
-    // Debug: Log the HTML before processing
-    console.debug("=== Before flattenMarkdownDOM ===");
-    console.debug(containerEl.innerHTML);
-    
     // 1. Remove .markdown-preview-sizer container
     const sizer = containerEl.querySelector(".markdown-preview-sizer");
     if (sizer) {
@@ -574,16 +570,26 @@ export class SideBarCoPilotView extends ItemView {
     const brs = containerEl.querySelectorAll("br");
     brs.forEach((br) => br.remove());
     
-    // 5. Remove whitespace-only text nodes between elements
-    // This is the KEY fix - removes newlines and spaces between tags
+    // 5. Remove whitespace-only text nodes between BLOCK elements
+    // This is the KEY fix - removes newlines and spaces between block tags
+    // But preserves text nodes inside inline elements to allow text selection
+    const blockElements = new Set([
+      'DIV', 'P', 'H1', 'H2', 'H3', 'H4', 'H5', 'H6',
+      'UL', 'OL', 'LI', 'BLOCKQUOTE', 'PRE'
+    ]);
+    
     const removeWhitespaceNodes = (node: Node) => {
       const childNodes = Array.from(node.childNodes);
       childNodes.forEach((child) => {
         if (child.nodeType === Node.TEXT_NODE) {
-          // If text node contains only whitespace (spaces, tabs, newlines)
-          const text = child.textContent || "";
-          if (text.trim() === "") {
-            child.remove();
+          // Only remove whitespace text nodes if parent is a block element
+          const parent = child.parentElement;
+          if (parent && blockElements.has(parent.tagName)) {
+            const text = child.textContent || "";
+            // Remove if it's ONLY whitespace (newlines, spaces, tabs)
+            if (text.trim() === "") {
+              child.remove();
+            }
           }
         } else if (child.nodeType === Node.ELEMENT_NODE) {
           // Recursively process child elements
@@ -593,11 +599,6 @@ export class SideBarCoPilotView extends ItemView {
     };
     
     removeWhitespaceNodes(containerEl);
-    
-    // Debug: Log the HTML after processing
-    console.debug("=== After flattenMarkdownDOM ===");
-    console.debug(containerEl.innerHTML);
-    console.debug("=================================");
   }
 
   private clearConversation(silent: boolean = false): void {

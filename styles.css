@@ -1080,6 +1080,11 @@
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+  /* Explicitly allow text selection */
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 /* Force override Obsidian's default markdown preview padding/margins */
@@ -1206,11 +1211,14 @@
   border: none;
   opacity: 0;
   transition: opacity 0.15s ease;
+  /* Container never blocks mouse events - allows text selection */
+  pointer-events: none;
 }
 
 .sidebar-chat-message-wrapper:hover .sidebar-message-actions {
   /* Only change opacity on hover, layout remains stable */
   opacity: 1;
+  /* Keep pointer-events: none on container */
 }
 
 /* Remove border-top completely as requested */
@@ -1226,6 +1234,8 @@
   justify-content: center;
   border-radius: 4px;
   color: var(--text-muted);
+  /* Re-enable pointer events ONLY on buttons */
+  pointer-events: auto;
 }
 
 .sidebar-message-actions .clickable-icon:hover {
