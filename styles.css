@@ -1175,3 +1175,108 @@
   background: var(--background-modifier-hover);
 }
 
+
+/* ========== Thinking Container Styles ========== */
+.canvas-ai-thinking-container {
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    background-color: var(--background-secondary);
+    margin-bottom: 12px;
+    overflow: hidden;
+    transition: all 0.2s ease;
+}
+
+.thinking-header {
+    display: flex;
+    align-items: center;
+    padding: 6px 10px;
+    cursor: pointer;
+    background-color: var(--background-secondary-alt);
+    font-size: 0.85em;
+    color: var(--text-muted);
+    border-bottom: 1px solid transparent;
+    transition: background-color 0.15s ease;
+    user-select: none;
+}
+
+.thinking-header:hover {
+    background-color: var(--background-modifier-hover);
+    color: var(--text-normal);
+}
+
+/* Add bottom border when expanded */
+.canvas-ai-thinking-container:not(.is-collapsed) .thinking-header {
+    border-bottom-color: var(--background-modifier-border);
+}
+
+.thinking-header-icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-right: 6px;
+    width: 16px;
+    height: 16px;
+    color: var(--text-muted);
+}
+
+.thinking-header-icon svg {
+    width: 14px;
+    height: 14px;
+}
+
+.thinking-header-text {
+    font-weight: 500;
+}
+
+.thinking-content-wrapper {
+    /* Using display:none for simpler toggle, animation can be added later if needed */
+    display: block;
+}
+
+.thinking-content {
+    padding: 8px 12px;
+    font-size: 0.9em;
+    line-height: 1.5;
+    color: var(--text-muted);
+    background-color: var(--background-primary);
+    
+    /* Fixed height and scrolling as requested */
+    max-height: 100px; /* Approx 4-5 lines */
+    overflow-y: auto;
+    
+    /* Ensure markdown elements don't add too much spacing */
+    white-space: pre-wrap;
+}
+
+/* Remove default margins from markdown rendered content to keep it compact */
+.thinking-content p {
+    margin-block-start: 0.5em;
+    margin-block-end: 0.5em;
+}
+
+.thinking-content > *:first-child {
+    margin-top: 0;
+}
+
+.thinking-content > *:last-child {
+    margin-bottom: 0;
+}
+
+/* Collapsed state */
+.canvas-ai-thinking-container.is-collapsed .thinking-content-wrapper {
+    display: none;
+}
+
+/* Streaming state */
+.canvas-ai-thinking-container.is-streaming .thinking-header-text::after {
+    content: "...";
+    animation: typing 1.5s infinite;
+}
+
+@keyframes typing {
+  0% { content: ""; }
+  33% { content: "."; }
+  66% { content: ".."; }
+  100% { content: "..."; }
+}
+

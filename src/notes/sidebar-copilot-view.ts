@@ -484,6 +484,28 @@ export class SideBarCoPilotView extends ItemView {
         // Wrapper for hover detection (contains both bubble and actions)
         const wrapperEl = this.messagesContainer.createDiv(`sidebar-chat-message-wrapper ${msg.role}`);
         
+        // Render Thinking Container if exists (collapsed by default for history)
+        if (msg.thinking) {
+            const thinkingContainer = wrapperEl.createDiv('canvas-ai-thinking-container is-collapsed');
+            
+            // Header
+            const header = thinkingContainer.createDiv('thinking-header');
+            const iconEl = header.createDiv('thinking-header-icon');
+            setIcon(iconEl, 'chevron-right'); 
+            header.createSpan({ text: 'Thinking Process', cls: 'thinking-header-text' });
+
+            // Toggle logic
+            header.addEventListener('click', () => {
+                const isCollapsed = thinkingContainer.classList.toggle('is-collapsed');
+                setIcon(iconEl, isCollapsed ? 'chevron-right' : 'chevron-down');
+            });
+
+            // Content
+            const contentWrapper = thinkingContainer.createDiv('thinking-content-wrapper');
+            const thinkingContent = contentWrapper.createDiv('thinking-content markdown-preview-view');
+            void MarkdownRenderer.render(this.app, msg.thinking, thinkingContent, this.currentDocPath || '', this);
+        }
+
         // Message bubble (content only)
         const msgEl = wrapperEl.createDiv(`sidebar-chat-message ${msg.role}`);
         const contentEl = msgEl.createDiv('sidebar-message-content markdown-preview-view');
@@ -944,14 +966,13 @@ export class SideBarCoPilotView extends ItemView {
                          // @ts-ignore
                         capturedSignature = chunk.thoughtSignature;
                     }
-                    // 显示时格式化 thinking 为 callout
-                    const formattedThinking = accumulatedThinking 
-                        ? this.formatThinkingAsCallout(accumulatedThinking) 
-                        : '';
-                    this.updateStreamingMessage(formattedThinking + accumulatedContent);
+                    
+                    // Update streaming message with separate thinking and content
+                    // Both will be rendered as markdown
+                    await this.updateStreamingMessage(accumulatedContent, accumulatedThinking);
                 }
                 
-                // Final render: store raw thinking separately, format for display
+                // Final render: ensure thinking is collapsed and everything is fully rendered
                 this.updateLastAssistantMessageWithThinking(accumulatedContent, accumulatedThinking, capturedSignature);
             }
 
@@ -970,22 +991,90 @@ export class SideBarCoPilotView extends ItemView {
             this.generateBtn.textContent = t('Generate');
             this.generateBtn.removeClass('generating');
             this.clearCapturedContext();
+            
+            // Mark thinking as collapsed after generation finished
+            const lastMsgEl = this.messagesContainer.lastElementChild;
+            if (lastMsgEl) {
+                const thinkingContainer = lastMsgEl.querySelector('.canvas-ai-thinking-container');
+                if (thinkingContainer) {
+                    thinkingContainer.removeClass('is-streaming');
+                    thinkingContainer.addClass('is-collapsed');
+                    
+                    // Update icon to collapsed state (right arrow)
+                    const iconEl = thinkingContainer.querySelector('.thinking-header-icon');
+                    if (iconEl) setIcon(iconEl as HTMLElement, 'chevron-right');
+                }
+            }
         }
     }
 
-    private updateStreamingMessage(content: string): void {
+    private async updateStreamingMessage(content: string, thinking?: string): Promise<void> {
         if (this.chatHistory.length === 0) return;
 
         const lastMsg = this.chatHistory[this.chatHistory.length - 1];
         if (lastMsg.role === 'assistant') {
             lastMsg.content = content;
+            if (thinking) lastMsg.thinking = thinking;
 
             const lastMsgEl = this.messagesContainer.lastElementChild;
             if (lastMsgEl) {
-                const contentEl = lastMsgEl.querySelector('.sidebar-message-content');
+                const wrapperEl = lastMsgEl.closest('.sidebar-chat-message-wrapper');
+                const msgEl = lastMsgEl.querySelector('.sidebar-chat-message') || lastMsgEl; // handle structure nuances
+                
+                // Handle Thinking Container
+                if (thinking) {
+                    let thinkingContainer = wrapperEl?.querySelector('.canvas-ai-thinking-container');
+                    
+                    if (!thinkingContainer && wrapperEl) {
+                        // Create structure if missing
+                        thinkingContainer = createDiv('canvas-ai-thinking-container is-streaming');
+                        
+                        // Insert BEFORE the message bubble
+                        if (msgEl) {
+                            wrapperEl.insertBefore(thinkingContainer, msgEl);
+                        } else {
+                            wrapperEl.prepend(thinkingContainer);
+                        }
+
+                        // Header
+                        const header = thinkingContainer.createDiv('thinking-header');
+                        const iconEl = header.createDiv('thinking-header-icon');
+                        setIcon(iconEl, 'chevron-down'); // Down arrow for expanded
+                        header.createSpan({ text: 'Thinking Process', cls: 'thinking-header-text' });
+                        
+                        // Toggle logic
+                        header.addEventListener('click', () => {
+                            const isCollapsed = thinkingContainer!.classList.toggle('is-collapsed');
+                            setIcon(iconEl, isCollapsed ? 'chevron-right' : 'chevron-down');
+                        });
+
+                        // Content Wrapper and Body
+                        const contentWrapper = thinkingContainer.createDiv('thinking-content-wrapper');
+                        contentWrapper.createDiv('thinking-content markdown-preview-view');
+                    }
+                    
+                    if (thinkingContainer) {
+                        const thinkingContentEl = thinkingContainer.querySelector('.thinking-content');
+                        if (thinkingContentEl) {
+                            // Render Thinking Markdown
+                            thinkingContentEl.empty();
+                            await MarkdownRenderer.render(this.app, thinking, thinkingContentEl as HTMLElement, this.currentDocPath || '', this);
+                            
+                            // Auto-scroll thinking container only if we are streaming
+                            if (thinkingContainer.classList.contains('is-streaming')) {
+                                thinkingContentEl.scrollTop = thinkingContentEl.scrollHeight;
+                            }
+                        }
+                    }
+                }
+
+                // Handle Main Content
+                const contentEl = msgEl.querySelector('.sidebar-message-content');
                 if (contentEl) {
-                    // Use textContent for streaming performance, final render uses MarkdownRenderer
-                    contentEl.textContent = content;
+                    contentEl.empty();
+                    await MarkdownRenderer.render(this.app, content, contentEl as HTMLElement, this.currentDocPath || '', this);
+                    
+                    // Auto-scroll main container
                     this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
                 }
             }
@@ -1097,29 +1186,9 @@ export class SideBarCoPilotView extends ItemView {
             lastMsg.thinking = thinking || undefined;
             lastMsg.thoughtSignature = signature || undefined;
 
-            const lastMsgEl = this.messagesContainer.lastElementChild;
-            if (lastMsgEl) {
-                const contentEl = lastMsgEl.querySelector('.sidebar-message-content');
-                if (contentEl instanceof HTMLElement) {
-                    contentEl.empty();
-                    // 显示时格式化 thinking 为 callout
-                    const formattedThinking = thinking ? this.formatThinkingAsCallout(thinking) : '';
-                    const displayText = formattedThinking + content;
-                    void MarkdownRenderer.render(this.app, displayText, contentEl, this.currentDocPath || '', this);
-                    this.messagesContainer.scrollTop = this.messagesContainer.scrollHeight;
-                }
-            }
+            // Re-use logic to render thinking and content in their respective containers
+            void this.updateStreamingMessage(content, thinking);
         }
-    }
-
-    /**
-     * 将原始 thinking 文本格式化为 Obsidian callout
-     */
-    private formatThinkingAsCallout(thinking: string): string {
-        if (!thinking) return '';
-        // 缩进每行以符合 callout 格式
-        const indented = thinking.replace(/\n/g, '\n> ');
-        return `> [!THINK|no-icon]- Thinking Process\n> ${indented}\n\n`;
     }
 
     private captureSelectionOnFocus(): void {
