@@ -183,5 +183,7 @@
     "Message copied": "消息已复制",
     "Message inserted": "消息已插入",
     "Message deleted": "消息已删除",
-    "AI is thinking...": "AI 正在思考..."
+    "AI is thinking...": "AI 正在思考...",
+    "Thinking": "思考",
+    "Budget": "预算"
 }

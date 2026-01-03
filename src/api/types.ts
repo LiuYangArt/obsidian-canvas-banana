@@ -122,6 +122,9 @@ export interface GeminiRequest {
             aspectRatio?: string;
             imageSize?: string;
         };
+        thinkingConfig?: {
+            thinkingBudget?: number;
+        };
     };
     systemInstruction?: {
         parts: GeminiPart[];

@@ -399,7 +399,12 @@ export class AntigravityToolsProvider {
     /**
      * Chat completion with streaming
      */
-    async *streamChatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): AsyncGenerator<string, void, unknown> {
+    async *streamChatCompletion(
+        prompt: string,
+        systemPrompt?: string,
+        temperature: number = 0.5,
+        thinkingConfig?: { enabled: boolean; budgetTokens?: number }
+    ): AsyncGenerator<{ content?: string; thinking?: string }, void, unknown> {
         const model = this.getTextModel();
         // Replace :generateContent with :streamGenerateContent and add alt=sse
         let endpoint = this.getGeminiEndpoint(model);
@@ -414,11 +419,21 @@ export class AntigravityToolsProvider {
             generationConfig: { temperature: temperature }
         };
 
+        // Add thinking config if enabled
+        if (thinkingConfig?.enabled) {
+            requestBody.generationConfig!.thinkingConfig = {
+                thinkingBudget: thinkingConfig.budgetTokens || 8192
+            };
+            console.debug('Canvas AI: [AntigravityTools] Thinking enabled with budget:', thinkingConfig.budgetTokens);
+        }
+
         if (systemPrompt) {
             requestBody.systemInstruction = { parts: [{ text: systemPrompt }] };
         }
 
         console.debug('Canvas AI: [AntigravityTools] Sending stream chat request...');
+
+        let hasEmittedThinkingHeader = false;
 
         try {
             // eslint-disable-next-line no-restricted-globals -- Fetch is required for streaming as requestUrl does not support it
@@ -461,12 +476,24 @@ export class AntigravityToolsProvider {
                             const data = JSON.parse(dataStr) as GeminiResponse;
                             
                             if (data.candidates && data.candidates.length > 0) {
-                                // AntigravityTools (Gemini) returns text in parts
                                 const parts = data.candidates[0].content?.parts;
                                 if (parts) {
                                     for (const part of parts) {
+                                        // Debug: 输出完整 part
+                                        console.debug('Canvas AI: [AntigravityTools] Stream part:', JSON.stringify(part));
                                         if (part.text) {
-                                            yield part.text;
+                                            // Gemini 的 thought 标记
+                                            if (part.thought) {
+                                                let thinkingText = '';
+                                                if (!hasEmittedThinkingHeader) {
+                                                    thinkingText = '> [!THINK|no-icon]- Thinking Process\n> ';
+                                                    hasEmittedThinkingHeader = true;
+                                                }
+                                                thinkingText += part.text.replace(/\n/g, '\n> ');
+                                                yield { thinking: thinkingText };
+                                            } else {
+                                                yield { content: part.text };
+                                            }
                                         }
                                     }
                                 }
@@ -483,3 +510,4 @@ export class AntigravityToolsProvider {
         }
     }
 }
+
