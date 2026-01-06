@@ -742,14 +742,15 @@ ${intent.instruction}
                     if (chunk.thinking) {
                         fullThinking += chunk.thinking;
                         const thinkingDisplay = `> [!THINKING] Thinking...\n> ${fullThinking.replace(/\n/g, '\n> ')}`;
-                        this.ghostNodeManager!.updateGhostNode(ghostNode, thinkingDisplay, false);
+                        this.ghostNodeManager!.updateGhostNode(ghostNode, thinkingDisplay, false, true);
                     }
 
                     if (chunk.content) {
                         fullResponse += chunk.content;
                         // For node mode, we show "Generating structure..." if we aren't displaying thinking
+                        // keepTracking=true to prevent ghost node from being removed from tracking during streaming
                         if (!fullThinking) {
-                             this.ghostNodeManager!.updateGhostNode(ghostNode, `Generating structure...`, false);
+                             this.ghostNodeManager!.updateGhostNode(ghostNode, `Generating structure...`, false, true);
                         }
                     }
                 }
