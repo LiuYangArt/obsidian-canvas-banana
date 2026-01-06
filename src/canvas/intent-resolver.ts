@@ -81,7 +81,7 @@ export class IntentResolver {
         canvas: Canvas,
         selection: Set<CanvasNode>,
         userInput: string,
-        mode: 'chat' | 'image' | 'node',
+        mode: 'text' | 'image' | 'node',
         settings: CanvasAISettings
     ): Promise<ResolvedIntent> {
         const warnings: string[] = [];
@@ -200,7 +200,7 @@ export class IntentResolver {
         selection: Set<CanvasNode>,
         compressionQuality: number,
         maxSize: number,
-        mode: 'chat' | 'image' | 'node'
+        mode: 'text' | 'image' | 'node'
     ): Promise<PreprocessResult> {
         const warnings: string[] = [];
         const skippedFiles: string[] = [];
@@ -220,14 +220,14 @@ export class IntentResolver {
                     // 图片文件：所有模式都包含
                     effectiveNodes.push(node);
                 } else if (node.isPdf) {
-                    // PDF 文件：Chat/Node 模式包含，Image 模式跳过
+                    // PDF 文件：Text/Node 模式包含，Image 模式跳过
                     if (mode === 'image') {
                         skippedFiles.push(node.filePath);
                     } else {
                         effectiveNodes.push(node);
                     }
                 } else if (ext === 'md') {
-                    // .md 文件：Chat/Node 模式包含，Image 模式跳过
+                    // .md 文件：Text/Node 模式包含，Image 模式跳过
                     if (mode === 'image') {
                         skippedFiles.push(node.filePath);
                     } else {
@@ -240,7 +240,7 @@ export class IntentResolver {
                     effectiveNodes.push(node);
                 }
             } else if (node.type === 'link') {
-                // Link 节点：Chat/Node 模式包含，Image 模式跳过
+                // Link 节点：Text/Node 模式包含，Image 模式跳过
                 if (mode === 'image') {
                     skippedFiles.push(`[Link] ${node.content}`);
                 } else {
@@ -372,7 +372,7 @@ export class IntentResolver {
         userInput: string,
         nodes: ConvertedNode[],
         usedAsLabelIds: Set<string>,
-        mode: 'chat' | 'image' | 'node'
+        mode: 'text' | 'image' | 'node'
     ): { instruction: string; usedAsInstructionIds: Set<string> } {
         const usedAsInstructionIds = new Set<string>();
 
@@ -395,7 +395,7 @@ export class IntentResolver {
         }
 
         // Priority C: Default preset based on mode
-        if (mode === 'chat') {
+        if (mode === 'text') {
             return { instruction: 'Summarize the selected content.', usedAsInstructionIds };
         } else if (mode === 'image') {
             return { instruction: 'Generate an image based on these references.', usedAsInstructionIds };
@@ -406,7 +406,7 @@ export class IntentResolver {
     }
 
     /**
-     * 构建上下文文本（用于 Chat 模式的 system prompt）
+     * 构建上下文文本（用于 Text 模式的 system prompt）
      */
     static buildContextText(nodes: ConvertedNode[], usedAsLabelIds: Set<string>): string {
         const parts: string[] = [];

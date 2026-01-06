@@ -1,5 +1,6 @@
 import { ItemView, Notice, Plugin, setIcon, setTooltip, TFile, WorkspaceLeaf, Menu, MenuItem } from 'obsidian';
 import type { Canvas, CanvasNode, CanvasCoords, CanvasView, SelectionContext } from './src/types';
+import type { GeminiContent, GeminiPart } from './src/api/types';
 import { CanvasConverter } from './src/canvas/canvas-converter';
 import { ApiManager } from './src/api/api-manager';
 import { IntentResolver, ResolvedIntent, NodeEditIntent } from './src/canvas/intent-resolver';
@@ -86,6 +87,17 @@ export default class CanvasAIPlugin extends Plugin {
             }
             // @ts-ignore
             this.settings.chatSystemPrompt = undefined;
+        }
+
+        // Migration: Initialize notesChatSystemPrompt from textSystemPrompt for existing users
+        if (!this.settings.notesChatSystemPrompt) {
+            // If user has customized textSystemPrompt, use it for notesChatSystemPrompt too
+            if (this.settings.textSystemPrompt && this.settings.textSystemPrompt !== DEFAULT_SETTINGS.textSystemPrompt) {
+                this.settings.notesChatSystemPrompt = this.settings.textSystemPrompt;
+            } else {
+                // Use new default for Notes Chat
+                this.settings.notesChatSystemPrompt = DEFAULT_SETTINGS.notesChatSystemPrompt;
+            }
         }
 
         await this.saveSettings();
@@ -187,7 +199,7 @@ export default class CanvasAIPlugin extends Plugin {
 
         // Set up preset change callback for persisting presets
         this.floatingPalette.setOnPresetChange((presets, mode) => {
-            if (mode === 'chat') {
+            if (mode === 'text') {
                 this.settings.chatPresets = presets;
             } else if (mode === 'image') {
                 this.settings.imagePresets = presets;
@@ -227,9 +239,15 @@ export default class CanvasAIPlugin extends Plugin {
             this.settings.paletteEditModel || ''
         );
 
+        // Initialize thinking options
+        this.floatingPalette.initThinkingOptions(
+            this.settings.chatThinkingEnabled ?? true,
+            this.settings.chatThinkingLevel || 'LOW'
+        );
+
         // Set up model change callback for persisting selected models
         this.floatingPalette.setOnModelChange((mode, modelKey) => {
-            if (mode === 'chat') {
+            if (mode === 'text') {
                 this.settings.paletteTextModel = modelKey;
             } else if (mode === 'image') {
                 this.settings.paletteImageModel = modelKey;
@@ -238,6 +256,13 @@ export default class CanvasAIPlugin extends Plugin {
             } else {
                 this.settings.paletteEditModel = modelKey;
             }
+            void this.saveSettings();
+        });
+
+        // Set up thinking change callback for persisting thinking options
+        this.floatingPalette.setOnThinkingChange((enabled, level) => {
+            this.settings.chatThinkingEnabled = enabled;
+            this.settings.chatThinkingLevel = level as 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH';
             void this.saveSettings();
         });
 
@@ -345,15 +370,15 @@ export default class CanvasAIPlugin extends Plugin {
             try {
                 const editOptions = this.floatingPalette!.getEditOptions();
                 
-                // System Prompt for Editing - 固定格式指令 + 用户配置
-                const systemPrompt = buildEditModeSystemPrompt(this.settings.editSystemPrompt);
+                // System Prompt for Editing
+                const systemPrompt = buildEditModeSystemPrompt(this.settings.textSystemPrompt);
                 
                 // Construct User Message with Context
-                let userMsg = `Target Text:\n${editIntent.targetText}`;
+                let userMsgString = `Target Text:\n${editIntent.targetText}`;
                 if (editIntent.upstreamContext) {
-                    userMsg += `\n\nContext:\n${editIntent.upstreamContext}`;
+                    userMsgString += `\n\nContext:\n${editIntent.upstreamContext}`;
                 }
-                userMsg += `\n\nInstruction:\n${editIntent.instruction}`;
+                userMsgString += `\n\nInstruction:\n${editIntent.instruction}`;
 
                 // Handle Upstream Images
                 const mediaList = editIntent.images.map(img => ({
@@ -362,21 +387,51 @@ export default class CanvasAIPlugin extends Plugin {
                     type: 'image' as const
                 }));
 
-                let response: string;
+                // Prepare Prompt for Streaming
+                let finalPrompt: string | GeminiContent[];
                 if (mediaList.length > 0) {
-                    response = await localApiManager.multimodalChat(
-                        userMsg,
-                        mediaList,
-                        systemPrompt,
-                        editOptions.temperature
-                    );
+                     const parts: GeminiPart[] = [];
+                     parts.push({ text: userMsgString });
+                     mediaList.forEach(img => {
+                         parts.push({ inlineData: { mimeType: img.mimeType, data: img.base64 } });
+                     });
+                     finalPrompt = [{ role: 'user', parts }];
                 } else {
-                    response = await localApiManager.chatCompletion(
-                        userMsg,
-                        systemPrompt,
-                        editOptions.temperature
-                    );
+                    finalPrompt = userMsgString;
                 }
+
+                // Thinking Config
+                const thinkingConfig = editOptions.thinking;
+
+                let fullResponse = '';
+                let fullThinking = '';
+
+                // Stream Request
+                const stream = localApiManager.streamChatCompletion(finalPrompt, systemPrompt, editOptions.temperature, thinkingConfig);
+
+                console.debug('Canvas Banana: Streaming edit generation...');
+
+                for await (const chunk of stream) {
+                    if (chunk.thinking) {
+                        fullThinking += chunk.thinking;
+                        // Update Ghost Node with Thinking
+                        // We use a blockquote for thinking to distinguish it
+                        const thinkingDisplay = `> [!THINKING] Processing...\n> ${fullThinking.replace(/\n/g, '\n> ')}`;
+                        this.ghostNodeManager!.updateGhostNode(ghostNode, thinkingDisplay, false);
+                    }
+
+                    if (chunk.content) {
+                        fullResponse += chunk.content;
+                        // Only show content if we are not thinking (or thinking is minimal)
+                        // For edit mode, we probably want to keep showing "Processing..." until done because the output is JSON
+                        if (!fullThinking) {
+                             this.ghostNodeManager!.updateGhostNode(ghostNode, `Processing...`, false);
+                        }
+                    }
+                }
+
+                // Final Parse
+                const response = fullResponse;
 
                 // Parse JSON response
                 let replacementText = response;
@@ -395,8 +450,7 @@ export default class CanvasAIPlugin extends Plugin {
                 // Prepare Diff
                 const originalNode = canvas.nodes.get(context.nodeId);
                 
-                // Robust check: Ensure node exists and has text property or setText ability
-                // We relaxed the check here to ensure UI always appears
+                // Robust check
                 if (originalNode) {
                     const proposedFullText = context.preText + replacementText + context.postText;
 
@@ -404,9 +458,7 @@ export default class CanvasAIPlugin extends Plugin {
                         console.debug('Canvas Banana Debug: HandleGeneration Apply', {
                             context,
                             replacementText,
-                            proposedFullText,
-                            preTextLen: context.preText.length,
-                            postTextLen: context.postText.length
+                            proposedFullText
                         });
                     }
 
@@ -425,13 +477,9 @@ export default class CanvasAIPlugin extends Plugin {
                         async () => {
                             // On Confirm
                             if (context.fileNode) {
-                                // File Node: write directly to the .md file
                                 try {
                                     await this.app.vault.modify(context.fileNode, proposedFullText);
                                     new Notice(t('File updated'));
-                                    if (this.settings.debugMode) {
-                                        console.debug('Canvas Banana Debug: File Node updated:', context.fileNode.path);
-                                    }
                                 } catch (e) {
                                     console.error('Canvas Banana: Failed to write File Node:', e);
                                     new Notice(t('Failed to update file'));
@@ -441,10 +489,9 @@ export default class CanvasAIPlugin extends Plugin {
                                 canvas.requestSave();
                                 new Notice(t('Text updated'));
                             } else {
-                                // Fallback: Direct property assignment
+                                // Fallback
                                 // @ts-ignore
                                 originalNode.text = proposedFullText;
-                                // Try generic setData if available
                                 // @ts-ignore
                                 if (originalNode.setData) {
                                     // @ts-ignore
@@ -460,7 +507,6 @@ export default class CanvasAIPlugin extends Plugin {
                     ).open();
 
                 } else {
-                    // Fallback if node not found (should rarely happen as we just retrieved it)
                     this.ghostNodeManager!.updateGhostNode(ghostNode, replacementText, false);
                     console.warn('Canvas Banana: Original node not found for update, result left in Ghost Node');
                 }
@@ -513,18 +559,18 @@ export default class CanvasAIPlugin extends Plugin {
         try {
             let response: string;
 
-            if (mode === 'chat') {
-                // Chat Mode - use context and instruction
+            if (mode === 'text') {
+                // Text Mode (formerly Chat Mode) - use context and instruction
                 let systemPrompt = this.settings.textSystemPrompt || 'You are a helpful AI assistant embedded in an Obsidian Canvas. Answer concisely and use Markdown formatting.';
 
                 if (intent.contextText) {
                     systemPrompt += `\n\n---\nThe user has selected the following content from their canvas:\n\n${intent.contextText}\n\n---\nBased on this context, respond to the user's request.`;
                 }
 
-                // Get chat options from palette
-                const chatOptions = this.floatingPalette!.getChatOptions();
+                // Get text options from palette
+                const textOptions = this.floatingPalette!.getTextOptions();
 
-                console.debug('Canvas Banana: Sending chat request with context');
+                console.debug('Canvas Banana: Sending text request with context');
 
                 // Build media list for multimodal request (images + PDFs)
                 const mediaList: { base64: string, mimeType: string, type: 'image' | 'pdf' }[] = [];
@@ -549,17 +595,52 @@ export default class CanvasAIPlugin extends Plugin {
                     }
                 }
 
+                let finalPrompt: string | GeminiContent[];
                 if (mediaList.length > 0) {
-                    response = await localApiManager.multimodalChat(
-                        intent.instruction,
-                        mediaList,
-                        systemPrompt,
-                        chatOptions.temperature
-                    );
+                     const parts: GeminiPart[] = [];
+                     parts.push({ text: intent.instruction });
+                     mediaList.forEach(m => {
+                         if (m.type === 'image') {
+                             parts.push({ inlineData: { mimeType: m.mimeType, data: m.base64 } });
+                         } else {
+                             // PDF support if needed
+                             parts.push({ inlineData: { mimeType: m.mimeType, data: m.base64 } });
+                         }
+                     });
+                     finalPrompt = [{ role: 'user', parts }];
                 } else {
-                    response = await localApiManager.chatCompletion(intent.instruction, systemPrompt, chatOptions.temperature);
+                    finalPrompt = intent.instruction;
                 }
-                console.debug('Canvas Banana: API Response received');
+
+                // Stream Request
+                const stream = localApiManager.streamChatCompletion(finalPrompt, systemPrompt, textOptions.temperature, textOptions.thinking);
+
+                console.debug('Canvas Banana: Streaming text generation...');
+
+                let fullResponse = '';
+                let fullThinking = '';
+
+                for await (const chunk of stream) {
+                    if (chunk.thinking) {
+                        fullThinking += chunk.thinking;
+                        const thinkingDisplay = `> [!THINKING] Thinking...\n> ${fullThinking.replace(/\n/g, '\n> ')}`;
+                        this.ghostNodeManager!.updateGhostNode(ghostNode, thinkingDisplay, false);
+                    }
+
+                    if (chunk.content) {
+                        fullResponse += chunk.content;
+                        // Show content if we have it, otherwise show thinking
+                        if (fullResponse) {
+                            // If we have both, we can show them combined or just the response
+                            // For Canvas, showing the response as it streams is better
+                            this.ghostNodeManager!.updateGhostNode(ghostNode, fullResponse, false);
+                        }
+                    }
+                }
+                
+                response = fullResponse;
+                console.debug('Canvas Banana: API Response completed');
+                // Ghost Node is already updated via streaming loop, but doing a final update just in case
                 this.ghostNodeManager!.updateGhostNode(ghostNode, response, false);
 
             } else if (mode === 'image') {
@@ -635,21 +716,46 @@ ${intent.instruction}
                     }
                 }
 
+                // Build final prompt
+                let finalPrompt: string | GeminiContent[];
                 if (mediaList.length > 0) {
                     console.debug('Canvas Banana: Sending node request with', mediaList.length, 'media items');
-                    response = await localApiManager.multimodalChat(
-                        fullInstruction,
-                        mediaList,
-                        nodeSystemPrompt,
-                        nodeOptions.temperature
-                    );
+                    const parts: GeminiPart[] = [];
+                    parts.push({ text: fullInstruction });
+                    mediaList.forEach(m => {
+                        parts.push({ inlineData: { mimeType: m.mimeType, data: m.base64 } });
+                    });
+                    finalPrompt = [{ role: 'user', parts }];
                 } else {
-                    response = await localApiManager.chatCompletion(
-                        fullInstruction,
-                        nodeSystemPrompt,
-                        nodeOptions.temperature
-                    );
+                    finalPrompt = fullInstruction;
                 }
+
+                // Stream Request
+                const stream = localApiManager.streamChatCompletion(finalPrompt, nodeSystemPrompt, nodeOptions.temperature, nodeOptions.thinking);
+
+                console.debug('Canvas Banana: Streaming node generation...');
+
+                let fullResponse = '';
+                let fullThinking = '';
+
+                for await (const chunk of stream) {
+                    if (chunk.thinking) {
+                        fullThinking += chunk.thinking;
+                        const thinkingDisplay = `> [!THINKING] Thinking...\n> ${fullThinking.replace(/\n/g, '\n> ')}`;
+                        this.ghostNodeManager!.updateGhostNode(ghostNode, thinkingDisplay, false, true);
+                    }
+
+                    if (chunk.content) {
+                        fullResponse += chunk.content;
+                        // For node mode, we show "Generating structure..." if we aren't displaying thinking
+                        // keepTracking=true to prevent ghost node from being removed from tracking during streaming
+                        if (!fullThinking) {
+                             this.ghostNodeManager!.updateGhostNode(ghostNode, `Generating structure...`, false, true);
+                        }
+                    }
+                }
+                
+                response = fullResponse;
 
                 console.debug('Canvas Banana: Node structure response received');
                 if (this.settings.debugMode) {
@@ -1572,7 +1678,9 @@ ${intent.instruction}
             this.settings.paletteTextModel || '',
             this.settings.paletteImageModel || '',
             this.settings.paletteNodeModel || '',
-            this.settings.paletteEditModel || ''
+            this.settings.paletteEditModel || '',
+            this.settings.chatThinkingEnabled ?? true,
+            this.settings.chatThinkingLevel || 'LOW'
         );
 
         // 刷新 Notes Handler

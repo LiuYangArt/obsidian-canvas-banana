@@ -5,7 +5,7 @@
 
 import { requestUrl, RequestUrlParam } from 'obsidian';
 import type { CanvasAISettings } from '../../settings/settings';
-import type { GeminiRequest, GeminiResponse, GeminiPart } from '../types';
+import type { GeminiRequest, GeminiResponse, GeminiPart, GeminiContent } from '../types';
 import { isHttpError, getErrorMessage, requestUrlWithTimeout } from '../utils';
 
 
@@ -106,15 +106,30 @@ export class AntigravityToolsProvider {
     /**
      * Chat completion - 使用 Gemini 原生格式
      */
-    async chatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): Promise<string> {
+    /**
+     * Chat completion - 使用 Gemini 原生格式
+     * Now supports optional history for multi-turn chat with thought signatures
+     */
+    async chatCompletion(
+        prompt: string | GeminiContent[],
+        systemPrompt?: string,
+        temperature: number = 1.0
+    ): Promise<string> {
         const model = this.getTextModel();
         const endpoint = this.getGeminiEndpoint(model);
 
-        const parts: Array<{ text: string }> = [];
-        parts.push({ text: prompt });
+        let contents: GeminiContent[] = [];
+
+        if (typeof prompt === 'string') {
+            // Legacy/Single turn mode
+            contents = [{ role: 'user', parts: [{ text: prompt }] }];
+        } else {
+            // Native history mode
+            contents = prompt;
+        }
 
         const requestBody: GeminiRequest = {
-            contents: [{ role: 'user', parts: parts }],
+            contents: contents,
             generationConfig: { temperature: temperature }
         };
 
@@ -283,14 +298,15 @@ export class AntigravityToolsProvider {
     }
 
     /**
-     * Multimodal chat - 使用 Gemini 原生格式
+     * Multimodal chat - 使用 Gemini 原生格式，返回 content 和 thinking
      */
     async multimodalChat(
         prompt: string,
         mediaList: { base64: string, mimeType: string, type: 'image' | 'pdf' }[],
         systemPrompt?: string,
-        temperature: number = 0.5
-    ): Promise<string> {
+        temperature: number = 1.0,
+        thinkingConfig?: { enabled: boolean; budgetTokens?: number; level?: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH' }
+    ): Promise<{ content: string; thinking?: string }> {
         const model = this.getTextModel();
         const endpoint = this.getGeminiEndpoint(model);
 
@@ -310,6 +326,25 @@ export class AntigravityToolsProvider {
             generationConfig: { temperature: temperature }
         };
 
+        if (thinkingConfig?.enabled) {
+            const genConfig = requestBody.generationConfig!;
+            genConfig.thinkingConfig = {
+                includeThoughts: true
+            };
+            if (thinkingConfig.level) {
+                genConfig.thinkingConfig.thinkingLevel = thinkingConfig.level;
+            } else {
+                genConfig.thinkingConfig.thinkingBudget = thinkingConfig.budgetTokens || 8192;
+            }
+            console.debug('Canvas AI: [AntigravityTools] Multimodal Thinking enabled:', JSON.stringify(genConfig.thinkingConfig));
+        }
+
+        if (systemPrompt) {
+            requestBody.systemInstruction = { parts: [{ text: systemPrompt }] };
+        }
+
+        console.debug('Canvas AI: [AntigravityTools] Sending multimodal chat request...', JSON.stringify(requestBody));
+
         if (systemPrompt) {
             requestBody.systemInstruction = { parts: [{ text: systemPrompt }] };
         }
@@ -326,13 +361,17 @@ export class AntigravityToolsProvider {
         try {
             const response = await requestUrl(requestParams);
             const data = response.json as GeminiResponse;
-            return this.extractTextFromResponse(data);
+            console.debug('Canvas AI: [AntigravityTools] Raw Response:', JSON.stringify(data));
+            return this.extractTextAndThinkingFromResponse(data);
         } catch (error: unknown) {
             this.handleError(error);
         }
     }
 
-    private extractTextFromResponse(data: GeminiResponse): string {
+    /**
+     * Extract text and thinking from response
+     */
+    private extractTextAndThinkingFromResponse(data: GeminiResponse): { content: string; thinking?: string; thoughtSignature?: string } {
         const candidates = data.candidates;
         if (!candidates || candidates.length === 0) {
             throw new Error('AntigravityTools returned no candidates');
@@ -343,8 +382,10 @@ export class AntigravityToolsProvider {
             throw new Error('AntigravityTools returned no parts in response');
         }
 
-        // 过滤思考部分
+        // Separate thinking and output parts
+        const thinkingParts = parts.filter((p: GeminiPart) => p.text && p.thought);
         const outputParts = parts.filter((p: GeminiPart) => p.text && !p.thought);
+        
         const textPart = outputParts.length > 0
             ? outputParts[outputParts.length - 1]
             : parts.find((p: GeminiPart) => p.text);
@@ -353,8 +394,26 @@ export class AntigravityToolsProvider {
             throw new Error('AntigravityTools returned no text in response');
         }
 
-        console.debug('Canvas AI: [AntigravityTools] Received response (filtered thinking)');
-        return textPart.text;
+        const thinking = thinkingParts.map(p => p.text).join('');
+        // Extract thought signatures
+        // According to docs, we might get signatures on thinking parts or text parts
+        const thoughtSignature = parts.find(p => p.thoughtSignature)?.thoughtSignature;
+
+        console.debug(`Canvas AI: [AntigravityTools] Received response (thinking: ${thinking.length > 0 ? 'yes' : 'no'}, signature: ${thoughtSignature ? 'yes' : 'no'})`);
+        
+        return {
+            content: textPart.text,
+            thinking: thinking || undefined,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Casting any to ensure type compatibility during refactor
+            thoughtSignature: thoughtSignature as any 
+        };
+    }
+
+    /**
+     * Legacy wrapper - extract text only
+     */
+    private extractTextFromResponse(data: GeminiResponse): string {
+        return this.extractTextAndThinkingFromResponse(data).content;
     }
 
     private async fetchImageAsDataUrl(url: string): Promise<string> {
@@ -395,4 +454,128 @@ export class AntigravityToolsProvider {
         }
         throw error;
     }
+
+    /**
+     * Chat completion with streaming
+     */
+    async *streamChatCompletion(
+        prompt: string | GeminiContent[],
+        systemPrompt?: string,
+        temperature: number = 1.0,
+        thinkingConfig?: { enabled: boolean; budgetTokens?: number; level?: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH' }
+    ): AsyncGenerator<{ content?: string; thinking?: string; thoughtSignature?: string }, void, unknown> {
+        const model = this.getTextModel();
+        // Replace :generateContent with :streamGenerateContent and add alt=sse
+        let endpoint = this.getGeminiEndpoint(model);
+        endpoint = endpoint.replace(':generateContent', ':streamGenerateContent');
+        endpoint += '&alt=sse';
+
+        let contents: GeminiContent[] = [];
+
+        if (typeof prompt === 'string') {
+            contents = [{ role: 'user', parts: [{ text: prompt }] }];
+        } else {
+            contents = prompt;
+        }
+
+        const requestBody: GeminiRequest = {
+            contents: contents,
+            generationConfig: { temperature: temperature }
+        };
+
+        // Add thinking config if enabled
+        if (thinkingConfig?.enabled) {
+            const genConfig = requestBody.generationConfig!;
+            genConfig.thinkingConfig = {
+                includeThoughts: true
+            };
+            if (thinkingConfig.level) {
+                genConfig.thinkingConfig.thinkingLevel = thinkingConfig.level;
+            } else {
+                genConfig.thinkingConfig.thinkingBudget = thinkingConfig.budgetTokens || 8192;
+            }
+            console.debug('Canvas AI: [AntigravityTools] Thinking enabled:', JSON.stringify(genConfig.thinkingConfig));
+        }
+
+        if (systemPrompt) {
+            requestBody.systemInstruction = { parts: [{ text: systemPrompt }] };
+        }
+
+        console.debug('Canvas AI: [AntigravityTools] Sending stream chat request...');
+
+        try {
+            // eslint-disable-next-line no-restricted-globals -- Fetch is required for streaming as requestUrl does not support it
+            const response = await fetch(endpoint, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`AntigravityTools API Error: ${response.status} ${errorText}`);
+            }
+
+            if (!response.body) {
+                throw new Error('Response body is null');
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let buffer = '';
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+                const lines = buffer.split('\n');
+                
+                buffer = lines.pop() || ''; 
+
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed) continue;
+                    
+                    if (trimmed.startsWith('data: ')) {
+                        try {
+                            const dataStr = trimmed.slice(6);
+                            const data = JSON.parse(dataStr) as GeminiResponse;
+                            
+                            if (data.candidates && data.candidates.length > 0) {
+                                const parts = data.candidates[0].content?.parts;
+                                if (parts) {
+                                    for (const part of parts) {
+                                        // Debug: 输出完整 part
+                                        console.debug('Canvas AI: [AntigravityTools] Stream part:', JSON.stringify(part));
+                                        if (part.text) {
+                                            // Gemini 的 thought 标记
+                                            if (part.thought) {
+                                                // yield 原始 thinking 文本
+                                                yield { thinking: part.text };
+                                            } else {
+                                                yield { content: part.text };
+                                            }
+                                        }
+                                        
+                                        // Capture thought signature
+                                        if (part.thoughtSignature) {
+                                            yield { thoughtSignature: part.thoughtSignature };
+                                        }
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Error parsing stream chunk:', e);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Canvas AI: AntigravityTools Stream Error', error);
+            throw error;
+        }
+    }
 }
+

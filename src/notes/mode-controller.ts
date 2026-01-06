@@ -6,15 +6,15 @@
 import { Notice } from 'obsidian';
 import { t } from '../../lang/helpers';
 
-export type PaletteMode = 'edit' | 'image' | 'chat';
+export type PaletteMode = 'edit' | 'image' | 'text';
 
 export interface ModeUIElements {
     editTabBtn: HTMLButtonElement | null;
     imageTabBtn: HTMLButtonElement | null;
-    chatTabBtn: HTMLButtonElement | null;
+    textTabBtn: HTMLButtonElement | null;
     editOptionsEl: HTMLElement | null;
     imageOptionsEl: HTMLElement | null;
-    chatOptionsEl: HTMLElement | null;
+    textOptionsEl: HTMLElement | null;
     promptInput: HTMLTextAreaElement | null;
 }
 
@@ -69,20 +69,20 @@ export class ModeController {
             return false;
         }
 
-        // Chat 模式永不阻塞
+        // Text 模式永不阻塞
 
         if (this.currentMode === mode) return false;
         this.currentMode = mode;
 
         // 更新 Tab 状态
-        const { editTabBtn, imageTabBtn, chatTabBtn, editOptionsEl, imageOptionsEl, chatOptionsEl, promptInput } = this.elements;
+        const { editTabBtn, imageTabBtn, textTabBtn, editOptionsEl, imageOptionsEl, textOptionsEl, promptInput } = this.elements;
 
         if (editTabBtn && imageTabBtn) {
             editTabBtn.toggleClass('active', mode === 'edit');
             imageTabBtn.toggleClass('active', mode === 'image');
         }
-        if (chatTabBtn) {
-            chatTabBtn.toggleClass('active', mode === 'chat');
+        if (textTabBtn) {
+            textTabBtn.toggleClass('active', mode === 'text');
         }
 
         // 更新 options 显示
@@ -90,8 +90,8 @@ export class ModeController {
             editOptionsEl.toggleClass('is-hidden', mode !== 'edit');
             imageOptionsEl.toggleClass('is-hidden', mode !== 'image');
         }
-        if (chatOptionsEl) {
-            chatOptionsEl.toggleClass('is-hidden', mode !== 'chat');
+        if (textOptionsEl) {
+            textOptionsEl.toggleClass('is-hidden', mode !== 'text');
         }
 
         // 更新 placeholder

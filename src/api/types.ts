@@ -106,6 +106,7 @@ export interface GeminiPart {
         mime_type: string;
     };
     thought?: boolean;
+    thoughtSignature?: string;
 }
 
 export interface GeminiContent {
@@ -121,6 +122,11 @@ export interface GeminiRequest {
         imageConfig?: {
             aspectRatio?: string;
             imageSize?: string;
+        };
+        thinkingConfig?: {
+            includeThoughts?: boolean;
+            thinkingBudget?: number;
+            thinkingLevel?: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH';
         };
     };
     systemInstruction?: {

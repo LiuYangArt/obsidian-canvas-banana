@@ -10,13 +10,14 @@
 | `providers/gemini.ts` | Gemini 原生 API | 图片生成、多模态 |
 | `providers/openrouter.ts` | OpenRouter 代理 | 兼容 OpenAI 格式 |
 | `providers/gptgod.ts` | GPTGod 代理 | 兼容 OpenAI 格式 |
-| `providers/antigravitytools.ts` | AntigravityTools | Gemini 文字 / OpenAI 兼容图片 |
+| `providers/antigravitytools.ts` | AntigravityTools | Gemini 文字 / OpenAI 兼容图片 / Thought Signatures |
+| `types.ts` | 类型定义 | `GeminiContent`, `GeminiPart` (含 thoughtSignature) |
 
 ## Canvas 功能 (`src/canvas/`)
 
 | 文件 | 功能 |
 |-----|------|
-| `intent-resolver.ts` | 意图解析 (Chat/Image/Node/Edit 模式) |
+| `intent-resolver.ts` | 意图解析 (Text/Image/Node/Edit 模式) |
 | `canvas-converter.ts` | 节点→Markdown/Mermaid 转换、图片压缩 |
 | `node-operations.ts` | 创建群组、选择连接节点、新建节点 |
 | `node-mode-utils.ts` | JSON 提取/验证、坐标重映射、布局优化 |
@@ -28,20 +29,20 @@
 
 | 文件 | 功能 |
 |-----|------|
-| `notes-selection-handler.ts` | 文本选中监听、Edit/Image 状态中央同步控制 |
-| `notes-edit-palette.ts` | Notes 悬浮面板 (Edit/Image 双 Tab) |
-| `sidebar-copilot-view.ts` | 侧边栏 CoPilot (多轮对话 Chat、文档编辑 Edit、图片生成 Image) |
+| `notes-selection-handler.ts` | 文本选中监听、Edit/Image 状态中央同步控制、Edit 模式流式生成 (Thinking)、配置全屏同步 |
+| `notes-edit-palette.ts` | Notes 悬浮面板 (Edit/Image 双 Tab)、Thinking 配置与实时同步 |
+| `sidebar-copilot-view.ts` | side CoPilot (Chat/Edit/Image)、Thinking 流式显示与自动折叠、配置全屏同步 |
 | `note-image-task-manager.ts` | 图片生成任务队列、并发控制 |
 | `text-patcher.ts` | 文本 patch 应用 |
-| `mode-controller.ts` | 面板模式切换控制器 (Edit/Image/Chat) |
+| `mode-controller.ts` | 面板模式切换控制器 (Edit/Image/Text) |
 | `notes-floating-button.ts` | 悬浮香蕉按钮逻辑 |
-| `shared-ui-builder.ts` | Notes 通用 UI 组件构建器 (Tab/Preset/ImageOptions) |
+| `shared-ui-builder.ts` | Notes 通用 UI 组件构建器 (Tab/Preset/Image/ThinkingOptions) |
 
 ## UI 组件 (`src/ui/`)
 
 | 文件 | 功能 |
 |-----|------|
-| `floating-palette.ts` | Canvas 浮动面板 (Chat/Image/Node/Edit 四模式) |
+| `floating-palette.ts` | Canvas 浮动面板 (Text/Image/Node/Edit 四模式)、Thinking 配置全组件同步 |
 | `modals.ts` | DiffModal (diff 对比确认)、InputModal、ConfirmModal |
 | `preset-manager.ts` | Preset 下拉管理器 |
 
@@ -63,8 +64,15 @@
 
 | 文件 | 功能 |
 |-----|------|
-| `settings.ts` | 类型定义、DEFAULT_SETTINGS |
+| `settings.ts` | 类型定义、DEFAULT_SETTINGS、System Prompt 配置 (Canvas Text / Notes Chat 分离) |
 | `settings-tab.ts` | 设置页面 UI |
+
+**System Prompt 设计**:
+- `textSystemPrompt`: Canvas Text 模式专用 (多模态内容创作)
+- `notesChatSystemPrompt`: Notes 侧边栏 Chat 模式专用 (知识助手)
+- `editSystemPrompt`: Edit 模式 (Canvas & Notes 共用)
+- `nodeSystemPrompt`: Node 模式
+- `imageSystemPrompt`: Image 模式
 
 ## i18n (`lang/`)
 

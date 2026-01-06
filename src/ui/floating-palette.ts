@@ -9,14 +9,15 @@ import { PromptPreset, QuickSwitchModel } from '../settings/settings';
 import { InputModal, ConfirmModal } from './modals';
 import { t } from '../../lang/helpers';
 import { formatProviderName } from '../utils/format-utils';
+import { createThinkingOptionsRow, ThinkingOptionsElements } from '../notes/shared-ui-builder';
 
 // Palette Mode Type
-export type PaletteMode = 'chat' | 'image' | 'node' | 'edit';
+export type PaletteMode = 'text' | 'image' | 'node' | 'edit';
 
 // ========== Floating Palette Component ==========
 export class FloatingPalette {
     private containerEl: HTMLElement;
-    private currentMode: PaletteMode = 'chat';
+    private currentMode: PaletteMode = 'text';
     private promptInput: HTMLTextAreaElement;
     private isVisible: boolean = false;
     private currentParent: HTMLElement | null = null;
@@ -24,6 +25,7 @@ export class FloatingPalette {
     private onDebug: ((mode: PaletteMode) => void) | null = null;
     private onGenerate: ((prompt: string, mode: PaletteMode) => Promise<void>) | null = null;
     private onSettingsChange: ((key: 'aspectRatio' | 'resolution', value: string) => void) | null = null;
+    private onThinkingChange: ((enabled: boolean, level: string) => void) | null = null;
 
     private apiManager: ApiManager;
     private pendingTaskCount: number = 0;
@@ -35,11 +37,19 @@ export class FloatingPalette {
 
     // DOM references for image options
     private imageOptionsEl: HTMLElement | null = null;
-    private chatOptionsEl: HTMLElement | null = null;
+    private textOptionsEl: HTMLElement | null = null;
     private editOptionsEl: HTMLElement | null = null;
     private ratioSelect: HTMLSelectElement | null = null;
     private resolutionSelect: HTMLSelectElement | null = null;
     private nodeOptionsEl: HTMLElement | null = null;
+
+    private textThinkingOptions: ThinkingOptionsElements | null = null;
+    private nodeThinkingOptions: ThinkingOptionsElements | null = null;
+    private editThinkingOptions: ThinkingOptionsElements | null = null;
+    
+    // Thinking defaults
+    private thinkingEnabled: boolean = true;
+    private thinkingLevel: string = 'HIGH';
 
     private debugBtnEl: HTMLButtonElement | null = null;
     private versionInfoEl: HTMLElement | null = null;
@@ -50,7 +60,7 @@ export class FloatingPalette {
     private presetDeleteBtn: HTMLButtonElement | null = null;
     private presetSaveBtn: HTMLButtonElement | null = null;
     private presetRenameBtn: HTMLButtonElement | null = null;
-    private chatPresets: PromptPreset[] = [];
+    private textPresets: PromptPreset[] = [];
     private imagePresets: PromptPreset[] = [];
     private nodePresets: PromptPreset[] = [];
     private editPresets: PromptPreset[] = [];
@@ -132,6 +142,13 @@ export class FloatingPalette {
 
 
     /**
+     * Set the thinking change callback
+     */
+    setOnThinkingChange(callback: (enabled: boolean, level: string) => void): void {
+        this.onThinkingChange = callback;
+    }
+
+    /**
      * Set debug mode visibility for the Debug button
      */
     setDebugMode(enabled: boolean): void {
@@ -166,10 +183,10 @@ export class FloatingPalette {
         const header = container.createDiv('canvas-ai-palette-header');
         const tabsDiv = header.createDiv('canvas-ai-tabs');
 
-        ['chat', 'image', 'node', 'edit'].forEach(mode => {
+        ['text', 'image', 'node', 'edit'].forEach(mode => {
             const btn = tabsDiv.createEl('button', {
-                cls: `canvas-ai-tab${mode === 'chat' ? ' active' : ''}`,
-                text: mode === 'chat' ? t('Text') : mode === 'image' ? t('Image') : mode === 'node' ? t('Node') : t('Edit')
+                cls: `canvas-ai-tab${mode === 'text' ? ' active' : ''}`,
+                text: mode === 'text' ? t('Text') : mode === 'image' ? t('Image') : mode === 'node' ? t('Node') : t('Edit')
             });
             btn.dataset.mode = mode;
         });
@@ -226,16 +243,20 @@ export class FloatingPalette {
         imgModelGrp.createEl('label', { text: t('Palette Model') });
         this.imageModelSelectEl = imgModelGrp.createEl('select', 'canvas-ai-image-model-select dropdown');
 
-        // Chat Options (only model selection, temperature is fixed at 1)
-        this.chatOptionsEl = body.createDiv('canvas-ai-chat-options');
+        // Text Options
+        this.textOptionsEl = body.createDiv('canvas-ai-chat-options');
 
-        const chatModelRow = this.chatOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-model-select-row is-hidden' });
-        const chatModelGrp = chatModelRow.createEl('span', 'canvas-ai-option-group');
-        chatModelGrp.createEl('label', { text: t('Palette Model') });
-        this.textModelSelectEl = chatModelGrp.createEl('select', 'canvas-ai-text-model-select dropdown');
+        this.textThinkingOptions = createThinkingOptionsRow(this.textOptionsEl, this.thinkingEnabled, this.thinkingLevel);
+
+        const textModelRow = this.textOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-model-select-row is-hidden' });
+        const textModelGrp = textModelRow.createEl('span', 'canvas-ai-option-group');
+        textModelGrp.createEl('label', { text: t('Palette Model') });
+        this.textModelSelectEl = textModelGrp.createEl('select', 'canvas-ai-text-model-select dropdown');
 
         // Node Options (only model selection, temperature is fixed at 1)
         this.nodeOptionsEl = body.createDiv({ cls: 'canvas-ai-node-options is-hidden' });
+        
+        this.nodeThinkingOptions = createThinkingOptionsRow(this.nodeOptionsEl, this.thinkingEnabled, this.thinkingLevel);
 
         const nodeModelRow = this.nodeOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-node-model-select-row is-hidden' });
         const nodeModelGrp = nodeModelRow.createEl('span', 'canvas-ai-option-group');
@@ -244,6 +265,8 @@ export class FloatingPalette {
 
         // Edit Options (only model selection, temperature is fixed at 1)
         this.editOptionsEl = body.createDiv({ cls: 'canvas-ai-edit-options is-hidden' });
+
+        this.editThinkingOptions = createThinkingOptionsRow(this.editOptionsEl, this.thinkingEnabled, this.thinkingLevel);
 
         const editModelRow = this.editOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-model-select-row canvas-ai-edit-model-select-row is-hidden' });
         const editModelGrp = editModelRow.createEl('span', 'canvas-ai-option-group');
@@ -295,7 +318,7 @@ export class FloatingPalette {
         this.textModelSelectEl?.addEventListener('change', () => {
             const value = this.textModelSelectEl!.value;
             this.selectedTextModel = value;
-            this.onModelChange?.('chat', value);
+            this.onModelChange?.('text', value);
         });
 
         this.imageModelSelectEl?.addEventListener('change', () => {
@@ -321,8 +344,8 @@ export class FloatingPalette {
         this.presetSelect?.addEventListener('change', () => {
             const selectedId = this.presetSelect!.value;
             if (selectedId) {
-                const presets = this.currentMode === 'chat'
-                    ? this.chatPresets
+                const presets = this.currentMode === 'text'
+                    ? this.textPresets
                     : this.currentMode === 'image'
                         ? this.imagePresets
                         : this.currentMode === 'node'
@@ -351,6 +374,47 @@ export class FloatingPalette {
             this.onSettingsChange?.('resolution', this.imageResolution);
         });
 
+        // Thinking Options Listeners
+        const handleThinkingChange = () => {
+             const enabled = this.currentMode === 'text' 
+                 ? (this.textThinkingOptions?.toggle.checked ?? this.thinkingEnabled)
+                 : this.currentMode === 'node'
+                    ? (this.nodeThinkingOptions?.toggle.checked ?? this.thinkingEnabled)
+                    : (this.editThinkingOptions?.toggle.checked ?? this.thinkingEnabled);
+             const level = this.currentMode === 'text'
+                 ? (this.textThinkingOptions?.levelSelect.value ?? this.thinkingLevel)
+                 : this.currentMode === 'node'
+                    ? (this.nodeThinkingOptions?.levelSelect.value ?? this.thinkingLevel)
+                    : (this.editThinkingOptions?.levelSelect.value ?? this.thinkingLevel);
+             
+             // Update internal state
+             this.thinkingEnabled = enabled;
+             this.thinkingLevel = level;
+             
+             // Sync UI
+             if (this.textThinkingOptions) {
+                 this.textThinkingOptions.toggle.checked = enabled;
+                 this.textThinkingOptions.levelSelect.value = level;
+             }
+             if (this.nodeThinkingOptions) {
+                 this.nodeThinkingOptions.toggle.checked = enabled;
+                 this.nodeThinkingOptions.levelSelect.value = level;
+             }
+             if (this.editThinkingOptions) {
+                 this.editThinkingOptions.toggle.checked = enabled;
+                 this.editThinkingOptions.levelSelect.value = level;
+             }
+             
+             this.onThinkingChange?.(enabled, level);
+        };
+
+        this.textThinkingOptions?.toggle.addEventListener('change', handleThinkingChange);
+        this.textThinkingOptions?.levelSelect.addEventListener('change', handleThinkingChange);
+        this.nodeThinkingOptions?.toggle.addEventListener('change', handleThinkingChange);
+        this.nodeThinkingOptions?.levelSelect.addEventListener('change', handleThinkingChange);
+        this.editThinkingOptions?.toggle.addEventListener('change', handleThinkingChange);
+        this.editThinkingOptions?.levelSelect.addEventListener('change', handleThinkingChange);
+
         return container;
     }
 
@@ -365,11 +429,11 @@ export class FloatingPalette {
                 this.imageOptionsEl.addClass('is-hidden');
             }
         }
-        if (this.chatOptionsEl) {
-            if (this.currentMode === 'chat') {
-                this.chatOptionsEl.removeClass('is-hidden');
+        if (this.textOptionsEl) {
+            if (this.currentMode === 'text') {
+                this.textOptionsEl.removeClass('is-hidden');
             } else {
-                this.chatOptionsEl.addClass('is-hidden');
+                this.textOptionsEl.addClass('is-hidden');
             }
         }
         if (this.nodeOptionsEl) {
@@ -394,8 +458,8 @@ export class FloatingPalette {
     private refreshPresetDropdown(): void {
         if (!this.presetSelect) return;
 
-        const presets = this.currentMode === 'chat'
-            ? this.chatPresets
+        const presets = this.currentMode === 'text'
+            ? this.textPresets
             : this.currentMode === 'image'
                 ? this.imagePresets
                 : this.currentMode === 'node'
@@ -430,9 +494,9 @@ export class FloatingPalette {
                     prompt: this.promptInput.value
                 };
 
-                if (this.currentMode === 'chat') {
-                    this.chatPresets.push(newPreset);
-                    this.onPresetChange?.(this.chatPresets, 'chat');
+                if (this.currentMode === 'text') {
+                    this.textPresets.push(newPreset);
+                    this.onPresetChange?.(this.textPresets, 'text');
                 } else if (this.currentMode === 'image') {
                     this.imagePresets.push(newPreset);
                     this.onPresetChange?.(this.imagePresets, 'image');
@@ -463,8 +527,8 @@ export class FloatingPalette {
             return;
         }
 
-        const presets = this.currentMode === 'chat'
-            ? this.chatPresets
+        const presets = this.currentMode === 'text'
+            ? this.textPresets
             : this.currentMode === 'image'
                 ? this.imagePresets
                 : this.currentMode === 'node'
@@ -477,9 +541,9 @@ export class FloatingPalette {
             this.app,
             t('Delete Preset Confirm', { name: preset.name }),
             () => {
-                if (this.currentMode === 'chat') {
-                    this.chatPresets = this.chatPresets.filter(p => p.id !== selectedId);
-                    this.onPresetChange?.(this.chatPresets, 'chat');
+                if (this.currentMode === 'text') {
+                    this.textPresets = this.textPresets.filter(p => p.id !== selectedId);
+                    this.onPresetChange?.(this.textPresets, 'text');
                 } else if (this.currentMode === 'image') {
                     this.imagePresets = this.imagePresets.filter(p => p.id !== selectedId);
                     this.onPresetChange?.(this.imagePresets, 'image');
@@ -506,8 +570,8 @@ export class FloatingPalette {
             return;
         }
 
-        const presets = this.currentMode === 'chat'
-            ? this.chatPresets
+        const presets = this.currentMode === 'text'
+            ? this.textPresets
             : this.currentMode === 'image'
                 ? this.imagePresets
                 : this.currentMode === 'node'
@@ -518,8 +582,8 @@ export class FloatingPalette {
 
         preset.prompt = this.promptInput.value;
 
-        if (this.currentMode === 'chat') {
-            this.onPresetChange?.(this.chatPresets, 'chat');
+        if (this.currentMode === 'text') {
+            this.onPresetChange?.(this.textPresets, 'text');
         } else if (this.currentMode === 'image') {
             this.onPresetChange?.(this.imagePresets, 'image');
         } else if (this.currentMode === 'node') {
@@ -541,8 +605,8 @@ export class FloatingPalette {
             return;
         }
 
-        const presets = this.currentMode === 'chat'
-            ? this.chatPresets
+        const presets = this.currentMode === 'text'
+            ? this.textPresets
             : this.currentMode === 'image'
                 ? this.imagePresets
                 : this.currentMode === 'node'
@@ -559,8 +623,9 @@ export class FloatingPalette {
             (newName) => {
                 preset.name = newName;
 
-                if (this.currentMode === 'chat') {
-                    this.onPresetChange?.(this.chatPresets, 'chat');
+                if (this.currentMode === 'text') {
+                    this.onPresetChange?.(this.textPresets, 'text');
+                    console.debug('Canvas Banana Debug: Text Presets', this.textPresets);
                 } else if (this.currentMode === 'image') {
                     this.onPresetChange?.(this.imagePresets, 'image');
                 } else if (this.currentMode === 'node') {
@@ -581,8 +646,8 @@ export class FloatingPalette {
     /**
      * Initialize presets from saved settings
      */
-    initPresets(chatPresets: PromptPreset[], imagePresets: PromptPreset[], nodePresets: PromptPreset[] = [], editPresets: PromptPreset[] = []): void {
-        this.chatPresets = [...chatPresets];
+    initPresets(textPresets: PromptPreset[], imagePresets: PromptPreset[], nodePresets: PromptPreset[] = [], editPresets: PromptPreset[] = []): void {
+        this.textPresets = [...textPresets];
         this.imagePresets = [...imagePresets];
         this.nodePresets = [...nodePresets];
         this.editPresets = [...editPresets];
@@ -607,7 +672,7 @@ export class FloatingPalette {
      * 更新输入框提示文本
      */
     private updatePlaceholder(): void {
-        if (this.currentMode === 'chat') {
+        if (this.currentMode === 'text') {
             this.promptInput.placeholder = t('Enter instructions');
         } else if (this.currentMode === 'image') {
             this.promptInput.placeholder = t('Describe the image');
@@ -632,10 +697,10 @@ export class FloatingPalette {
                 preview.textContent = '';
             } else {
                 const parts: string[] = [];
-                if (imageCount > 0) parts.push(`${imageCount} ${t('Images')}`);
-                if (textCount > 0) parts.push(`${textCount} ${t('Text')}`);
-                if (groupCount > 0) parts.push(`${groupCount} ${t('Groups')}`);
-                preview.textContent = `🔗 ${nodeCount} ${t('Nodes Selected')} (${parts.join(', ')})`;
+                if (imageCount > 0) parts.push(imageCount + ' ' + t('Images'));
+                if (textCount > 0) parts.push(textCount + ' ' + t('Text'));
+                if (groupCount > 0) parts.push(groupCount + ' ' + t('Groups'));
+                preview.textContent = '🔗 ' + nodeCount + ' ' + t('Nodes Selected') + ' (' + parts.join(', ') + ')';
             }
         }
     }
@@ -669,7 +734,7 @@ export class FloatingPalette {
             generateBtn.textContent = t('Generate');
             generateBtn.removeClass('generating');
         } else {
-            generateBtn.textContent = `${t('Generating')} ${this.pendingTaskCount} ${t('Tasks')}`;
+            generateBtn.textContent = t('Generating') + ' ' + this.pendingTaskCount + ' ' + t('Tasks');
             generateBtn.addClass('generating');
         }
 
@@ -700,10 +765,10 @@ export class FloatingPalette {
                 editTab.removeClass('disabled');
             } else {
                 editTab.addClass('disabled');
-                // If currently on edit tab and it gets disabled, switch to chat
+                // If currently on edit tab and it gets disabled, switch to text
                 if (this.currentMode === 'edit') {
-                    const chatTab = this.containerEl.querySelector('.canvas-ai-tab[data-mode="chat"]') as HTMLElement;
-                    chatTab?.click();
+                    const textTab = this.containerEl.querySelector('.canvas-ai-tab[data-mode="text"]') as HTMLElement;
+                    textTab?.click();
                 }
             }
         }
@@ -779,32 +844,64 @@ export class FloatingPalette {
     }
 
     /**
-     * Get current chat options
+     * Get current text options including thinking config
      */
-    getChatOptions(): { temperature: number } {
+    getTextOptions(): { temperature: number, thinking?: { enabled: boolean, level: 'MINIMAL'|'LOW'|'MEDIUM'|'HIGH' } } {
         // Temperature is fixed at 1 for optimal results
+        const enabled = this.textThinkingOptions ? this.textThinkingOptions.toggle.checked : this.thinkingEnabled;
+        const level = (this.textThinkingOptions ? this.textThinkingOptions.levelSelect.value : this.thinkingLevel) as 'MINIMAL'|'LOW'|'MEDIUM'|'HIGH';
+        
         return {
-            temperature: 1
+            temperature: 1,
+            thinking: { enabled, level }
         };
+    }
+
+    /**
+     * Get current edit options
+    */
+    getEditOptions(): { temperature: number, thinking?: { enabled: boolean, level: 'MINIMAL'|'LOW'|'MEDIUM'|'HIGH' } } {
+         const enabled = this.editThinkingOptions ? this.editThinkingOptions.toggle.checked : this.thinkingEnabled;
+         const level = (this.editThinkingOptions ? this.editThinkingOptions.levelSelect.value : this.thinkingLevel) as 'MINIMAL'|'LOW'|'MEDIUM'|'HIGH';
+         
+         return {
+             temperature: 1,
+             thinking: { enabled, level }
+         };
+    }
+
+    /**
+     * Initialize Thinking Options
+     */
+    initThinkingOptions(enabled: boolean, level: string): void {
+        this.thinkingEnabled = enabled;
+        this.thinkingLevel = level;
+        
+        if (this.textThinkingOptions) {
+            this.textThinkingOptions.toggle.checked = enabled;
+            this.textThinkingOptions.levelSelect.value = level;
+        }
+        if (this.nodeThinkingOptions) {
+            this.nodeThinkingOptions.toggle.checked = enabled;
+            this.nodeThinkingOptions.levelSelect.value = level;
+        }
+        if (this.editThinkingOptions) {
+            this.editThinkingOptions.toggle.checked = enabled;
+            this.editThinkingOptions.levelSelect.value = level;
+        }
     }
 
     /**
      * Get current node mode options
      */
-    getNodeOptions(): { temperature: number } {
+    getNodeOptions(): { temperature: number, thinking?: { enabled: boolean, level: 'MINIMAL'|'LOW'|'MEDIUM'|'HIGH' } } {
         // Temperature is fixed at 1 for optimal results
-        return {
-            temperature: 1
-        };
-    }
+        const enabled = this.nodeThinkingOptions ? this.nodeThinkingOptions.toggle.checked : this.thinkingEnabled;
+        const level = (this.nodeThinkingOptions ? this.nodeThinkingOptions.levelSelect.value : this.thinkingLevel) as 'MINIMAL'|'LOW'|'MEDIUM'|'HIGH';
 
-    /**
-     * Get current edit mode options
-     */
-    getEditOptions(): { temperature: number } {
-        // Temperature is fixed at 1 for optimal results
         return {
-            temperature: 1
+            temperature: 1,
+            thinking: { enabled, level }
         };
     }
 
@@ -850,13 +947,13 @@ export class FloatingPalette {
             // Format: "ModelName | Provider"
             for (const model of models) {
                 selectEl.createEl('option', {
-                    value: `${model.provider}|${model.modelId}`,
-                    text: `${model.displayName} | ${formatProviderName(model.provider)}`
+                    value: model.provider + '|' + model.modelId,
+                    text: model.displayName + ' | ' + formatProviderName(model.provider)
                 });
             }
 
             // If no selection or selection not in list, default to first model
-            const validValues = models.map(m => `${m.provider}|${m.modelId}`);
+            const validValues = models.map(m => m.provider + '|' + m.modelId);
             let finalValue = selectedValue;
             if (!selectedValue || !validValues.includes(selectedValue)) {
                 finalValue = validValues.length > 0 ? validValues[0] : '';
@@ -923,7 +1020,7 @@ export class FloatingPalette {
      */
     getSelectedModel(mode: PaletteMode): string {
         switch (mode) {
-            case 'chat':
+            case 'text':
                 return this.selectedTextModel;
             case 'image':
                 return this.selectedImageModel;
@@ -958,8 +1055,8 @@ export class FloatingPalette {
         const relativeY = y - containerRect.top;
 
         // 先设置位置（面板仍隐藏）
-        this.containerEl.style.left = `${relativeX}px`;
-        this.containerEl.style.top = `${relativeY}px`;
+        this.containerEl.style.left = relativeX + 'px';
+        this.containerEl.style.top = relativeY + 'px';
 
         // 使用 requestAnimationFrame 确保位置生效后再显示
         requestAnimationFrame(() => {
@@ -984,8 +1081,8 @@ export class FloatingPalette {
         const relativeX = x - containerRect.left;
         const relativeY = y - containerRect.top;
 
-        this.containerEl.style.left = `${relativeX}px`;
-        this.containerEl.style.top = `${relativeY}px`;
+        this.containerEl.style.left = relativeX + 'px';
+        this.containerEl.style.top = relativeY + 'px';
     }
 
     /**
@@ -1016,7 +1113,9 @@ export class FloatingPalette {
         selectedTextModel: string,
         selectedImageModel: string,
         selectedNodeModel: string,
-        selectedEditModel: string
+        selectedEditModel: string,
+        thinkingEnabled: boolean,
+        thinkingLevel: string
     ): void {
         this.initPresets(chatPresets, imagePresets, nodePresets, editPresets);
         this.initQuickSwitchModels(
@@ -1027,6 +1126,7 @@ export class FloatingPalette {
             selectedNodeModel,
             selectedEditModel
         );
+        this.initThinkingOptions(thinkingEnabled, thinkingLevel);
     }
 
     /**

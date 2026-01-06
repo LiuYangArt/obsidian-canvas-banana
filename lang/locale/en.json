@@ -29,9 +29,12 @@
     "Image compression quality": "Image compression quality",
     "Image max size": "Image max size",
     "Prompt settings": "Prompt settings",
-    "Text system prompt": "Text system prompt",
+    "Canvas text system prompt": "Canvas text system prompt",
+    "System prompt for Canvas text mode (multi-modal content creation)": "System prompt for Canvas text mode (multi-modal content creation)",
+    "Notes chat system prompt": "Notes chat system prompt",
+    "System prompt for Notes sidebar chat mode (knowledge assistant)": "System prompt for Notes sidebar chat mode (knowledge assistant)",
     "System prompt for text chat mode": "System prompt for text chat mode",
-    "Edit system prompt": "Edit system prompt",
+    "Note edit system prompt": "Note edit system prompt",
     "System prompt for edit mode": "Role and style settings for edit mode. JSON output format is handled automatically.",
     "Node system prompt": "Node system prompt",
     "System prompt for node mode (leave empty to use default built-in prompt)": "System prompt for node mode (leave empty to use default built-in prompt)",
@@ -183,5 +186,8 @@
     "Message copied": "Message copied",
     "Message inserted": "Message inserted",
     "Message deleted": "Message deleted",
-    "AI is thinking...": "AI is thinking..."
+    "AI is thinking...": "AI is thinking...",
+    "Thinking": "Thinking",
+    "Budget": "Budget",
+    "Level": "Level"
 }

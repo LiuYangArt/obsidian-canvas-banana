@@ -216,7 +216,6 @@
   flex: 1;
 }
 
-
 .canvas-ai-option-group label {
   font-size: 12px;
   color: var(--text-muted);
@@ -298,7 +297,6 @@
   background: var(--background-secondary);
 }
 
-
 .canvas-ai-context-preview {
   font-size: 11px;
   color: var(--text-muted);
@@ -364,7 +362,6 @@
   filter: none;
   transform: none;
 }
-
 
 .canvas-ai-debug-btn {
   padding: 8px 16px;
@@ -532,7 +529,6 @@
   background: rgba(255, 82, 82, 0.05) !important;
 }
 
-
 .canvas-ai-node-temp-input {
   flex: 1;
   min-width: 60px;
@@ -565,7 +561,6 @@
   min-width: 120px;
   max-width: 200px;
 }
-
 
 /* Model select dropdown in floating palette */
 .canvas-ai-model-select {
@@ -770,7 +765,6 @@
   padding: 0 8px;
 }
 
-
 /* ========== Diff Modal Styles ========== */
 .canvas-ai-diff-modal {
   max-width: 1200px !important;
@@ -901,7 +895,11 @@
 #notes-ai-floating-button:hover,
 .notes-ai-floating-button:hover {
   color: var(--interactive-accent);
-  background: linear-gradient(var(--background-modifier-hover), var(--background-modifier-hover)), var(--background-primary);
+  background: linear-gradient(
+      var(--background-modifier-hover),
+      var(--background-modifier-hover)
+    ),
+    var(--background-primary);
 }
 
 #notes-ai-floating-button.is-hidden,
@@ -919,8 +917,15 @@
 }
 
 @keyframes notes-ai-pulse {
-  0%, 100% { opacity: 1; transform: scale(1); }
-  50% { opacity: 0.85; transform: scale(1.05); }
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.85;
+    transform: scale(1.05);
+  }
 }
 
 /* 当 Notes AI 面板可见时，保持编辑器选区显示 */
@@ -940,11 +945,17 @@
   z-index: 0;
 }
 
+/* 仅在编辑器失去焦点时显示模拟层，避免与原生选区叠加 (Double Layer Effect) */
+.cm-editor.cm-focused .notes-ai-highlight-container {
+  display: none;
+}
+
 .notes-ai-highlight-rect {
   position: absolute;
   background-color: var(--text-selection);
   pointer-events: none;
   border-radius: 2px;
+  opacity: 0.4;
 }
 
 /* ========== Notes AI Palette ========== */
@@ -1065,17 +1076,24 @@
 }
 
 .sidebar-message-content {
-  font-size: 13px;
+  font-size: 14px;
   line-height: 1.5;
   white-space: pre-wrap;
   word-break: break-word;
+  /* Explicitly allow text selection */
+  user-select: text;
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
 }
 
 /* Force override Obsidian's default markdown preview padding/margins */
-.sidebar-message-content.markdown-preview-view {
+.sidebar-message-content.markdown-preview-view,
+.sidebar-message-content.sidebar-markdown-compact {
   padding: 0 !important;
   margin: 0 !important;
   min-height: unset !important;
+  line-height: 1.5 !important;
 }
 
 /* Reset .markdown-preview-sizer and any pusher/spacer elements */
@@ -1087,22 +1105,84 @@
   height: auto !important;
 }
 
-/* Remove default margins from ALL elements inside message bubble */
+/* Remove all default spacing from markdown elements */
 .sidebar-message-content * {
-  margin-block-start: 0;
-  margin-block-end: 0;
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: inherit !important;
 }
 
-/* Add small spacing between paragraphs, but not at the end */
-.sidebar-message-content p + p,
-.sidebar-message-content p + ul,
-.sidebar-message-content p + ol,
-.sidebar-message-content ul + p,
-.sidebar-message-content ol + p,
-.sidebar-message-content h1 + p,
-.sidebar-message-content h2 + p,
-.sidebar-message-content h3 + p {
-  margin-top: 0.5em;
+/* Tighten markdown spacing - more compact */
+.sidebar-message-content h1,
+.sidebar-message-content h2,
+.sidebar-message-content h3,
+.sidebar-message-content h4,
+.sidebar-message-content h5,
+.sidebar-message-content h6 {
+  margin-top: 6px !important;
+  margin-bottom: 3px !important;
+  line-height: 1.3 !important;
+  padding: 0 !important;
+}
+
+.sidebar-message-content h1:first-child,
+.sidebar-message-content h2:first-child,
+.sidebar-message-content h3:first-child,
+.sidebar-message-content h4:first-child,
+.sidebar-message-content h5:first-child,
+.sidebar-message-content h6:first-child {
+  margin-top: 0 !important;
+}
+
+.sidebar-message-content p {
+  margin: 0 0 3px 0 !important;
+  line-height: 1.5 !important;
+  padding: 0 !important;
+}
+
+.sidebar-message-content ul,
+.sidebar-message-content ol {
+  margin: 0 0 3px 0 !important;
+  padding-left: 18px !important;
+  line-height: 1.4 !important;
+}
+
+.sidebar-message-content li {
+  margin: 0 !important;
+  padding: 0 !important;
+  line-height: 1.4 !important;
+}
+
+.sidebar-message-content li p {
+  margin: 0 !important;
+  display: inline !important;
+}
+
+.sidebar-message-content blockquote {
+  margin: 3px 0 !important;
+  padding: 2px 0 2px 10px !important;
+  border-left: 3px solid var(--background-modifier-border) !important;
+}
+
+.sidebar-message-content code {
+  padding: 1px 3px !important;
+  background: var(--background-modifier-border) !important;
+  border-radius: 3px !important;
+  line-height: inherit !important;
+}
+
+.sidebar-message-content pre {
+  margin: 3px 0 !important;
+  padding: 6px !important;
+  background: var(--background-modifier-border) !important;
+  border-radius: 4px !important;
+  overflow-x: auto !important;
+  line-height: 1.4 !important;
+}
+
+.sidebar-message-content pre code {
+  padding: 0 !important;
+  background: transparent !important;
 }
 
 .sidebar-message-content > :first-child,
@@ -1113,6 +1193,11 @@
 .sidebar-message-content > :last-child,
 .sidebar-message-content .markdown-preview-sizer > :last-child {
   margin-bottom: 0 !important;
+}
+
+/* Remove any <br> tags that might be causing extra spacing */
+.sidebar-message-content br {
+  display: none !important;
 }
 
 /* ========== Sidebar Message Actions ========== */
@@ -1126,11 +1211,14 @@
   border: none;
   opacity: 0;
   transition: opacity 0.15s ease;
+  /* Container never blocks mouse events - allows text selection */
+  pointer-events: none;
 }
 
 .sidebar-chat-message-wrapper:hover .sidebar-message-actions {
   /* Only change opacity on hover, layout remains stable */
   opacity: 1;
+  /* Keep pointer-events: none on container */
 }
 
 /* Remove border-top completely as requested */
@@ -1146,6 +1234,8 @@
   justify-content: center;
   border-radius: 4px;
   color: var(--text-muted);
+  /* Re-enable pointer events ONLY on buttons */
+  pointer-events: auto;
 }
 
 .sidebar-message-actions .clickable-icon:hover {
@@ -1153,3 +1243,131 @@
   background: var(--background-modifier-hover);
 }
 
+/* ========== Thinking Container Styles ========== */
+.canvas-ai-thinking-container {
+  border: 1px solid var(--background-modifier-border);
+  border-radius: 8px;
+  background-color: var(--background-secondary);
+  margin-bottom: 12px;
+  overflow: hidden;
+  transition: all 0.2s ease;
+  max-width: 95%; /* Match message bubble width */
+}
+
+.thinking-header {
+  display: flex;
+  align-items: center;
+  padding: 6px 10px;
+  cursor: pointer;
+  background-color: var(--background-secondary-alt);
+  font-size: 12px;
+  color: var(--text-muted);
+  border-bottom: 1px solid transparent;
+  transition: background-color 0.15s ease;
+  user-select: none;
+}
+
+.thinking-header:hover {
+  background-color: var(--background-modifier-hover);
+  color: var(--text-normal);
+}
+
+/* Add bottom border when expanded */
+.canvas-ai-thinking-container:not(.is-collapsed) .thinking-header {
+  border-bottom-color: var(--background-modifier-border);
+}
+
+.thinking-header-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-right: 6px;
+  width: 16px;
+  height: 16px;
+  color: var(--text-muted);
+}
+
+.thinking-header-icon svg {
+  width: 14px;
+  height: 14px;
+}
+
+.thinking-header-text {
+  font-weight: 500;
+}
+
+.thinking-content-wrapper {
+  /* Using display:none for simpler toggle, animation can be added later if needed */
+  display: block;
+}
+
+.thinking-content {
+  padding: 8px 10px; /* Match message padding */
+  font-size: 11px !important;  /* Force smaller font size */
+  line-height: 1.5;
+  color: var(--text-muted);
+  background-color: var(--background-primary);
+
+  /* Fixed height and scrolling as requested */
+  max-height: 100px; /* Approx 4-5 lines */
+  overflow-y: auto;
+
+  /* Ensure markdown elements don't add too much spacing */
+  white-space: pre-wrap;
+}
+
+/* Force all elements inside thinking-content to use smaller font */
+.thinking-content *,
+.thinking-content p,
+.thinking-content h1,
+.thinking-content h2,
+.thinking-content h3,
+.thinking-content h4,
+.thinking-content h5,
+.thinking-content h6,
+.thinking-content li,
+.thinking-content code,
+.thinking-content strong,
+.thinking-content em {
+  font-size: 11px !important;
+}
+
+/* Remove default margins from markdown rendered content to keep it compact */
+.thinking-content p {
+  margin-block-start: 0.5em;
+  margin-block-end: 0.5em;
+}
+
+.thinking-content > *:first-child {
+  margin-top: 0;
+}
+
+.thinking-content > *:last-child {
+  margin-bottom: 0;
+}
+
+/* Collapsed state */
+.canvas-ai-thinking-container.is-collapsed .thinking-content-wrapper {
+  display: none;
+}
+
+/* Streaming state */
+.canvas-ai-thinking-container.is-streaming .thinking-header-text::after {
+  content: "...";
+  animation: typing 1.5s infinite;
+}
+
+@keyframes typing {
+  0% {
+    content: "";
+  }
+  33% {
+    content: ".";
+  }
+  66% {
+    content: "..";
+  }
+  100% {
+    content: "...";
+  }
+}

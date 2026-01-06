@@ -91,8 +91,9 @@ export interface CanvasAISettings {
     singleWindowMode: boolean;
 
     // System prompts for different modes
-    textSystemPrompt: string;
-    editSystemPrompt: string;
+    textSystemPrompt: string;          // Canvas Text mode
+    notesChatSystemPrompt: string;     // Notes sidebar Chat mode
+    noteEditSystemPrompt: string;
     nodeSystemPrompt: string;
     imageSystemPrompt: string;
 
@@ -122,6 +123,11 @@ export interface CanvasAISettings {
     // Notes AI settings
     enableGlobalConsistency: boolean;  // 全局实体一致性检测
     maxConversationTurns: number;      // 侧边栏最大对话轮数
+
+    // Chat thinking settings
+    chatThinkingEnabled: boolean;      // 是否启用思考模式
+    chatThinkingBudget: string;        // 思考 token 预算
+    chatThinkingLevel: 'MINIMAL' | 'LOW' | 'MEDIUM' | 'HIGH';     // 思考等级 (for Gemini 3+)
 
     // Multi-image generation
     maxParallelImageTasks: number;     // 最大并行生图任务数
@@ -173,14 +179,15 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
     imageMaxSize: 2048,
     defaultAspectRatio: '1:1',
     defaultResolution: '1K',
-    defaultChatTemperature: 0.5,
+    defaultChatTemperature: 1.0,
 
     debugMode: false,
     doubleClickImageOpen: true,
     singleWindowMode: true,
 
-    textSystemPrompt: 'You are a helpful AI assistant embedded in an Obsidian Canvas. Answer concisely and use Markdown formatting.',
-    editSystemPrompt: DEFAULT_EDIT_MODE_PROMPT,
+    textSystemPrompt: 'You are a creative AI assistant in Obsidian Canvas. Analyze images, text nodes, and their relationships. Provide insights and suggestions for content creation. Answer concisely and use Markdown formatting.',
+    notesChatSystemPrompt: 'You are a knowledge assistant for Obsidian notes. Help users organize, improve, and understand their documents. Answer questions based on note content. Use Markdown formatting.',
+    noteEditSystemPrompt: DEFAULT_EDIT_MODE_PROMPT,
     nodeSystemPrompt: '',
     imageSystemPrompt: 'Role: A Professional Image Creator. Use the following references for image creation.',
 
@@ -203,6 +210,10 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
 
     enableGlobalConsistency: true,
     maxConversationTurns: 5,
+
+    chatThinkingEnabled: true,
+    chatThinkingBudget: '4K',
+    chatThinkingLevel: 'LOW',
 
     maxParallelImageTasks: 3,
 

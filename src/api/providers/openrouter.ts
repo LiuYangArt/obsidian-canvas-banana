@@ -78,7 +78,7 @@ export class OpenRouterProvider {
     /**
      * Chat completion with streaming
      */
-    async *streamChatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): AsyncGenerator<string, void, unknown> {
+    async *streamChatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): AsyncGenerator<{ content?: string; thinking?: string }, void, unknown> {
         const messages: OpenRouterMessage[] = [];
 
         if (systemPrompt) {
@@ -98,6 +98,7 @@ export class OpenRouterProvider {
         console.debug('Canvas AI: [OpenRouter] Sending stream chat request...');
 
         try {
+            // eslint-disable-next-line no-restricted-globals -- Fetch is required for streaming as requestUrl does not support it
             const response = await fetch(this.getChatEndpoint(), {
                 method: 'POST',
                 headers: {
@@ -121,6 +122,7 @@ export class OpenRouterProvider {
             const reader = response.body.getReader();
             const decoder = new TextDecoder('utf-8');
             let buffer = '';
+            let isThinking = false;
 
             while (true) {
                 const { done, value } = await reader.read();
@@ -140,8 +142,41 @@ export class OpenRouterProvider {
                     if (trimmed.startsWith('data: ')) {
                         try {
                             const data = JSON.parse(trimmed.slice(6));
-                            if (data.choices && data.choices[0]?.delta?.content) {
-                                yield data.choices[0].delta.content;
+                            const delta = data.choices?.[0]?.delta;
+                            
+                            // Debug: 输出完整 delta
+                            if (delta) {
+                                console.debug('Canvas AI: [OpenRouter] Stream delta:', JSON.stringify(delta));
+                                
+                                // 处理 reasoning_content (DeepSeek R1 等)
+                                if (delta.reasoning_content) {
+                                    yield { thinking: delta.reasoning_content };
+                                }
+
+                                // 处理 content (可能含 <think> 标签)
+                                if (delta.content) {
+                                    let content = delta.content;
+                                    
+                                    if (content.includes('<think>')) {
+                                        isThinking = true;
+                                        content = content.replace('<think>', '');
+                                    }
+
+                                    if (content.includes('</think>')) {
+                                        const parts = content.split('</think>');
+                                        if (parts[0] && isThinking) {
+                                            yield { thinking: parts[0] };
+                                        }
+                                        isThinking = false;
+                                        if (parts[1]) {
+                                            yield { content: parts[1] };
+                                        }
+                                    } else if (isThinking) {
+                                        yield { thinking: content };
+                                    } else if (content) {
+                                        yield { content };
+                                    }
+                                }
                             }
                         } catch (e) {
                             console.warn('Error parsing stream chunk:', e);
@@ -154,6 +189,7 @@ export class OpenRouterProvider {
             throw error;
         }
     }
+
 
     /**
      * Generate image with roles
@@ -239,14 +275,14 @@ export class OpenRouterProvider {
     }
 
     /**
-     * Multimodal chat
+     * Multimodal chat - returns content and optional thinking
      */
     async multimodalChat(
         prompt: string,
         mediaList: { base64: string, mimeType: string, type: 'image' | 'pdf' }[],
         systemPrompt?: string,
         temperature: number = 0.5
-    ): Promise<string> {
+    ): Promise<{ content: string; thinking?: string }> {
         const messages: OpenRouterMessage[] = [];
 
         if (systemPrompt) {
@@ -280,8 +316,29 @@ export class OpenRouterProvider {
             throw new Error('OpenRouter returned no choices');
         }
 
-        const content = response.choices[0].message.content;
-        return typeof content === 'string' ? content : content.map(p => p.text || '').join('');
+        const message = response.choices[0].message;
+        let content = typeof message.content === 'string' 
+            ? message.content 
+            : message.content.map(p => p.text || '').join('');
+        
+        // Extract thinking from reasoning_content or <think> tags
+        let thinking: string | undefined;
+        
+        // Check for reasoning_content (DeepSeek R1 style)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- reasoning_content not in interface
+        const reasoningContent = (message as any).reasoning_content;
+        if (reasoningContent) {
+            thinking = reasoningContent;
+        }
+        
+        // Also check for <think> tags in content
+        const thinkMatch = content.match(/^<think>([\s\S]*?)<\/think>/);
+        if (thinkMatch) {
+            thinking = (thinking || '') + thinkMatch[1];
+            content = content.replace(/^<think>[\s\S]*?<\/think>/, '').trim();
+        }
+
+        return { content, thinking: thinking || undefined };
     }
 
     private async sendRequest(body: OpenRouterRequest, timeoutMs?: number): Promise<OpenRouterResponse> {

@@ -139,14 +139,14 @@ export class GptGodProvider {
     }
 
     /**
-     * Multimodal chat
+     * Multimodal chat - returns content and optional thinking
      */
     async multimodalChat(
         prompt: string,
         mediaList: { base64: string, mimeType: string, type: 'image' | 'pdf' }[],
         systemPrompt?: string,
         temperature: number = 0.5
-    ): Promise<string> {
+    ): Promise<{ content: string; thinking?: string }> {
         const messages: OpenRouterMessage[] = [];
 
         if (systemPrompt) {
@@ -180,8 +180,29 @@ export class GptGodProvider {
             throw new Error('GPTGod returned no choices');
         }
 
-        const content = response.choices[0].message.content;
-        return typeof content === 'string' ? content : content.map(p => p.text || '').join('');
+        const message = response.choices[0].message;
+        let content = typeof message.content === 'string' 
+            ? message.content 
+            : message.content.map(p => p.text || '').join('');
+        
+        // Extract thinking from reasoning_content or <think> tags
+        let thinking: string | undefined;
+        
+        // Check for reasoning_content (DeepSeek R1 style)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- reasoning_content not in interface
+        const reasoningContent = (message as any).reasoning_content;
+        if (reasoningContent) {
+            thinking = reasoningContent;
+        }
+        
+        // Also check for <think> tags in content
+        const thinkMatch = content.match(/^<think>([\s\S]*?)<\/think>/);
+        if (thinkMatch) {
+            thinking = (thinking || '') + thinkMatch[1];
+            content = content.replace(/^<think>[\s\S]*?<\/think>/, '').trim();
+        }
+
+        return { content, thinking: thinking || undefined };
     }
 
     private async sendRequest(body: OpenRouterRequest, timeoutMs?: number): Promise<OpenRouterResponse> {
@@ -347,5 +368,124 @@ export class GptGodProvider {
         }
 
         throw new Error('Could not extract image from GPTGod response');
+    }
+    /**
+     * Chat completion with streaming
+     */
+    async *streamChatCompletion(prompt: string, systemPrompt?: string, temperature: number = 0.5): AsyncGenerator<{ content?: string; thinking?: string }, void, unknown> {
+        const messages: OpenRouterMessage[] = [];
+
+        if (systemPrompt) {
+            messages.push({ role: 'system', content: systemPrompt });
+        }
+        messages.push({ role: 'user', content: prompt });
+
+        const requestBody: OpenRouterRequest = {
+            model: this.getTextModel(),
+            messages: messages,
+            temperature: temperature,
+            // @ts-ignore: stream property is not in the interface but required for streaming
+            stream: true
+        };
+
+        const apiKey = this.getApiKey();
+        console.debug('Canvas AI: [GPTGod] Sending stream chat request...');
+
+        try {
+            // eslint-disable-next-line no-restricted-globals -- Fetch is required for streaming as requestUrl does not support it
+            const response = await fetch(this.getChatEndpoint(), {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${apiKey}`,
+                    'Content-Type': 'application/json',
+                    'HTTP-Referer': 'https://obsidian.md',
+                    'X-Title': 'Obsidian Canvas AI'
+                },
+                body: JSON.stringify(requestBody)
+            });
+
+            if (!response.ok) {
+                const errorText = await response.text();
+                throw new Error(`GPTGod API Error: ${response.status} ${errorText}`);
+            }
+
+            if (!response.body) {
+                throw new Error('Response body is null');
+            }
+
+            const reader = response.body.getReader();
+            const decoder = new TextDecoder('utf-8');
+            let buffer = '';
+            let isThinking = false;
+
+            while (true) {
+                const { done, value } = await reader.read();
+                if (done) break;
+
+                const chunk = decoder.decode(value, { stream: true });
+                buffer += chunk;
+                const lines = buffer.split('\n');
+                
+                // Process all complete lines
+                buffer = lines.pop() || ''; 
+
+                for (const line of lines) {
+                    const trimmed = line.trim();
+                    if (!trimmed || trimmed === 'data: [DONE]') continue;
+                    
+                    if (trimmed.startsWith('data: ')) {
+                        try {
+                            const data = JSON.parse(trimmed.slice(6));
+                            const delta = data.choices?.[0]?.delta;
+                            
+                            // Debug: 输出完整 delta
+                            if (delta) {
+                                console.debug('Canvas AI: [GPTGod] Stream delta:', JSON.stringify(delta));
+                                
+                                // Handle reasoning_content (DeepSeek R1 等)
+                                if (delta.reasoning_content) {
+                                    // yield 原始 thinking 文本，不格式化
+                                    yield { thinking: delta.reasoning_content };
+                                }
+
+                                // Handle content (可能含 <think> 标签)
+                                if (delta.content) {
+                                    let content = delta.content;
+                                    
+                                    // 提取 <think> 内容
+                                    if (content.includes('<think>')) {
+                                        isThinking = true;
+                                        content = content.replace('<think>', '');
+                                    }
+
+                                    if (content.includes('</think>')) {
+                                        const parts = content.split('</think>');
+                                        // 思考部分
+                                        if (parts[0] && isThinking) {
+                                            yield { thinking: parts[0] };
+                                        }
+                                        isThinking = false;
+                                        // 结束后的正常内容
+                                        if (parts[1]) {
+                                            yield { content: parts[1] };
+                                        }
+                                    } else if (isThinking) {
+                                        // 仍在思考中，yield raw thinking
+                                        yield { thinking: content };
+                                    } else if (content) {
+                                        yield { content };
+                                    }
+                                }
+                            }
+                        } catch (e) {
+                            console.warn('Error parsing stream chunk:', e);
+                        }
+                    }
+                }
+            }
+        } catch (error) {
+            console.error('Canvas AI: Stream Error', error);
+            throw error;
+        }
     }
 }

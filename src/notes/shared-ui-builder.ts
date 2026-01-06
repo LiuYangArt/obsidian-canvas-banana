@@ -151,6 +151,31 @@ export function updateModelSelect(
     return '';
 }
 
+export interface ThinkingOptionsElements {
+    container: HTMLElement;
+    toggle: HTMLInputElement;
+    levelSelect: HTMLSelectElement;
+}
+
+export function createThinkingOptionsRow(parent: HTMLElement, initialEnabled: boolean, initialLevel: string): ThinkingOptionsElements {
+    const container = parent.createDiv('canvas-ai-option-row');
+    
+    // Toggle Group
+    const thinkingGrp = container.createEl('span', 'canvas-ai-option-group');
+    thinkingGrp.createEl('label', { text: t('Thinking') });
+    const toggle = thinkingGrp.createEl('input', { type: 'checkbox', cls: 'canvas-ai-thinking-toggle' });
+    toggle.checked = initialEnabled;
+
+    // Level Group
+    const budgetGrp = container.createEl('span', 'canvas-ai-option-group');
+    budgetGrp.createEl('label', { text: 'Level' }); 
+    const levelSelect = budgetGrp.createEl('select', 'canvas-ai-level-select dropdown');
+    ['MINIMAL', 'LOW', 'MEDIUM', 'HIGH'].forEach(v => levelSelect.createEl('option', { value: v, text: v }));
+    levelSelect.value = initialLevel;
+
+    return { container, toggle, levelSelect };
+}
+
 /**
  * 设置键盘事件阻止冒泡
  */
