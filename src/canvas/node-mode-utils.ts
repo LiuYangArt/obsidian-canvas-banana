@@ -396,8 +396,22 @@ export function regenerateIds(data: CanvasData): CanvasData {
 // ========== Layout Optimization ==========
 
 /**
+ * 节点尺寸分档 (参考 JSON Canvas Spec 推荐)
+ * Small:  200-300 x 80-150  (短文本，1-2行)
+ * Medium: 300-450 x 150-300 (中等文本，3-6行)
+ * Large:  400-600 x 300-500 (长文本，7行以上)
+ */
+type NodeSizeCategory = 'small' | 'medium' | 'large';
+
+const NODE_SIZE_PRESETS: Record<NodeSizeCategory, { minWidth: number; maxWidth: number; minHeight: number; maxHeight: number }> = {
+    small:  { minWidth: 200, maxWidth: 300, minHeight: 80, maxHeight: 150 },
+    medium: { minWidth: 300, maxWidth: 450, minHeight: 150, maxHeight: 300 },
+    large:  { minWidth: 400, maxWidth: 600, minHeight: 300, maxHeight: 500 }
+};
+
+/**
  * Estimate node dimensions based on text content
- * Uses character count and line breaks to estimate appropriate size
+ * Uses JSON Canvas Spec recommended size tiers
  */
 function estimateNodeSize(text: string | undefined): { width: number; height: number } {
     if (!text) {
@@ -408,18 +422,26 @@ function estimateNodeSize(text: string | undefined): { width: number; height: nu
     const charWidth = 12;  // Approximate pixels per character
     const lineHeight = 24; // Approximate pixels per line
     const padding = 40;    // Padding for borders/margins
-    const minWidth = 200;
-    const maxWidth = 500;
-    const minHeight = 80;
-    const maxHeight = 400;
 
     // Calculate based on content
     const lines = text.split('\n');
     const maxLineLength = Math.max(...lines.map(l => l.length), 10);
 
-    // Estimate width based on longest line
+    // Determine size category based on line count
+    let category: NodeSizeCategory;
+    if (lines.length <= 2) {
+        category = 'small';
+    } else if (lines.length <= 6) {
+        category = 'medium';
+    } else {
+        category = 'large';
+    }
+
+    const preset = NODE_SIZE_PRESETS[category];
+
+    // Estimate width based on longest line, clamped to preset range
     let estimatedWidth = maxLineLength * charWidth + padding;
-    estimatedWidth = Math.max(minWidth, Math.min(maxWidth, estimatedWidth));
+    estimatedWidth = Math.max(preset.minWidth, Math.min(preset.maxWidth, estimatedWidth));
 
     // Estimate height based on line count and text wrapping
     const avgCharsPerLine = Math.floor((estimatedWidth - padding) / charWidth);
@@ -429,7 +451,7 @@ function estimateNodeSize(text: string | undefined): { width: number; height: nu
     }
 
     let estimatedHeight = totalLines * lineHeight + padding;
-    estimatedHeight = Math.max(minHeight, Math.min(maxHeight, estimatedHeight));
+    estimatedHeight = Math.max(preset.minHeight, Math.min(preset.maxHeight, estimatedHeight));
 
     return { width: estimatedWidth, height: estimatedHeight };
 }
@@ -519,6 +541,15 @@ export function optimizeLayout(data: CanvasData): CanvasData {
         }
 
         if (!hasOverlap) break;
+    }
+
+    // Step 3: Snap to grid for cleaner layouts (JSON Canvas Spec recommends multiples of 10 or 20)
+    const gridSize = 20;
+    for (const node of data.nodes) {
+        node.x = Math.round(node.x / gridSize) * gridSize;
+        node.y = Math.round(node.y / gridSize) * gridSize;
+        node.width = Math.round(node.width / gridSize) * gridSize;
+        node.height = Math.round(node.height / gridSize) * gridSize;
     }
 
     return data;
