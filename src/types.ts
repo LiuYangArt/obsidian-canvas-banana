@@ -31,8 +31,8 @@ export interface CanvasJsonEdge {
     toNode: string;
     fromSide?: 'top' | 'right' | 'bottom' | 'left';
     toSide?: 'top' | 'right' | 'bottom' | 'left';
-    fromEnd?: 'arrow';
-    toEnd?: 'arrow';
+    fromEnd?: 'none' | 'arrow';
+    toEnd?: 'none' | 'arrow';
     color?: string;
     label?: string;
 }

@@ -4,7 +4,7 @@
  * for LLM-generated Canvas JSON structures
  */
 
-import { CanvasData, CanvasJsonNode } from '../types';
+import { CanvasData, CanvasJsonNode, CanvasJsonEdge } from '../types';
 
 // ========== Type Definitions ==========
 
@@ -56,6 +56,7 @@ export function extractCanvasJSON(response: string): CanvasData {
 /**
  * Validate and normalize Canvas data structure
  * Ensures nodes array exists and each node has required fields
+ * 参考 JSON Canvas Spec 1.0 规范
  */
 export function validateCanvasData(inputData: unknown): CanvasData {
     if (!inputData || typeof inputData !== 'object') {
@@ -70,36 +71,75 @@ export function validateCanvasData(inputData: unknown): CanvasData {
 
     // Allow empty edges
     const nodes = data.nodes as CanvasJsonNode[];
-    let edges = data.edges as Array<{ id: string; fromNode: string; toNode: string; label?: string }>;
-    if (!Array.isArray(edges)) {
-        edges = [];
-    }
+    const edges = (Array.isArray(data.edges) ? data.edges : []) as CanvasJsonEdge[];
+
+    // Valid enum values (JSON Canvas Spec 1.0)
+    const VALID_NODE_TYPES = ['text', 'file', 'link', 'group'];
+    const VALID_SIDES = ['top', 'right', 'bottom', 'left'];
+    const VALID_ENDS = ['none', 'arrow'];
+    const VALID_PRESET_COLORS = ['1', '2', '3', '4', '5', '6'];
+    const HEX_COLOR_REGEX = /^#[0-9A-Fa-f]{6}$/;
+
+    // Track all IDs for uniqueness check
+    const allIds = new Set<string>();
 
     // Validate each node has required fields
     for (let i = 0; i < nodes.length; i++) {
         const node = nodes[i];
+        
+        // Required: id
         if (!node.id) {
             throw new Error(`Node ${i}: missing id`);
         }
+        if (allIds.has(node.id)) {
+            console.warn(`Node ${i}: duplicate id "${node.id}", will be regenerated`);
+        }
+        allIds.add(node.id);
+
+        // Required: x, y, width, height
         if (node.x === undefined || node.y === undefined) {
             throw new Error(`Node ${i}: missing x/y coordinates`);
         }
         if (!node.width || !node.height) {
             throw new Error(`Node ${i}: missing width/height`);
         }
+
+        // Type validation with default
         if (!node.type) {
-            // Default to text type if missing
             node.type = 'text';
+        } else if (!VALID_NODE_TYPES.includes(node.type)) {
+            console.warn(`Node ${i}: invalid type "${node.type}", defaulting to "text"`);
+            node.type = 'text';
+        }
+
+        // Color validation (optional)
+        if (node.color !== undefined) {
+            const isPreset = VALID_PRESET_COLORS.includes(node.color);
+            const isHex = HEX_COLOR_REGEX.test(node.color);
+            if (!isPreset && !isHex) {
+                console.warn(`Node ${i}: invalid color "${node.color}", removing`);
+                delete node.color;
+            }
         }
     }
 
-    // Validate edges reference existing nodes
+    // Build node ID set for edge validation
     const nodeIds = new Set(nodes.map((n: CanvasJsonNode) => n.id));
+
+    // Validate edges
     for (let i = 0; i < edges.length; i++) {
         const edge = edges[i];
+
+        // Required: id
         if (!edge.id) {
             throw new Error(`Edge ${i}: missing id`);
         }
+        if (allIds.has(edge.id)) {
+            console.warn(`Edge ${i}: duplicate id "${edge.id}", will be regenerated`);
+        }
+        allIds.add(edge.id);
+
+        // Required: fromNode, toNode
         if (!edge.fromNode || !edge.toNode) {
             throw new Error(`Edge ${i}: missing fromNode/toNode`);
         }
@@ -109,9 +149,43 @@ export function validateCanvasData(inputData: unknown): CanvasData {
         if (!nodeIds.has(edge.toNode)) {
             console.warn(`Edge ${i}: toNode "${edge.toNode}" not found in nodes`);
         }
+
+        // Side validation with fallback
+        if (edge.fromSide && !VALID_SIDES.includes(edge.fromSide)) {
+            console.warn(`Edge ${i}: invalid fromSide "${edge.fromSide}", removing`);
+            delete edge.fromSide;
+        }
+        if (edge.toSide && !VALID_SIDES.includes(edge.toSide)) {
+            console.warn(`Edge ${i}: invalid toSide "${edge.toSide}", removing`);
+            delete edge.toSide;
+        }
+
+        // End validation with defaults (JSON Canvas Spec: fromEnd defaults to "none", toEnd defaults to "arrow")
+        if (edge.fromEnd !== undefined) {
+            if (!VALID_ENDS.includes(edge.fromEnd)) {
+                console.warn(`Edge ${i}: invalid fromEnd "${edge.fromEnd}", defaulting to "none"`);
+                edge.fromEnd = 'none';
+            }
+        }
+        if (edge.toEnd !== undefined) {
+            if (!VALID_ENDS.includes(edge.toEnd)) {
+                console.warn(`Edge ${i}: invalid toEnd "${edge.toEnd}", defaulting to "arrow"`);
+                edge.toEnd = 'arrow';
+            }
+        }
+
+        // Color validation (optional)
+        if (edge.color !== undefined) {
+            const isPreset = VALID_PRESET_COLORS.includes(edge.color);
+            const isHex = HEX_COLOR_REGEX.test(edge.color);
+            if (!isPreset && !isHex) {
+                console.warn(`Edge ${i}: invalid color "${edge.color}", removing`);
+                delete edge.color;
+            }
+        }
     }
 
-    return { nodes, edges } as CanvasData;
+    return { nodes, edges };
 }
 
 // ========== Sanitization (Post-processing) ==========
@@ -273,14 +347,13 @@ export function remapCoordinates(
 // ========== ID Regeneration ==========
 
 /**
- * Generate a UUIDv4 string
+ * 生成 16 位小写十六进制 ID (Obsidian Canvas 原生格式)
+ * 例如: "6f0ad84f44ce9c17"
  */
-function generateUUID(): string {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, (c) => {
-        const r = Math.random() * 16 | 0;
-        const v = c === 'x' ? r : (r & 0x3 | 0x8);
-        return v.toString(16);
-    });
+function generateCanvasId(): string {
+    const bytes = new Uint8Array(8); // 8 bytes = 16 hex characters
+    crypto.getRandomValues(bytes);
+    return Array.from(bytes, b => b.toString(16).padStart(2, '0')).join('');
 }
 
 /**
@@ -296,14 +369,14 @@ export function regenerateIds(data: CanvasData): CanvasData {
 
     // Regenerate node IDs
     for (const node of data.nodes) {
-        const newId = generateUUID();
+        const newId = generateCanvasId();
         idMap.set(node.id, newId);
         node.id = newId;
     }
 
     // Regenerate edge IDs and update node references
     for (const edge of data.edges) {
-        edge.id = generateUUID();
+        edge.id = generateCanvasId();
 
         // Update fromNode and toNode to use new IDs
         const newFromNode = idMap.get(edge.fromNode);
