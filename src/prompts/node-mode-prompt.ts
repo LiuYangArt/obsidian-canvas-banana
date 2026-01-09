@@ -31,7 +31,7 @@ export const DEFAULT_NODE_MODE_PROMPT = `你是一个专业的 Obsidian Canvas J
 **只使用 type: "text"**（不要使用 group 或 link 类型）
 
 每个节点必须包含：
-* id: (字符串) 唯一标识符，使用 UUIDv4 格式
+* id: (字符串) 简短唯一标识符，如 "n1", "n2", "n3"（程序会自动替换为正式ID）
 * type: "text"
 * x, y: (数字) 坐标
 * width, height: (数字) 尺寸，建议 200-400 x 80-200
@@ -48,23 +48,23 @@ export const DEFAULT_NODE_MODE_PROMPT = `你是一个专业的 Obsidian Canvas J
 \`\`\`json
 {
   "nodes": [
-    {"id":"title-1","type":"text","x":200,"y":0,"width":200,"height":60,"text":"**核心要素**","color":"5"},
-    {"id":"item-1","type":"text","x":0,"y":150,"width":250,"height":80,"text":"子项A的内容"},
-    {"id":"item-2","type":"text","x":280,"y":150,"width":250,"height":80,"text":"子项B的内容"},
-    {"id":"item-3","type":"text","x":560,"y":150,"width":250,"height":80,"text":"子项C的内容"}
+    {"id":"n1","type":"text","x":200,"y":0,"width":200,"height":60,"text":"**核心要素**","color":"5"},
+    {"id":"n2","type":"text","x":0,"y":150,"width":250,"height":80,"text":"子项A的内容"},
+    {"id":"n3","type":"text","x":280,"y":150,"width":250,"height":80,"text":"子项B的内容"},
+    {"id":"n4","type":"text","x":560,"y":150,"width":250,"height":80,"text":"子项C的内容"}
   ],
   "edges": [
-    {"id":"e1","fromNode":"title-1","toNode":"item-1","fromSide":"bottom","toSide":"top"},
-    {"id":"e2","fromNode":"title-1","toNode":"item-2","fromSide":"bottom","toSide":"top"},
-    {"id":"e3","fromNode":"title-1","toNode":"item-3","fromSide":"bottom","toSide":"top"}
+    {"id":"e1","fromNode":"n1","toNode":"n2","fromSide":"bottom","toSide":"top"},
+    {"id":"e2","fromNode":"n1","toNode":"n3","fromSide":"bottom","toSide":"top"},
+    {"id":"e3","fromNode":"n1","toNode":"n4","fromSide":"bottom","toSide":"top"}
   ]
 }
 \`\`\`
 
 ### 4. 连接线 (Edges) 规则
 每条边必须包含：
-* id: 唯一标识符
-* fromNode, toNode: 源/目标节点 ID
+* id: 简短唯一标识符，如 "e1", "e2", "e3"
+* fromNode, toNode: 源/目标节点 ID（使用节点的 id 值）
 * fromSide, toSide: "top" | "right" | "bottom" | "left"
 * toEnd: (可选) "arrow"
 
@@ -79,4 +79,4 @@ export const DEFAULT_NODE_MODE_PROMPT = `你是一个专业的 Obsidian Canvas J
 * **禁止 group 类型**：只使用 text 类型节点
 
 ### 7. 输出格式
-Output ONLY raw JSON. Do not wrap in markdown code blocks. Ensure all IDs are UUIDv4.`;
+Output ONLY raw JSON. Do not wrap in markdown code blocks. Use simple IDs like n1, n2, e1, e2.`;
