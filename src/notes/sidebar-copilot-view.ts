@@ -1331,8 +1331,10 @@ export class SideBarCoPilotView extends ItemView {
 
       // Build thinking config
       const thinkingConfig = this.thinkingEnabled
-        ? // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Casting string to literal type union
-          { enabled: true, level: this.thinkingLevel as any }
+        ? {
+            enabled: true,
+            level: this.thinkingLevel as "MINIMAL" | "LOW" | "MEDIUM" | "HIGH",
+          }
         : undefined;
 
       if (images.length > 0 && !isGemini) {

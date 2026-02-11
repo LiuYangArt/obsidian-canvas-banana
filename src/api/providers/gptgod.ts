@@ -189,8 +189,7 @@ export class GptGodProvider {
         let thinking: string | undefined;
         
         // Check for reasoning_content (DeepSeek R1 style)
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any -- reasoning_content not in interface
-        const reasoningContent = (message as any).reasoning_content;
+        const reasoningContent = message.reasoning_content;
         if (reasoningContent) {
             thinking = reasoningContent;
         }
@@ -392,8 +391,7 @@ export class GptGodProvider {
         console.debug('Canvas AI: [GPTGod] Sending stream chat request...');
 
         try {
-            // eslint-disable-next-line no-restricted-globals -- Fetch is required for streaming as requestUrl does not support it
-            const response = await fetch(this.getChatEndpoint(), {
+            const response = await globalThis.fetch(this.getChatEndpoint(), {
                 method: 'POST',
                 headers: {
                     'Authorization': `Bearer ${apiKey}`,

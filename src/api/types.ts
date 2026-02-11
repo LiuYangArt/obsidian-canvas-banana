@@ -17,6 +17,7 @@ export interface OpenRouterMessage {
     role: 'user' | 'assistant' | 'system';
     content: string | OpenRouterContentPart[];
     reasoning_details?: Record<string, unknown>;
+    reasoning_content?: string;
 }
 
 export interface OpenRouterContentPart {
@@ -46,6 +47,7 @@ export interface OpenRouterChoice {
     message: {
         role: string;
         content: string | OpenRouterContentPart[]; // Allow array content
+        reasoning_content?: string;
         images?: Array<{
             image_url: {
                 url: string;

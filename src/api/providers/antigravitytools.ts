@@ -404,8 +404,7 @@ export class AntigravityToolsProvider {
         return {
             content: textPart.text,
             thinking: thinking || undefined,
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Casting any to ensure type compatibility during refactor
-            thoughtSignature: thoughtSignature as any 
+            thoughtSignature
         };
     }
 
@@ -504,8 +503,7 @@ export class AntigravityToolsProvider {
         console.debug('Canvas AI: [AntigravityTools] Sending stream chat request...');
 
         try {
-            // eslint-disable-next-line no-restricted-globals -- Fetch is required for streaming as requestUrl does not support it
-            const response = await fetch(endpoint, {
+            const response = await globalThis.fetch(endpoint, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(requestBody)
