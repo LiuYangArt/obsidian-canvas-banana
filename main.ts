@@ -1653,6 +1653,41 @@ ${intent.instruction}
 
     async loadSettings() {
         this.settings = Object.assign({}, DEFAULT_SETTINGS, await this.loadData());
+
+        const supportedProviders: ApiProvider[] = ['openrouter', 'yunwu', 'gemini', 'gptgod'];
+        const providerSet = new Set<ApiProvider>(supportedProviders);
+
+        if (!providerSet.has(this.settings.apiProvider)) {
+            this.settings.apiProvider = 'openrouter';
+        }
+
+        function isValidQuickSwitchModel(model: QuickSwitchModel): boolean {
+            return providerSet.has(model.provider);
+        }
+
+        this.settings.quickSwitchTextModels = (this.settings.quickSwitchTextModels || [])
+            .filter(isValidQuickSwitchModel);
+        this.settings.quickSwitchImageModels = (this.settings.quickSwitchImageModels || [])
+            .filter(isValidQuickSwitchModel);
+
+        function isValidPaletteModel(modelKey: string): boolean {
+            if (!modelKey) return true;
+            const provider = modelKey.split('|')[0] as ApiProvider;
+            return providerSet.has(provider);
+        }
+
+        const paletteModelKeys: Array<'paletteTextModel' | 'paletteImageModel' | 'paletteNodeModel' | 'paletteEditModel'> = [
+            'paletteTextModel',
+            'paletteImageModel',
+            'paletteNodeModel',
+            'paletteEditModel'
+        ];
+
+        for (const key of paletteModelKeys) {
+            if (!isValidPaletteModel(this.settings[key] || '')) {
+                this.settings[key] = '';
+            }
+        }
     }
 
     async saveSettings() {

@@ -10,7 +10,6 @@
 | `providers/gemini.ts` | Gemini 原生 API | 图片生成、多模态 |
 | `providers/openrouter.ts` | OpenRouter 代理 | 兼容 OpenAI 格式 |
 | `providers/gptgod.ts` | GPTGod 代理 | 兼容 OpenAI 格式 |
-| `providers/antigravitytools.ts` | AntigravityTools | Gemini 文字 / OpenAI 兼容图片 / Thought Signatures |
 | `types.ts` | 类型定义 | `GeminiContent`, `GeminiPart` (含 thoughtSignature) |
 
 ## Canvas 功能 (`src/canvas/`)

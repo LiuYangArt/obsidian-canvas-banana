@@ -33,7 +33,7 @@ export class CanvasAISettingTab extends PluginSettingTab {
 
     /**
      * Fetch models from API (OpenRouter or Yunwu based on provider)
-     * For Gemini and AntigravityTools, use hardcoded model list
+     * For Gemini, use hardcoded model list
      */
     private async fetchModels(): Promise<void> {
         if (this.isFetching) return;
@@ -42,14 +42,12 @@ export class CanvasAISettingTab extends PluginSettingTab {
         const isYunwu = provider === 'yunwu';
         const isGemini = provider === 'gemini';
         const isGptGod = provider === 'gptgod';
-        const isAntigravityTools = provider === 'antigravitytools';
 
-        // Gemini and AntigravityTools use hardcoded model list (no API endpoint)
-        if (isGemini || isAntigravityTools) {
+        // Gemini uses hardcoded model list (no API endpoint)
+        if (isGemini) {
             this.modelCache = this.getGeminiHardcodedModels();
             this.modelsFetched = true;
-            const source = isGemini ? 'Gemini' : 'AntigravityTools';
-            console.debug(`Canvas Banana Settings: Loaded ${this.modelCache.length} hardcoded ${source} models`);
+            console.debug(`Canvas Banana Settings: Loaded ${this.modelCache.length} hardcoded Gemini models`);
             void this.display();
             return;
         }
@@ -320,7 +318,6 @@ export class CanvasAISettingTab extends PluginSettingTab {
                 .addOption('yunwu', t('Yunwu'))
 
                 .addOption('gptgod', t('GPTGod'))
-                .addOption('antigravitytools', t('AntigravityTools'))
                 .setValue(this.plugin.settings.apiProvider)
                 .onChange(async (value) => {
                     this.plugin.settings.apiProvider = value as ApiProvider;
@@ -339,7 +336,6 @@ export class CanvasAISettingTab extends PluginSettingTab {
 
         const isGemini = provider === 'gemini';
         const isGptGod = provider === 'gptgod';
-        const isAntigravityTools = provider === 'antigravitytools';
 
         // ========== Configuration Section ==========
         if (provider === 'openrouter') {
@@ -445,31 +441,6 @@ export class CanvasAISettingTab extends PluginSettingTab {
                         await this.plugin.saveSettings();
                         this.plugin.apiManager?.updateSettings(this.plugin.settings);
                     }));
-        } else if (provider === 'antigravitytools') {
-            const antigravityKeySetting = new Setting(containerEl)
-                .setName(t('AntigravityTools API key'))
-                .setDesc(t('Enter your AntigravityTools API key'))
-                .addText(text => text
-                    .setPlaceholder(t('Placeholder API key'))
-                    .setValue(this.plugin.settings.antigravityToolsApiKey)
-                    .onChange(async (value) => {
-                        this.plugin.settings.antigravityToolsApiKey = value;
-                        await this.plugin.saveSettings();
-                    }));
-
-            this.addTestButton(antigravityKeySetting.controlEl, containerEl);
-
-            new Setting(containerEl)
-                .setName(t('API base URL'))
-                .setDesc(t('API base URL'))
-                .addText(text => text
-                    .setPlaceholder('http://127.0.0.1:8045')
-                    .setValue(this.plugin.settings.antigravityToolsBaseUrl)
-                    .onChange(async (value) => {
-                        this.plugin.settings.antigravityToolsBaseUrl = value;
-                        await this.plugin.saveSettings();
-                        this.plugin.apiManager?.updateSettings(this.plugin.settings);
-                    }));
         }
 
         // ========== 模型配置区域 ==========
@@ -477,15 +448,18 @@ export class CanvasAISettingTab extends PluginSettingTab {
 
         // Fetch models if not already fetched (Non-blocking)
         // For Gemini, use hardcoded list; for OpenRouter/Yunwu, fetch from API
-        const apiKey = isGemini
-            ? this.plugin.settings.geminiApiKey
-            : isYunwu
-                ? this.plugin.settings.yunwuApiKey
-                : isGptGod
-                    ? this.plugin.settings.gptGodApiKey
-                    : isAntigravityTools
-                        ? this.plugin.settings.antigravityToolsApiKey
-                        : this.plugin.settings.openRouterApiKey;
+        let apiKey = this.plugin.settings.openRouterApiKey;
+        switch (provider) {
+            case 'gemini':
+                apiKey = this.plugin.settings.geminiApiKey;
+                break;
+            case 'yunwu':
+                apiKey = this.plugin.settings.yunwuApiKey;
+                break;
+            case 'gptgod':
+                apiKey = this.plugin.settings.gptGodApiKey;
+                break;
+        }
         if (!this.modelsFetched && apiKey && !this.isFetching) {
             setTimeout(() => void this.fetchModels(), 0);
         }
@@ -495,7 +469,14 @@ export class CanvasAISettingTab extends PluginSettingTab {
         if (this.isFetching) {
             statusText = t('Fetching...');
         } else if (this.modelsFetched) {
-            const source = isGemini ? 'Gemini (Hardcoded)' : isYunwu ? 'Yunwu' : isGptGod ? 'GPTGod' : isAntigravityTools ? 'AntigravityTools (Hardcoded)' : 'OpenRouter';
+            let source = 'OpenRouter';
+            if (isGemini) {
+                source = 'Gemini (Hardcoded)';
+            } else if (isYunwu) {
+                source = 'Yunwu';
+            } else if (isGptGod) {
+                source = 'GPTGod';
+            }
             statusText = t('Loaded models', {
                 count: this.modelCache.length,
                 textCount: this.getTextModels().length,
@@ -508,8 +489,8 @@ export class CanvasAISettingTab extends PluginSettingTab {
             .setName(t('Model list'))
             .setDesc(statusText);
 
-        // Only show refresh button for OpenRouter/Yunwu (not Gemini or AntigravityTools)
-        if (!isGemini && !isAntigravityTools) {
+        // Only show refresh button for OpenRouter/Yunwu/GPTGod (not Gemini)
+        if (!isGemini) {
             const refreshBtn = refreshSetting.controlEl.createEl('button', {
                 text: this.isFetching ? t('Refreshing...') : t('Refresh model list'),
                 cls: 'canvas-ai-refresh-btn'
@@ -530,12 +511,26 @@ export class CanvasAISettingTab extends PluginSettingTab {
         this.renderQuickSwitchCompact(containerEl, provider);
 
         // ========== Text Model Setting ==========
-        // Get model keys based on provider
-        // Get model keys based on provider
-        const textModelKey = isGemini ? 'geminiTextModel' : isYunwu ? 'yunwuTextModel' : isGptGod ? 'gptGodTextModel' : isAntigravityTools ? 'antigravityToolsTextModel' : 'openRouterTextModel';
-        const textCustomKey = isGemini ? 'geminiUseCustomTextModel' : isYunwu ? 'yunwuUseCustomTextModel' : isGptGod ? 'gptGodUseCustomTextModel' : isAntigravityTools ? 'antigravityToolsUseCustomTextModel' : 'openRouterUseCustomTextModel';
-        const textPlaceholder = isGemini ? 'gemini-2.5-flash' : isYunwu ? 'gemini-2.5-flash' : isGptGod ? 'gemini-2.5-flash' : isAntigravityTools ? 'gemini-3-flash' : 'google/gemini-2.5-flash';
-
+        let textModelKey: keyof CanvasAISettings = 'openRouterTextModel';
+        let textCustomKey: keyof CanvasAISettings = 'openRouterUseCustomTextModel';
+        let textPlaceholder = 'google/gemini-2.5-flash';
+        switch (provider) {
+            case 'gemini':
+                textModelKey = 'geminiTextModel';
+                textCustomKey = 'geminiUseCustomTextModel';
+                textPlaceholder = 'gemini-2.5-flash';
+                break;
+            case 'yunwu':
+                textModelKey = 'yunwuTextModel';
+                textCustomKey = 'yunwuUseCustomTextModel';
+                textPlaceholder = 'gemini-2.5-flash';
+                break;
+            case 'gptgod':
+                textModelKey = 'gptGodTextModel';
+                textCustomKey = 'gptGodUseCustomTextModel';
+                textPlaceholder = 'gemini-2.5-flash';
+                break;
+        }
 
         this.renderModelSetting(containerEl, {
             name: t('Text generation model'),
@@ -547,10 +542,26 @@ export class CanvasAISettingTab extends PluginSettingTab {
         });
 
         // ========== Image Model Setting ==========
-        // ========== Image Model Setting ==========
-        const imageModelKey = isGemini ? 'geminiImageModel' : isYunwu ? 'yunwuImageModel' : isGptGod ? 'gptGodImageModel' : isAntigravityTools ? 'antigravityToolsImageModel' : 'openRouterImageModel';
-        const imageCustomKey = isGemini ? 'geminiUseCustomImageModel' : isYunwu ? 'yunwuUseCustomImageModel' : isGptGod ? 'gptGodUseCustomImageModel' : isAntigravityTools ? 'antigravityToolsUseCustomImageModel' : 'openRouterUseCustomImageModel';
-        const imagePlaceholder = isGemini ? 'gemini-3-pro-image-preview' : isYunwu ? 'gemini-3-pro-image-preview' : isGptGod ? 'gemini-3-pro-image-preview' : isAntigravityTools ? 'gemini-3-pro-image' : 'google/gemini-3-pro-image-preview';
+        let imageModelKey: keyof CanvasAISettings = 'openRouterImageModel';
+        let imageCustomKey: keyof CanvasAISettings = 'openRouterUseCustomImageModel';
+        let imagePlaceholder = 'google/gemini-3-pro-image-preview';
+        switch (provider) {
+            case 'gemini':
+                imageModelKey = 'geminiImageModel';
+                imageCustomKey = 'geminiUseCustomImageModel';
+                imagePlaceholder = 'gemini-3-pro-image-preview';
+                break;
+            case 'yunwu':
+                imageModelKey = 'yunwuImageModel';
+                imageCustomKey = 'yunwuUseCustomImageModel';
+                imagePlaceholder = 'gemini-3-pro-image-preview';
+                break;
+            case 'gptgod':
+                imageModelKey = 'gptGodImageModel';
+                imageCustomKey = 'gptGodUseCustomImageModel';
+                imagePlaceholder = 'gemini-3-pro-image-preview';
+                break;
+        }
 
         this.renderModelSetting(containerEl, {
             name: t('Image generation model'),

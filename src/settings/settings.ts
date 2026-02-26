@@ -6,7 +6,7 @@
 import { DEFAULT_EDIT_MODE_PROMPT } from '../prompts';
 
 // ========== API Provider Type ==========
-export type ApiProvider = 'openrouter' | 'yunwu' | 'gemini' | 'gptgod' | 'antigravitytools';
+export type ApiProvider = 'openrouter' | 'yunwu' | 'gemini' | 'gptgod';
 
 // ========== Quick Switch Model ==========
 export interface QuickSwitchModel {
@@ -58,14 +58,6 @@ export interface CanvasAISettings {
     gptGodImageModel: string;
     gptGodUseCustomTextModel: boolean;
     gptGodUseCustomImageModel: boolean;
-
-    // AntigravityTools settings
-    antigravityToolsApiKey: string;
-    antigravityToolsBaseUrl: string;
-    antigravityToolsTextModel: string;
-    antigravityToolsImageModel: string;
-    antigravityToolsUseCustomTextModel: boolean;
-    antigravityToolsUseCustomImageModel: boolean;
 
     // Legacy fields (for migration)
     textModel?: string;
@@ -168,13 +160,6 @@ export const DEFAULT_SETTINGS: CanvasAISettings = {
     gptGodUseCustomTextModel: false,
     gptGodUseCustomImageModel: false,
 
-    antigravityToolsApiKey: '',
-    antigravityToolsBaseUrl: 'http://127.0.0.1:8045',
-    antigravityToolsTextModel: 'gemini-3-flash',
-    antigravityToolsImageModel: 'gemini-3-pro-image',
-    antigravityToolsUseCustomTextModel: false,
-    antigravityToolsUseCustomImageModel: false,
-
     imageCompressionQuality: 80,
     imageMaxSize: 2048,
     defaultAspectRatio: '1:1',
@@ -240,8 +225,6 @@ export function getModelByProvider(
             return settings[`gemini${key}`];
         case 'gptgod':
             return settings[`gptGod${key}`];
-        case 'antigravitytools':
-            return settings[`antigravityTools${key}`];
         default:
             return '';
     }
@@ -272,10 +255,6 @@ export function setModelByProvider(
         case 'gptgod':
             if (type === 'text') settings.gptGodTextModel = modelId;
             else settings.gptGodImageModel = modelId;
-            break;
-        case 'antigravitytools':
-            if (type === 'text') settings.antigravityToolsTextModel = modelId;
-            else settings.antigravityToolsImageModel = modelId;
             break;
     }
 }

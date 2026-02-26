@@ -1241,9 +1241,7 @@ export class SideBarCoPilotView extends ItemView {
         }));
       }
 
-      const isGemini =
-        this.selectedTextModel.startsWith("gemini") ||
-        this.selectedTextModel.startsWith("antigravity");
+      const isGemini = this.selectedTextModel.startsWith("gemini");
 
       // Construct message based on provider capability
       if (isGemini) {
