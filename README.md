@@ -20,7 +20,7 @@ Canvas Banana 是一个原名为 Obsidian Canvas AI 的插件，现在它不仅�
     *   智能识别选中的 Canvas 节点内容作为对话背景。
     *   在白板中直接与 AI 探讨想法、总结内容或扩展思路。
     *   支持调节 "Temperature" 以控制回答的创造性。
-    *   **流式响应 (Streaming)**：支持所有主流 Provider (Gemini, OpenAI, GptGod, Antigravity等) 的打字机流式输出。
+    *   **流式响应 (Streaming)**：支持主流 Provider (Gemini, OpenAI 等) 的流式输出。
 
 *   **🎨 AI 图像生成 (Image Generation)**
     *   将文字描述转化为高质量图片。
@@ -47,14 +47,14 @@ Canvas Banana 是一个原名为 Obsidian Canvas AI 的插件，现在它不仅�
     *   **文件节点支持**: 支持直接编辑 Canvas 中引用的 .md 文件节点。
 
 *   **🌍 多 API 支持**
-    *   支持 **Gemini** (Google), **OpenRouter**, **Yunwu**, **Antigravity Tools** 等多种 API 提供商。
+    *   支持 **Gemini** (Google), **OpenRouter** 等多种 API 提供商。
     *   支持自定义 Base URL 以适配各种 OpenAI 兼容接口。
       
 ## ⚠️ 免责声明 (Disclaimer)
 
 使用本插件即代表您同意以下条款：
 
-1.  **第三方服务**：本插件的功能实现依赖于第三方 API 服务（如 OpenRouter AI 或 Yunwu AI）。插件作者与这些服务提供商无直接关联。
+1.  **第三方服务**：本插件的功能实现依赖于第三方 API 服务（如 OpenRouter 等）。插件作者与这些服务提供商无直接关联。
 2.  **费用自理**：调用 AI 模型可能产生 API 使用费用，该费用由 API 服务商收取，请用户自行在对应平台充值和管理。
 3.  **内容合规**：用户应确保使用生成的内容符合当地法律法规及 OpenAI/Google 等模型提供商的使用政策。插件作者不对用户生成的内容承担法律责任。
 4.  **隐私安全**：您的 API Key 仅保存在本地 Obsidian 配置中，插件不会将其上传至除此之外的任何服务器。但请注意，对话内容会被发送至第三方 API 此外进行处理。
@@ -153,7 +153,7 @@ The core philosophy is "**Context Awareness**"—whether it's a node on a whiteb
     *   Intelligently recognizes selected Canvas node content as conversation context.
     *   Discuss ideas, summarize content, or brainstorm with AI directly on the canvas.
     *   Supports "Temperature" adjustment to control the creativity of responses.
-    *   **Streaming Support**: Typewriter-style streaming response for all major providers (Gemini, OpenAI, GptGod, Antigravity, etc.).
+    *   **Streaming Support**: Supports streaming output for major providers (Gemini, OpenAI, etc.).
 
 *   **🎨 AI Image Generation**
     *   Transforms text descriptions into high-quality images.
@@ -198,7 +198,7 @@ The core philosophy is "**Context Awareness**"—whether it's a node on a whiteb
     *   Intelligently recognizes selected Canvas node content as conversation context.
     *   Discuss ideas, summarize content, or brainstorm with AI directly on the canvas.
     *   Supports "Temperature" adjustment to control the creativity of responses.
-    *   **Streaming Support**: Typewriter-style streaming response for all major providers (Gemini, OpenAI, GptGod, Antigravity, etc.).
+    *   **Streaming Support**: Supports streaming output for major providers (Gemini, OpenAI, etc.).
 
 *   **🎨 AI Image Generation**
     *   Transforms text descriptions into high-quality images.
@@ -225,14 +225,14 @@ The core philosophy is "**Context Awareness**"—whether it's a node on a whiteb
     *   **File Node Support**: Directly edit .md file nodes referenced in the Canvas.
 
 *   **🌍 Multi-API Support**
-    *   Supports **Gemini**, **OpenRouter**, **Yunwu**, **Antigravity Tools**, and more.
+    *   Supports multiple API providers, including **Gemini** (Google) and **OpenRouter**.
     *   Customizable Base URL for OpenAI-compatible providers.
 
 ## ⚠️ Disclaimer
 
 By using this plugin, you agree to the following terms:
 
-1.  **Third-Party Services**: This plugin relies on third-party API services (e.g., OpenRouter AI, Yunwu AI, Google Gemini). The plugin author is not directly affiliated with these providers.
+1.  **Third-Party Services**: This plugin relies on third-party API services (e.g., OpenRouter and similar providers). The plugin author is not directly affiliated with these providers.
 2.  **Costs**: Calling AI models may incur API usage fees charged by the service provider. Please manage your billing on the respective platforms.
 3.  **Content Compliance**: Users are responsible for ensuring generated content complies with local laws and the policies of model providers. The author assumes no liability for user-generated content.
 4.  **Privacy**: Your API Key is stored locally in your Obsidian config and is not uploaded to any server by the plugin. However, conversation content is sent to the third-party API for processing.
