@@ -10,6 +10,7 @@ import { InputModal, ConfirmModal } from './modals';
 import { t } from '../../lang/helpers';
 import { formatProviderName } from '../utils/format-utils';
 import { createThinkingOptionsRow, ThinkingOptionsElements } from '../notes/shared-ui-builder';
+import { IMAGE_ASPECT_RATIO_OPTIONS, IMAGE_RESOLUTION_OPTIONS } from '../utils/image-generation-options';
 
 // Palette Mode Type
 export type PaletteMode = 'text' | 'image' | 'node' | 'edit';
@@ -231,12 +232,12 @@ export class FloatingPalette {
         const resGrp = imgRow.createEl('span', 'canvas-ai-option-group');
         resGrp.createEl('label', { text: t('Resolution') });
         this.resolutionSelect = resGrp.createEl('select', 'canvas-ai-resolution-select dropdown');
-        ['1K', '2K', '4K'].forEach(v => this.resolutionSelect!.createEl('option', { value: v, text: v }));
+        IMAGE_RESOLUTION_OPTIONS.forEach(v => this.resolutionSelect!.createEl('option', { value: v, text: v }));
 
         const ratioGrp = imgRow.createEl('span', 'canvas-ai-option-group');
         ratioGrp.createEl('label', { text: t('Ratio') });
         this.ratioSelect = ratioGrp.createEl('select', 'canvas-ai-ratio-select dropdown');
-        ['1:1', '2:3', '3:2', '3:4', '4:3', '4:5', '5:4', '9:16', '16:9', '21:9'].forEach(v => this.ratioSelect!.createEl('option', { value: v, text: v }));
+        IMAGE_ASPECT_RATIO_OPTIONS.forEach(v => this.ratioSelect!.createEl('option', { value: v, text: v }));
 
         const imgModelRow = this.imageOptionsEl.createDiv({ cls: 'canvas-ai-option-row canvas-ai-image-model-select-row is-hidden' });
         const imgModelGrp = imgModelRow.createEl('span', 'canvas-ai-option-group');

@@ -3,6 +3,8 @@
  * 包含 OpenRouter、Gemini、GptGod 等 Provider 的类型
  */
 
+import type { ImageAspectRatioOption } from '../utils/image-generation-options';
+
 // ========== Error Type ==========
 
 export interface HttpError {
@@ -29,9 +31,11 @@ export interface OpenRouterContentPart {
 }
 
 export interface OpenRouterImageConfig {
-    aspect_ratio?: '1:1' | '16:9' | '4:3' | '9:16';
+    aspect_ratio?: ImageAspectRatioOption;
     image_size?: string;
 }
+
+export type OpenRouterAspectRatio = NonNullable<OpenRouterImageConfig['aspect_ratio']>;
 
 export interface OpenRouterRequest {
     model: string;

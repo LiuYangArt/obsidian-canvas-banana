@@ -6,6 +6,7 @@
 import { requestUrl } from 'obsidian';
 import type { CanvasAISettings } from '../../settings/settings';
 import type {
+    OpenRouterAspectRatio,
     OpenRouterMessage,
     OpenRouterContentPart,
     OpenRouterRequest,
@@ -236,7 +237,7 @@ export class OpenRouterProvider {
         if (aspectRatio || resolution) {
             requestBody.image_config = {};
             if (aspectRatio) {
-                requestBody.image_config.aspect_ratio = aspectRatio as '1:1' | '16:9' | '4:3' | '9:16';
+                requestBody.image_config.aspect_ratio = aspectRatio as OpenRouterAspectRatio;
             }
             if (resolution) {
                 requestBody.image_config.image_size = resolution;

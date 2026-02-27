@@ -6,6 +6,7 @@
 import { requestUrl } from 'obsidian';
 import type { CanvasAISettings } from '../../settings/settings';
 import type {
+    OpenRouterAspectRatio,
     OpenRouterMessage,
     OpenRouterContentPart,
     OpenRouterRequest,
@@ -130,6 +131,11 @@ export class GptGodProvider {
             model: model,
             messages: messages,
         };
+        if (aspectRatio) {
+            requestBody.image_config = {
+                aspect_ratio: aspectRatio as OpenRouterAspectRatio
+            };
+        }
 
         console.debug(`Canvas AI: [GPTGod] Sending image request (Model: ${model})...`);
         const timeoutMs = (this.settings.imageGenerationTimeout || 120) * 1000;
