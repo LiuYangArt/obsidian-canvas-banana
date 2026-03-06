@@ -24,11 +24,38 @@ export class CanvasAISettingTab extends PluginSettingTab {
     plugin: CanvasAIPlugin;
     private modelCache: OpenRouterModel[] = [];
     private modelsFetched: boolean = false;
+    private modelFetchAttempted: boolean = false;
+    private lastModelFetchError: { message: string; timestamp: number } | null = null;
     private isFetching: boolean = false;
 
     constructor(app: App, plugin: CanvasAIPlugin) {
         super(app, plugin);
         this.plugin = plugin;
+    }
+
+    private loadGeminiModels(): void {
+        this.modelCache = this.getGeminiHardcodedModels();
+        this.modelsFetched = true;
+        this.modelFetchAttempted = true;
+    }
+
+    private resetModelFetchState(clearCache: boolean): void {
+        this.modelsFetched = false;
+        this.modelFetchAttempted = false;
+        if (clearCache) {
+            this.modelCache = [];
+        }
+    }
+
+    private showModelFetchError(message: string): void {
+        const now = Date.now();
+        const lastError = this.lastModelFetchError;
+        if (lastError && lastError.message === message && now - lastError.timestamp < 5000) {
+            return;
+        }
+
+        this.lastModelFetchError = { message, timestamp: now };
+        new Notice(`Failed to fetch model list: ${message}`);
     }
 
     /**
@@ -45,8 +72,7 @@ export class CanvasAISettingTab extends PluginSettingTab {
 
         // Gemini uses hardcoded model list (no API endpoint)
         if (isGemini) {
-            this.modelCache = this.getGeminiHardcodedModels();
-            this.modelsFetched = true;
+            this.loadGeminiModels();
             console.debug(`Canvas Banana Settings: Loaded ${this.modelCache.length} hardcoded Gemini models`);
             void this.display();
             return;
@@ -64,6 +90,7 @@ export class CanvasAISettingTab extends PluginSettingTab {
         }
 
         this.isFetching = true;
+        this.modelFetchAttempted = true;
         try {
             let endpoint: string;
             let headers: Record<string, string>;
@@ -101,12 +128,13 @@ export class CanvasAISettingTab extends PluginSettingTab {
             }));
 
             this.modelsFetched = true;
+            this.lastModelFetchError = null;
             console.debug(`Canvas Banana Settings: Fetched ${this.modelCache.length} models from ${isYunwu ? 'Yunwu' : 'OpenRouter'}`);
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             console.error('Canvas Banana Settings: Failed to fetch models:', message);
             // Keep existing cache or empty
-            new Notice(`Failed to fetch model list: ${message}`);
+            this.showModelFetchError(message);
         } finally {
             this.isFetching = false;
             // Update UI after fetch completes (success or error)
@@ -323,9 +351,11 @@ export class CanvasAISettingTab extends PluginSettingTab {
                     this.plugin.settings.apiProvider = value as ApiProvider;
                     await this.plugin.saveSettings();
 
-                    // Auto-refresh models when switching provider (Non-blocking)
-                    this.modelsFetched = false;
-                    void this.fetchModels(); // Fire and forget
+                    if (value === 'gemini') {
+                        this.loadGeminiModels();
+                    } else {
+                        this.resetModelFetchState(true);
+                    }
 
                     // Re-render immediately to show/hide provider-specific settings
                     void this.display();
@@ -336,6 +366,10 @@ export class CanvasAISettingTab extends PluginSettingTab {
 
         const isGemini = provider === 'gemini';
         const isGptGod = provider === 'gptgod';
+
+        if (isGemini && !this.modelsFetched) {
+            this.loadGeminiModels();
+        }
 
         // ========== Configuration Section ==========
         if (provider === 'openrouter') {
@@ -446,24 +480,6 @@ export class CanvasAISettingTab extends PluginSettingTab {
         // ========== 模型配置区域 ==========
         new Setting(containerEl).setHeading().setName(t('Model configuration'));
 
-        // Fetch models if not already fetched (Non-blocking)
-        // For Gemini, use hardcoded list; for OpenRouter/Yunwu, fetch from API
-        let apiKey = this.plugin.settings.openRouterApiKey;
-        switch (provider) {
-            case 'gemini':
-                apiKey = this.plugin.settings.geminiApiKey;
-                break;
-            case 'yunwu':
-                apiKey = this.plugin.settings.yunwuApiKey;
-                break;
-            case 'gptgod':
-                apiKey = this.plugin.settings.gptGodApiKey;
-                break;
-        }
-        if (!this.modelsFetched && apiKey && !this.isFetching) {
-            setTimeout(() => void this.fetchModels(), 0);
-        }
-
         // Refresh button - show status for all providers
         let statusText = t('Click refresh');
         if (this.isFetching) {
@@ -502,6 +518,7 @@ export class CanvasAISettingTab extends PluginSettingTab {
                 refreshBtn.textContent = 'Fetching...';
                 refreshBtn.disabled = true;
                 this.modelsFetched = false; // Force refresh
+                this.modelFetchAttempted = false;
                 void this.fetchModels(); // Fire and forget
                 // UI will be updated by fetchModels finally block
             });
@@ -1022,6 +1039,13 @@ export class CanvasAISettingTab extends PluginSettingTab {
         const models = getModels();
         const hasModels = models.length > 0;
         const isManualMode = useCustom || !hasModels;
+        let currentModelId = (this.plugin.settings[modelKey] as string) || '';
+
+        if (!isManualMode && !currentModelId && models[0]) {
+            currentModelId = models[0].id;
+            (this.plugin.settings[modelKey] as string) = currentModelId;
+            void this.plugin.saveSettings();
+        }
 
         // 1. Model Selection (Dropdown or Input)
         const modelSetting = new Setting(containerEl)
@@ -1048,12 +1072,10 @@ export class CanvasAISettingTab extends PluginSettingTab {
         } else {
             // Dropdown Mode
             modelSetting.addDropdown(dropdown => {
-                const currentValue = (this.plugin.settings[modelKey] as string);
-
                 // Add current value first if not in list (to preserve custom values)
                 const modelIds = models.map(m => m.id);
-                if (currentValue && !modelIds.includes(currentValue)) {
-                    dropdown.addOption(currentValue, `${currentValue} (Current)`);
+                if (currentModelId && !modelIds.includes(currentModelId)) {
+                    dropdown.addOption(currentModelId, `${currentModelId} (Current)`);
                 }
 
                 // Add all models from API
@@ -1061,8 +1083,9 @@ export class CanvasAISettingTab extends PluginSettingTab {
                     dropdown.addOption(model.id, `${model.name} (${model.id})`);
                 }
 
-                dropdown.setValue(currentValue || '');
+                dropdown.setValue(currentModelId || '');
                 dropdown.onChange(async (value) => {
+                    currentModelId = value;
                     (this.plugin.settings[modelKey] as string) = value;
                     await this.plugin.saveSettings();
                 });
@@ -1071,13 +1094,11 @@ export class CanvasAISettingTab extends PluginSettingTab {
 
         // Add "Add to Quick Switch" button
         const provider = this.plugin.settings.apiProvider;
-        const currentModelId = this.plugin.settings[modelKey] as string;
         if (currentModelId) {
             modelSetting.addButton(btn => btn
                 .setButtonText(t('Add to quick switch'))
                 .onClick(async () => {
-                    // Get current model ID at click time (not closure capture time)
-                    const modelIdNow = this.plugin.settings[modelKey] as string;
+                    const modelIdNow = (this.plugin.settings[modelKey] as string) || currentModelId;
                     if (!modelIdNow) {
                         new Notice(t('No model selected'));
                         return;
