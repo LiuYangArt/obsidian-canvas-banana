@@ -7,6 +7,7 @@ import { requestUrl } from 'obsidian';
 import type { CanvasAISettings } from '../../settings/settings';
 import type {
     OpenRouterAspectRatio,
+    OpenRouterChoice,
     OpenRouterMessage,
     OpenRouterContentPart,
     OpenRouterRequest,
@@ -258,10 +259,8 @@ export class OpenRouterProvider {
         }
 
         const message = response.choices[0].message;
-
-        if (message.images && message.images.length > 0) {
-            const firstImage = message.images[0];
-            const imageUrl = typeof firstImage === 'string' ? firstImage : firstImage.image_url.url;
+        const imageUrl = await this.extractImageFromMessage(message);
+        if (imageUrl) {
             console.debug('Canvas AI: Received image, length:', imageUrl.length);
             return imageUrl;
         }
@@ -338,6 +337,103 @@ export class OpenRouterProvider {
         }
 
         return { content, thinking: thinking || undefined };
+    }
+
+    private async extractImageFromMessage(message: OpenRouterChoice['message']): Promise<string | null> {
+        if (message.images && message.images.length > 0) {
+            const firstImage = message.images[0];
+            const firstRef = typeof firstImage === 'string' ? firstImage : firstImage.image_url.url;
+            const normalized = await this.normalizeImageRef(firstRef);
+            if (normalized) return normalized;
+        }
+
+        if (message.image_url) {
+            const normalized = await this.normalizeImageRef(message.image_url);
+            if (normalized) return normalized;
+        }
+
+        if (Array.isArray(message.content)) {
+            let textContent = '';
+            for (const part of message.content) {
+                if (part?.type === 'image_url' && part.image_url?.url) {
+                    const normalized = await this.normalizeImageRef(part.image_url.url);
+                    if (normalized) return normalized;
+                }
+                if (part?.type === 'text' && part.text) {
+                    textContent += `${part.text}\n`;
+                }
+            }
+            const fromText = await this.extractImageFromText(textContent);
+            if (fromText) return fromText;
+            return null;
+        }
+
+        if (typeof message.content === 'string') {
+            return await this.extractImageFromText(message.content);
+        }
+
+        return null;
+    }
+
+    private async extractImageFromText(text: string): Promise<string | null> {
+        if (!text) return null;
+
+        // Markdown image: ![alt](...)
+        const markdownMatch = /!\[[^\]]*]\(([^)]+)\)/i.exec(text);
+        if (markdownMatch?.[1]) {
+            const normalized = await this.normalizeImageRef(markdownMatch[1].trim());
+            if (normalized) return normalized;
+        }
+
+        // Direct data URL
+        const dataUrlMatch = /(data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/_=-]+)/i.exec(text);
+        if (dataUrlMatch?.[1]) return dataUrlMatch[1];
+
+        // Plain image URL with extension
+        const imageUrlMatch = /(https?:\/\/[^\s"')<>]+\.(?:png|jpg|jpeg|webp|gif|bmp))/i.exec(text);
+        if (imageUrlMatch?.[1]) {
+            return await this.fetchImageAsDataUrl(imageUrlMatch[1]);
+        }
+
+        // Raw URL without extension
+        const firstToken = text.trim().split(/\s+/)[0] || '';
+        if (/^https?:\/\//i.test(firstToken)) {
+            return await this.fetchImageAsDataUrl(firstToken);
+        }
+
+        return null;
+    }
+
+    private async normalizeImageRef(ref: string): Promise<string | null> {
+        if (!ref) return null;
+
+        if (ref.startsWith('data:image/')) return ref;
+        if (/^https?:\/\//i.test(ref)) return await this.fetchImageAsDataUrl(ref);
+        if (/^[A-Za-z0-9+/=]+$/.test(ref)) return `data:image/png;base64,${ref}`;
+        return null;
+    }
+
+    private async fetchImageAsDataUrl(url: string): Promise<string> {
+        const response = await requestUrl({ url, method: 'GET' });
+        const arrayBuffer = response.arrayBuffer;
+
+        let mimeType = 'image/png';
+        const contentType = response.headers['content-type'];
+        if (contentType) {
+            mimeType = contentType.split(';')[0].trim();
+        } else if (url.includes('.jpg') || url.includes('.jpeg')) {
+            mimeType = 'image/jpeg';
+        } else if (url.includes('.webp')) {
+            mimeType = 'image/webp';
+        }
+
+        const uint8Array = new Uint8Array(arrayBuffer);
+        let binary = '';
+        for (let i = 0; i < uint8Array.length; i++) {
+            binary += String.fromCharCode(uint8Array[i]);
+        }
+        const base64Data = window.btoa(binary);
+        return `data:${mimeType};base64,${base64Data}`;
     }
 
     private async sendRequest(body: OpenRouterRequest, timeoutMs?: number): Promise<OpenRouterResponse> {
