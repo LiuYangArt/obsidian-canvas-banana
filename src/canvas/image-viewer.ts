@@ -1,4 +1,4 @@
-import { App, Notice, TFile, WorkspaceLeaf } from 'obsidian';
+import { App, Notice, TFile, WorkspaceLeaf, WorkspaceWindow } from 'obsidian';
 import { t } from '../../lang/helpers';
 import { CanvasAISettings } from '../settings/settings';
 
@@ -69,20 +69,21 @@ export async function openImageInNewWindow(
 ): Promise<void> {
     try {
         if (settings.singleWindowMode && imagePopoutLeaf) {
-            // Check if the leaf is still valid (window not closed)
-            const leaves = app.workspace.getLeavesOfType('image');
+            // Reuse only when the cached leaf still exists and is a real popout window leaf.
             const allLeaves = app.workspace.getLeavesOfType('');
-            // Check if our tracked leaf still exists in workspace
-            if (leaves.includes(imagePopoutLeaf) || allLeaves.includes(imagePopoutLeaf)) {
+            const isLeafAlive = allLeaves.includes(imagePopoutLeaf);
+            const isPopoutLeaf = imagePopoutLeaf.getContainer() instanceof WorkspaceWindow;
+            if (isLeafAlive && isPopoutLeaf) {
                 await imagePopoutLeaf.openFile(file);
                 return;
             }
+            setImagePopoutLeaf(null);
         }
-        // Create new popout window
-        const leaf = app.workspace.openPopoutLeaf();
+        // Create new popout window leaf (preferred API).
+        const leaf = app.workspace.getLeaf('window');
         await leaf.openFile(file);
         // Track the leaf for reuse
-        if (settings.singleWindowMode) {
+        if (settings.singleWindowMode && leaf.getContainer() instanceof WorkspaceWindow) {
             setImagePopoutLeaf(leaf);
         }
     } catch (e) {
