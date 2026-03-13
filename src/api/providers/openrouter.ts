@@ -12,7 +12,7 @@ import type {
     OpenRouterRequest,
     OpenRouterResponse
 } from '../types';
-import { isHttpError, getErrorMessage, requestUrlWithTimeout } from '../utils';
+import { isHttpError, getErrorMessage, requestUrlWithTimeout, buildVersionedApiEndpoint } from '../utils';
 
 export class OpenRouterProvider {
     private settings: CanvasAISettings;
@@ -38,8 +38,8 @@ export class OpenRouterProvider {
     }
 
     private getChatEndpoint(): string {
-        const base = this.settings.openRouterBaseUrl || 'https://openrouter.ai';
-        return `${base}/api/v1/chat/completions`;
+        const base = this.settings.openRouterBaseUrl || 'https://openrouter.ai/api';
+        return buildVersionedApiEndpoint(base, 'v1', 'chat/completions');
     }
 
     /**

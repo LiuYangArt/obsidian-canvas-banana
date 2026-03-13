@@ -11,7 +11,12 @@ import type {
   GeminiPart,
   GeminiContent,
 } from "../types";
-import { isHttpError, getErrorMessage, requestUrlWithTimeout } from "../utils";
+import {
+  isHttpError,
+  getErrorMessage,
+  requestUrlWithTimeout,
+  buildVersionedApiEndpoint,
+} from "../utils";
 
 export class GeminiProvider {
   private settings: CanvasAISettings;
@@ -58,7 +63,11 @@ export class GeminiProvider {
   private getEndpoint(model: string): string {
     const baseUrl = this.getBaseUrl();
     const apiKey = this.getApiKey();
-    return `${baseUrl}/v1beta/models/${model}:generateContent?key=${apiKey}`;
+    return buildVersionedApiEndpoint(
+      baseUrl,
+      "v1beta",
+      `models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`
+    );
   }
 
   /**
@@ -370,6 +379,16 @@ export class GeminiProvider {
       }
     }
 
+    // Fallback: some proxies return markdown image/data URL in text part
+    const outputText = parts
+      .filter((p: GeminiPart) => p.text && !p.thought)
+      .map((p: GeminiPart) => p.text || "")
+      .join("\n");
+    const imageFromText = await this.extractImageFromText(outputText);
+    if (imageFromText) {
+      return imageFromText;
+    }
+
     // No image found
     const outputParts = parts.filter((p: GeminiPart) => p.text && !p.thought);
     const textPart =
@@ -378,6 +397,51 @@ export class GeminiProvider {
         : parts.find((p: GeminiPart) => p.text);
     const textContent = textPart?.text || "No image returned";
     throw new Error(`Image generation failed: ${textContent}`);
+  }
+
+  private async extractImageFromText(text: string): Promise<string | null> {
+    if (!text) return null;
+
+    // Markdown image: ![alt](...)
+    const markdownMatch = /!\[[^\]]*]\(([^)]+)\)/i.exec(text);
+    if (markdownMatch?.[1]) {
+      const normalized = await this.normalizeImageRef(markdownMatch[1].trim());
+      if (normalized) return normalized;
+    }
+
+    // Direct data URL in text
+    const dataUrlMatch =
+      /(data:image\/[a-zA-Z0-9.+-]+;base64,[A-Za-z0-9+/_=-]+)/i.exec(text);
+    if (dataUrlMatch?.[1]) {
+      return dataUrlMatch[1];
+    }
+
+    // Plain image URL with extension
+    const imageUrlMatch =
+      /(https?:\/\/[^\s"')<>]+\.(?:png|jpg|jpeg|webp|gif|bmp))/i.exec(text);
+    if (imageUrlMatch?.[1]) {
+      return await this.fetchImageAsDataUrl(imageUrlMatch[1]);
+    }
+
+    // Plain URL without extension
+    const firstToken = text.trim().split(/\s+/)[0] || "";
+    if (/^https?:\/\//i.test(firstToken)) {
+      return await this.fetchImageAsDataUrl(firstToken);
+    }
+
+    return null;
+  }
+
+  private async normalizeImageRef(ref: string): Promise<string | null> {
+    if (!ref) return null;
+
+    if (ref.startsWith("data:image/")) {
+      return ref;
+    }
+    if (/^https?:\/\//i.test(ref)) {
+      return await this.fetchImageAsDataUrl(ref);
+    }
+    return null;
   }
 
   private async fetchImageAsDataUrl(url: string): Promise<string> {
@@ -448,7 +512,13 @@ export class GeminiProvider {
   > {
     const model = this.getTextModel();
     // Append :streamGenerateContent and alt=sse for streaming
-    const endpoint = `${this.getBaseUrl()}/v1beta/models/${model}:streamGenerateContent?key=${this.getApiKey()}&alt=sse`;
+    const endpoint = buildVersionedApiEndpoint(
+      this.getBaseUrl(),
+      "v1beta",
+      `models/${model}:streamGenerateContent?key=${encodeURIComponent(
+        this.getApiKey()
+      )}&alt=sse`
+    );
 
     let contents: GeminiContent[] = [];
 

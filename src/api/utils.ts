@@ -22,6 +22,21 @@ export function getErrorMessage(error: unknown): string {
 }
 
 /**
+ * Build endpoint from base URL and API version path.
+ * Handles trailing slash compatibility and avoids duplicating the version
+ * when base already ends with /v1 or /v1beta.
+ */
+export function buildVersionedApiEndpoint(baseUrl: string, version: 'v1' | 'v1beta', resourcePath: string): string {
+    const normalizedBase = baseUrl.trim().replace(/\/+$/, '');
+    const normalizedResource = resourcePath.replace(/^\/+/, '');
+    const versionPattern = new RegExp(`/${version}$`, 'i');
+    const baseWithVersion = versionPattern.test(normalizedBase)
+        ? normalizedBase
+        : `${normalizedBase}/${version}`;
+    return `${baseWithVersion}/${normalizedResource}`;
+}
+
+/**
  * Wraps requestUrl with a timeout mechanism using Promise.race
  * @param params Request parameters
  * @param timeoutMs Timeout in milliseconds

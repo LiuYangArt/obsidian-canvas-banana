@@ -13,7 +13,7 @@ import type {
     OpenRouterResponse,
     GptGodResponse
 } from '../types';
-import { isHttpError, getErrorMessage, requestUrlWithTimeout } from '../utils';
+import { isHttpError, getErrorMessage, requestUrlWithTimeout, buildVersionedApiEndpoint } from '../utils';
 
 export class GptGodProvider {
     private settings: CanvasAISettings;
@@ -40,7 +40,7 @@ export class GptGodProvider {
 
     private getChatEndpoint(): string {
         const base = this.settings.gptGodBaseUrl || 'https://api.gptgod.online';
-        return `${base}/v1/chat/completions`;
+        return buildVersionedApiEndpoint(base, 'v1', 'chat/completions');
     }
 
     /**

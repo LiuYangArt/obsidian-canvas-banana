@@ -8,6 +8,7 @@ import type CanvasAIPlugin from '../../main';
 import { ApiProvider, CanvasAISettings, QuickSwitchModel } from './settings';
 import { t } from '../../lang/helpers';
 import { ApiManager } from '../api/api-manager';
+import { buildVersionedApiEndpoint } from '../api/utils';
 import { formatProviderName } from '../utils/format-utils';
 
 
@@ -33,12 +34,6 @@ export class CanvasAISettingTab extends PluginSettingTab {
         this.plugin = plugin;
     }
 
-    private loadGeminiModels(): void {
-        this.modelCache = this.getGeminiHardcodedModels();
-        this.modelsFetched = true;
-        this.modelFetchAttempted = true;
-    }
-
     private resetModelFetchState(clearCache: boolean): void {
         this.modelsFetched = false;
         this.modelFetchAttempted = false;
@@ -59,8 +54,7 @@ export class CanvasAISettingTab extends PluginSettingTab {
     }
 
     /**
-     * Fetch models from API (OpenRouter or Yunwu based on provider)
-     * For Gemini, use hardcoded model list
+     * Fetch models from API for current provider
      */
     private async fetchModels(): Promise<void> {
         if (this.isFetching) return;
@@ -70,16 +64,10 @@ export class CanvasAISettingTab extends PluginSettingTab {
         const isGemini = provider === 'gemini';
         const isGptGod = provider === 'gptgod';
 
-        // Gemini uses hardcoded model list (no API endpoint)
-        if (isGemini) {
-            this.loadGeminiModels();
-            console.debug(`Canvas Banana Settings: Loaded ${this.modelCache.length} hardcoded Gemini models`);
-            void this.display();
-            return;
-        }
-
         const apiKey = isYunwu
             ? this.plugin.settings.yunwuApiKey
+            : isGemini
+                ? this.plugin.settings.geminiApiKey
             : isGptGod
                 ? this.plugin.settings.gptGodApiKey
                 : this.plugin.settings.openRouterApiKey;
@@ -95,15 +83,19 @@ export class CanvasAISettingTab extends PluginSettingTab {
             let endpoint: string;
             let headers: Record<string, string>;
 
-            if (isYunwu) {
+            if (isGemini) {
+                const base = this.plugin.settings.geminiBaseUrl || 'https://generativelanguage.googleapis.com';
+                endpoint = buildVersionedApiEndpoint(base, 'v1beta', `models?key=${encodeURIComponent(apiKey)}`);
+                headers = { 'x-goog-api-key': apiKey };
+            } else if (isYunwu) {
                 // Yunwu uses same OpenAI-compatible models endpoint
-                endpoint = `${this.plugin.settings.yunwuBaseUrl || 'https://yunwu.ai'}/v1/models`;
+                endpoint = buildVersionedApiEndpoint(this.plugin.settings.yunwuBaseUrl || 'https://yunwu.ai', 'v1', 'models');
                 headers = { 'Authorization': `Bearer ${apiKey}` };
             } else if (isGptGod) {
-                endpoint = `${this.plugin.settings.gptGodBaseUrl || 'https://api.gptgod.online'}/v1/models`;
+                endpoint = buildVersionedApiEndpoint(this.plugin.settings.gptGodBaseUrl || 'https://api.gptgod.online', 'v1', 'models');
                 headers = { 'Authorization': `Bearer ${apiKey}` };
             } else {
-                endpoint = 'https://openrouter.ai/api/v1/models';
+                endpoint = buildVersionedApiEndpoint(this.plugin.settings.openRouterBaseUrl || 'https://openrouter.ai/api', 'v1', 'models');
                 headers = { 'Authorization': `Bearer ${apiKey}` };
             }
 
@@ -115,21 +107,51 @@ export class CanvasAISettingTab extends PluginSettingTab {
 
             const data = response.json;
 
-            // Parse and cache model info
+            // Parse and cache model info (supports both OpenAI-style and Gemini-style list schemas)
             interface ModelData {
                 id?: string;
                 name?: string;
+                displayName?: string;
                 architecture?: { output_modalities?: string[] };
+                outputModalities?: string[];
+                supportedGenerationMethods?: string[];
             }
-            this.modelCache = (data.data || []).map((m: ModelData) => ({
-                id: m.id || '',
-                name: m.name || m.id || '',
-                outputModalities: m.architecture?.output_modalities || ['text']
-            }));
+            const rawModels = Array.isArray(data?.data)
+                ? data.data
+                : Array.isArray(data?.models)
+                    ? data.models
+                    : [];
+
+            this.modelCache = rawModels
+                .map((m: ModelData): OpenRouterModel | null => {
+                    // OpenAI-style: { id, name }, Gemini-style: { name: "models/...", displayName }
+                    const rawId = (m.id || m.name || '').trim();
+                    if (!rawId) return null;
+
+                    const id = rawId.replace(/^models\//i, '');
+                    if (!id) return null;
+
+                    const methods = Array.isArray(m.supportedGenerationMethods) ? m.supportedGenerationMethods : [];
+                    const hasImageCapability =
+                        methods.some(method => method.toLowerCase().includes('image')) ||
+                        id.toLowerCase().includes('image');
+
+                    const outputModalities = m.architecture?.output_modalities
+                        || m.outputModalities
+                        || (hasImageCapability ? ['image'] : ['text']);
+
+                    return {
+                        id,
+                        name: m.displayName || m.name || m.id || id,
+                        outputModalities
+                    };
+                })
+                .filter((m: OpenRouterModel | null): m is OpenRouterModel => m !== null);
 
             this.modelsFetched = true;
             this.lastModelFetchError = null;
-            console.debug(`Canvas Banana Settings: Fetched ${this.modelCache.length} models from ${isYunwu ? 'Yunwu' : 'OpenRouter'}`);
+            const source = isGemini ? 'Gemini' : isYunwu ? 'Yunwu' : isGptGod ? 'GPTGod' : 'OpenRouter';
+            console.debug(`Canvas Banana Settings: Fetched ${this.modelCache.length} models from ${source}`);
         } catch (error: unknown) {
             const message = error instanceof Error ? error.message : String(error);
             console.error('Canvas Banana Settings: Failed to fetch models:', message);
@@ -140,30 +162,6 @@ export class CanvasAISettingTab extends PluginSettingTab {
             // Update UI after fetch completes (success or error)
             void this.display();
         }
-    }
-
-    /**
-     * Get hardcoded Gemini models list
-     * Gemini doesn't have a public models API, so we maintain a curated list
-     */
-    private getGeminiHardcodedModels(): OpenRouterModel[] {
-        return [
-            // Gemini 2.5 series
-            { id: 'gemini-2.5-flash', name: 'Gemini 2.5 Flash', outputModalities: ['text'] },
-            { id: 'gemini-2.5-flash-lite', name: 'Gemini 2.5 Flash Lite', outputModalities: ['text'] },
-            { id: 'gemini-2.5-pro', name: 'Gemini 2.5 Pro', outputModalities: ['text'] },
-            { id: 'gemini-2.5-flash-lite-preview-09-2025', name: 'Gemini 2.5 Flash Lite Preview 09-2025', outputModalities: ['text'] },
-            { id: 'gemini-2.5-flash-lite-preview-06-17-nothinking', name: 'Gemini 2.5 Flash Lite Preview 06-17 (No Thinking)', outputModalities: ['text'] },
-            { id: 'gemini-2.5-pro-preview-06-05', name: 'Gemini 2.5 Pro Preview 06-05', outputModalities: ['text'] },
-            { id: 'gemini-2.5-pro-preview-05-06', name: 'Gemini 2.5 Pro Preview 05-06', outputModalities: ['text'] },
-            // Gemini 3 series (Image generation)
-            { id: 'gemini-3-pro-image-preview', name: 'Gemini 3 Pro Image Preview', outputModalities: ['image'] },
-            // GPTGod default
-            { id: 'gpt-4-gizmo-g-2fkFE8rbu', name: 'GPT-4 Gizmo', outputModalities: ['text'] },
-            // Legacy naming (for backward compatibility)
-            { id: 'gemini-pro-latest-thinking-*', name: 'Gemini Pro Latest (Thinking)', outputModalities: ['text'] },
-            { id: 'gemini-flash-latest-nothinking', name: 'Gemini Flash Latest (No Thinking)', outputModalities: ['text'] },
-        ];
     }
 
     // Model keyword filters
@@ -350,12 +348,7 @@ export class CanvasAISettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.apiProvider = value as ApiProvider;
                     await this.plugin.saveSettings();
-
-                    if (value === 'gemini') {
-                        this.loadGeminiModels();
-                    } else {
-                        this.resetModelFetchState(true);
-                    }
+                    this.resetModelFetchState(true);
 
                     // Re-render immediately to show/hide provider-specific settings
                     void this.display();
@@ -366,10 +359,6 @@ export class CanvasAISettingTab extends PluginSettingTab {
 
         const isGemini = provider === 'gemini';
         const isGptGod = provider === 'gptgod';
-
-        if (isGemini && !this.modelsFetched) {
-            this.loadGeminiModels();
-        }
 
         // ========== Configuration Section ==========
         if (provider === 'openrouter') {
@@ -392,7 +381,7 @@ export class CanvasAISettingTab extends PluginSettingTab {
                 .setName(t('API base URL'))
                 .setDesc(t('API base URL'))
                 .addText(text => text
-                    .setPlaceholder('https://openrouter.ai')
+                    .setPlaceholder('https://openrouter.ai/api')
                     .setValue(this.plugin.settings.openRouterBaseUrl)
                     .onChange(async (value) => {
                         this.plugin.settings.openRouterBaseUrl = value;
@@ -487,7 +476,7 @@ export class CanvasAISettingTab extends PluginSettingTab {
         } else if (this.modelsFetched) {
             let source = 'OpenRouter';
             if (isGemini) {
-                source = 'Gemini (Hardcoded)';
+                source = 'Gemini';
             } else if (isYunwu) {
                 source = 'Yunwu';
             } else if (isGptGod) {
@@ -505,24 +494,21 @@ export class CanvasAISettingTab extends PluginSettingTab {
             .setName(t('Model list'))
             .setDesc(statusText);
 
-        // Only show refresh button for OpenRouter/Yunwu/GPTGod (not Gemini)
-        if (!isGemini) {
-            const refreshBtn = refreshSetting.controlEl.createEl('button', {
-                text: this.isFetching ? t('Refreshing...') : t('Refresh model list'),
-                cls: 'canvas-ai-refresh-btn'
-            });
+        const refreshBtn = refreshSetting.controlEl.createEl('button', {
+            text: this.isFetching ? t('Refreshing...') : t('Refresh model list'),
+            cls: 'canvas-ai-refresh-btn'
+        });
 
-            refreshBtn.disabled = this.isFetching;
+        refreshBtn.disabled = this.isFetching;
 
-            refreshBtn.addEventListener('click', () => {
-                refreshBtn.textContent = 'Fetching...';
-                refreshBtn.disabled = true;
-                this.modelsFetched = false; // Force refresh
-                this.modelFetchAttempted = false;
-                void this.fetchModels(); // Fire and forget
-                // UI will be updated by fetchModels finally block
-            });
-        }
+        refreshBtn.addEventListener('click', () => {
+            refreshBtn.textContent = 'Fetching...';
+            refreshBtn.disabled = true;
+            this.modelsFetched = false; // Force refresh
+            this.modelFetchAttempted = false;
+            void this.fetchModels(); // Fire and forget
+            // UI will be updated by fetchModels finally block
+        });
 
         // ========== Quick Switch Models (Compact Display) ==========
         this.renderQuickSwitchCompact(containerEl, provider);
